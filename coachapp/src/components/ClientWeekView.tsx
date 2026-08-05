@@ -3,12 +3,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, getWeekDays, startOfWeek, toISODate } from "@/lib/dates";
+import { Block, TIMER_LABELS, scoreLabel } from "@/lib/workoutTypes";
 
 type Assignment = {
   id: string;
   date: string;
   title: string;
-  blocks: { section: string; lines: string[] }[];
+  blocks: Block[];
   completed: boolean;
 };
 
@@ -90,13 +91,35 @@ export default function ClientWeekView({ clientId }: { clientId: string }) {
                   <div>
                     <p className="font-semibold mb-2">{a.title}</p>
                     {a.blocks.map((b, i) => (
-                      <div key={i} className="mb-2">
-                        <p className="text-sm font-medium text-gray-700">{b.section}</p>
-                        <ul className="text-sm text-gray-600 ml-3 list-disc">
-                          {b.lines.map((line, j) => (
-                            <li key={j}>{line}</li>
-                          ))}
-                        </ul>
+                      <div key={i} className="mb-4 border-l-2 border-brand pl-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                          {b.type}
+                        </p>
+                        <div
+                          className="text-sm text-gray-700 [&_a]:text-blue-600 [&_a]:underline [&_ul]:list-disc [&_ul]:ml-5 [&_ol]:list-decimal [&_ol]:ml-5 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-semibold"
+                          dangerouslySetInnerHTML={{ __html: b.description }}
+                        />
+                        {(b.timer || b.rpe !== null || b.score) && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {b.timer && (
+                              <span className="text-xs bg-gray-100 rounded-full px-2 py-1">
+                                ⏱ {TIMER_LABELS[b.timer.type]} {b.timer.minutes}:
+                                {String(b.timer.seconds).padStart(2, "0")}
+                              </span>
+                            )}
+                            {b.rpe !== null && (
+                              <span className="text-xs bg-gray-100 rounded-full px-2 py-1">
+                                RPE {b.rpe}
+                              </span>
+                            )}
+                            {b.score && (
+                              <span className="text-xs bg-gray-100 rounded-full px-2 py-1">
+                                🎯 {scoreLabel(b.score.type)}
+                                {b.score.target ? `: ${b.score.target}` : ""}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
