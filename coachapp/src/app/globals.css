@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-50 text-gray-900;
+}
+
+.card {
+  @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-5;
+}
+
+.btn-primary {
+  @apply bg-brand text-brand-dark font-semibold rounded-full px-5 py-2.5 hover:opacity-90 transition disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply bg-gray-100 text-gray-800 font-semibold rounded-full px-5 py-2.5 hover:bg-gray-200 transition;
+}
+
+.input {
+  @apply w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand;
+}
+
+.badge-attivo {
+  @apply bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full;
+}
+.badge-in_scadenza {
+  @apply bg-yellow-100 text-yellow-700 text-xs font-semibold px-2.5 py-1 rounded-full;
+}
+.badge-scaduto {
+  @apply bg-red-100 text-red-700 text-xs font-semibold px-2.5 py-1 rounded-full;
+}
+.badge-sospeso {
+  @apply bg-gray-200 text-gray-600 text-xs font-semibold px-2.5 py-1 rounded-full;
+}
