@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, getWeekDays, startOfWeek, toISODate } from "@/lib/dates";
-import { Block, TIMER_LABELS, scoreLabel } from "@/lib/workoutTypes";
-import WorkoutTimer from "@/components/WorkoutTimer";
+import { Block } from "@/lib/workoutTypes";
 
 type Assignment = {
   id: string;
@@ -19,19 +19,9 @@ export default function ClientWeekView({ clientId }: { clientId: string }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [assignments, setAssignments] = useState<Record<string, Assignment>>({});
   const [loading, setLoading] = useState(true);
-  const [openTimers, setOpenTimers] = useState<Set<string>>(new Set());
 
   const days = getWeekDays(weekStart);
   const todayIso = toISODate(new Date());
-
-  function toggleTimer(key: string) {
-    setOpenTimers((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,14 +42,6 @@ export default function ClientWeekView({ clientId }: { clientId: string }) {
   useEffect(() => {
     load();
   }, [load]);
-
-  async function toggleComplete(a: Assignment) {
-    await supabase
-      .from("workout_assignments")
-      .update({ completed: !a.completed, completed_at: !a.completed ? new Date().toISOString() : null })
-      .eq("id", a.id);
-    load();
-  }
 
   return (
     <div>
@@ -83,68 +65,31 @@ export default function ClientWeekView({ clientId }: { clientId: string }) {
             const a = assignments[day.iso];
             const isToday = day.iso === todayIso;
             return (
-              <div key={day.iso} className={`card ${isToday ? "ring-2 ring-brand" : ""}`}>
+              <Link
+                key={day.iso}
+                href={`/cliente/allenamento/${day.iso}`}
+                className={`card block ${isToday ? "ring-2 ring-brand" : ""}`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-semibold">
                     {day.label} {day.dayNumber}/{day.month} {isToday && <span className="text-brand-dark">· Oggi</span>}
                   </p>
-                  {a && (
-                    <button
-                      onClick={() => toggleComplete(a)}
-                      className={a.completed ? "text-green-600 text-sm" : "text-gray-400 text-sm hover:text-gray-700"}
-                    >
-                      {a.completed ? "✓ Completato" : "Segna come fatto"}
-                    </button>
-                  )}
+                  {a?.completed && <span className="text-green-600 text-sm">✓ Completato</span>}
                 </div>
 
                 {a ? (
                   <div>
-                    <p className="font-semibold mb-2">{a.title}</p>
-                    {a.blocks.map((b, i) => (
-                      <div key={i} className="mb-4 border-l-2 border-brand pl-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                          {b.type}
-                        </p>
-                        <div
-                          className="text-sm text-gray-700 [&_a]:text-blue-600 [&_a]:underline [&_ul]:list-disc [&_ul]:ml-5 [&_ol]:list-decimal [&_ol]:ml-5 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-semibold"
-                          dangerouslySetInnerHTML={{ __html: b.description }}
-                        />
-                        {(b.timer || b.rpe !== null || b.score) && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {b.timer && (
-                              <button
-                                onClick={() => toggleTimer(`${day.iso}-${i}`)}
-                                className="text-xs bg-brand/20 text-brand-dark rounded-full px-2 py-1 hover:bg-brand/30"
-                              >
-                                ⏱ {TIMER_LABELS[b.timer.type]} {b.timer.minutes}:
-                                {String(b.timer.seconds).padStart(2, "0")}
-                                {openTimers.has(`${day.iso}-${i}`) ? " · nascondi" : " · avvia"}
-                              </button>
-                            )}
-                            {b.rpe !== null && (
-                              <span className="text-xs bg-gray-100 rounded-full px-2 py-1">
-                                RPE {b.rpe}
-                              </span>
-                            )}
-                            {b.score && (
-                              <span className="text-xs bg-gray-100 rounded-full px-2 py-1">
-                                🎯 {scoreLabel(b.score.type)}
-                                {b.score.target ? `: ${b.score.target}` : ""}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        {b.timer && openTimers.has(`${day.iso}-${i}`) && (
-                          <WorkoutTimer timer={b.timer} />
-                        )}
-                      </div>
-                    ))}
+                    <p className="font-semibold mb-1">{a.title}</p>
+                    <ul className="text-xs text-gray-500 space-y-0.5">
+                      {a.blocks.slice(0, 3).map((b, i) => (
+                        <li key={i}>• {b.type}</li>
+                      ))}
+                    </ul>
                   </div>
                 ) : (
                   <p className="text-gray-300 text-sm">Giorno di riposo / nessuna scheda assegnata.</p>
                 )}
-              </div>
+              </Link>
             );
           })}
         </div>
