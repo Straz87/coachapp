@@ -4,12 +4,13 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, getWeekDays, startOfWeek } from "@/lib/dates";
 import WorkoutEditorPanel, { WorkoutDraft } from "@/components/WorkoutEditorPanel";
+import { Block } from "@/lib/workoutTypes";
 
 type Assignment = {
   id: string;
   date: string;
   title: string;
-  blocks: { section: string; lines: string[] }[];
+  blocks: Block[];
   completed: boolean;
 };
 
@@ -120,7 +121,7 @@ export default function WeekCalendar({
                     <p className="font-semibold text-sm mb-1">{a.title}</p>
                     <ul className="text-xs text-gray-500 space-y-0.5 flex-1">
                       {a.blocks.slice(0, 3).map((b, i) => (
-                        <li key={i}>• {b.section}</li>
+                        <li key={i}>• {b.type}</li>
                       ))}
                     </ul>
                     {a.completed && (
