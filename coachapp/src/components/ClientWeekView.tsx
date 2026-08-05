@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, getWeekDays, startOfWeek, toISODate } from "@/lib/dates";
 import { Block, TIMER_LABELS, scoreLabel } from "@/lib/workoutTypes";
+import WorkoutTimer from "@/components/WorkoutTimer";
 
 type Assignment = {
   id: string;
@@ -18,9 +19,19 @@ export default function ClientWeekView({ clientId }: { clientId: string }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [assignments, setAssignments] = useState<Record<string, Assignment>>({});
   const [loading, setLoading] = useState(true);
+  const [openTimers, setOpenTimers] = useState<Set<string>>(new Set());
 
   const days = getWeekDays(weekStart);
   const todayIso = toISODate(new Date());
+
+  function toggleTimer(key: string) {
+    setOpenTimers((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -102,10 +113,14 @@ export default function ClientWeekView({ clientId }: { clientId: string }) {
                         {(b.timer || b.rpe !== null || b.score) && (
                           <div className="flex flex-wrap gap-2 mt-2">
                             {b.timer && (
-                              <span className="text-xs bg-gray-100 rounded-full px-2 py-1">
+                              <button
+                                onClick={() => toggleTimer(`${day.iso}-${i}`)}
+                                className="text-xs bg-brand/20 text-brand-dark rounded-full px-2 py-1 hover:bg-brand/30"
+                              >
                                 ⏱ {TIMER_LABELS[b.timer.type]} {b.timer.minutes}:
                                 {String(b.timer.seconds).padStart(2, "0")}
-                              </span>
+                                {openTimers.has(`${day.iso}-${i}`) ? " · nascondi" : " · avvia"}
+                              </button>
                             )}
                             {b.rpe !== null && (
                               <span className="text-xs bg-gray-100 rounded-full px-2 py-1">
@@ -119,6 +134,9 @@ export default function ClientWeekView({ clientId }: { clientId: string }) {
                               </span>
                             )}
                           </div>
+                        )}
+                        {b.timer && openTimers.has(`${day.iso}-${i}`) && (
+                          <WorkoutTimer timer={b.timer} />
                         )}
                       </div>
                     ))}
