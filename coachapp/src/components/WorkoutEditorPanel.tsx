@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import RichTextEditor from "@/components/RichTextEditor";
+import WorkoutTimer from "@/components/WorkoutTimer";
 import {
   BLOCK_TYPES,
   SCORE_TYPES,
@@ -110,6 +111,8 @@ function BlockEditor({
   onChange: (patch: Partial<Block>) => void;
   onRemove: () => void;
 }) {
+  const [showTimerPreview, setShowTimerPreview] = useState(false);
+
   return (
     <div className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50/40">
       <div className="flex gap-2 items-center">
@@ -233,6 +236,16 @@ function BlockEditor({
             />
           </div>
         )}
+        {block.timer && (
+          <button
+            type="button"
+            onClick={() => setShowTimerPreview((s) => !s)}
+            className="text-xs text-brand-dark hover:underline mt-1"
+          >
+            {showTimerPreview ? "Nascondi anteprima timer" : "Prova il timer"}
+          </button>
+        )}
+        {block.timer && showTimerPreview && <WorkoutTimer timer={block.timer} />}
       </ToggleSection>
     </div>
   );
