@@ -1,8 +1,15 @@
 "use client";
 
 import { useState } from "react";
-
-export type Block = { section: string; lines: string[] };
+import RichTextEditor from "@/components/RichTextEditor";
+import {
+  BLOCK_TYPES,
+  SCORE_TYPES,
+  TIMER_TYPES,
+  TIMER_LABELS,
+  Block,
+  emptyBlock,
+} from "@/lib/workoutTypes";
 
 export type WorkoutDraft = {
   title: string;
@@ -24,37 +31,29 @@ export default function WorkoutEditorPanel({
 }) {
   const [title, setTitle] = useState(initial.title);
   const [blocks, setBlocks] = useState<Block[]>(
-    initial.blocks.length > 0 ? initial.blocks : [{ section: "Warm up", lines: [""] }]
+    initial.blocks.length > 0 ? initial.blocks : [emptyBlock()]
   );
 
-  function updateSection(index: number, value: string) {
-    setBlocks((b) => b.map((blk, i) => (i === index ? { ...blk, section: value } : blk)));
+  function updateBlock(index: number, patch: Partial<Block>) {
+    setBlocks((b) => b.map((blk, i) => (i === index ? { ...blk, ...patch } : blk)));
   }
 
-  function updateLines(index: number, value: string) {
-    setBlocks((b) =>
-      b.map((blk, i) => (i === index ? { ...blk, lines: value.split("\n") } : blk))
-    );
+  function addBlock() {
+    setBlocks((b) => [...b, emptyBlock()]);
   }
 
-  function addSection() {
-    setBlocks((b) => [...b, { section: "Nuova sezione", lines: [""] }]);
-  }
-
-  function removeSection(index: number) {
+  function removeBlock(index: number) {
     setBlocks((b) => b.filter((_, i) => i !== index));
   }
 
   function handleSave() {
-    const cleanedBlocks = blocks
-      .map((b) => ({ section: b.section.trim() || "Sezione", lines: b.lines.filter((l) => l.trim() !== "") }))
-      .filter((b) => b.lines.length > 0);
-    onSave({ title: title.trim() || "Allenamento", blocks: cleanedBlocks });
+    const cleaned = blocks.filter((b) => b.description.trim() !== "");
+    onSave({ title: title.trim() || "Allenamento", blocks: cleaned });
   }
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6 space-y-4">
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto p-6 space-y-5">
         <h2 className="text-lg font-bold">Scheda del giorno</h2>
 
         <div>
@@ -67,36 +66,18 @@ export default function WorkoutEditorPanel({
           />
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           {blocks.map((block, i) => (
-            <div key={i} className="border border-gray-100 rounded-xl p-3 space-y-2">
-              <div className="flex gap-2 items-center">
-                <input
-                  className="input"
-                  value={block.section}
-                  onChange={(e) => updateSection(i, e.target.value)}
-                  placeholder="es. Warm up, Skills, Strength…"
-                />
-                <button
-                  onClick={() => removeSection(i)}
-                  className="text-gray-400 hover:text-red-600 text-sm px-2"
-                  title="Rimuovi sezione"
-                >
-                  ✕
-                </button>
-              </div>
-              <textarea
-                className="input"
-                rows={4}
-                value={block.lines.join("\n")}
-                onChange={(e) => updateLines(i, e.target.value)}
-                placeholder={"Un esercizio per riga\nes. 5x5 Back Squat @70%"}
-              />
-            </div>
+            <BlockEditor
+              key={i}
+              block={block}
+              onChange={(patch) => updateBlock(i, patch)}
+              onRemove={() => removeBlock(i)}
+            />
           ))}
         </div>
 
-        <button onClick={addSection} className="btn-secondary text-sm">
+        <button onClick={addBlock} className="btn-secondary text-sm">
           + Aggiungi sezione
         </button>
 
@@ -116,6 +97,165 @@ export default function WorkoutEditorPanel({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function BlockEditor({
+  block,
+  onChange,
+  onRemove,
+}: {
+  block: Block;
+  onChange: (patch: Partial<Block>) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50/40">
+      <div className="flex gap-2 items-center">
+        <select
+          className="input"
+          value={block.type}
+          onChange={(e) => onChange({ type: e.target.value })}
+        >
+          {BLOCK_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={onRemove}
+          className="text-gray-400 hover:text-red-600 text-sm px-2 shrink-0"
+          title="Rimuovi sezione"
+        >
+          ✕
+        </button>
+      </div>
+
+      <RichTextEditor
+        value={block.description}
+        onChange={(html) => onChange({ description: html })}
+        placeholder="Descrivi l'esercizio, le serie/ripetizioni, e incolla eventuali link a video…"
+      />
+
+      {/* RPE */}
+      <ToggleSection
+        label="Aggiungere un RPE"
+        enabled={block.rpe !== null}
+        onToggle={(on) => onChange({ rpe: on ? 5 : null })}
+      >
+        {block.rpe !== null && (
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={1}
+              max={10}
+              value={block.rpe}
+              onChange={(e) => onChange({ rpe: Number(e.target.value) })}
+              className="flex-1"
+            />
+            <span className="text-sm font-semibold w-6 text-center">{block.rpe}</span>
+          </div>
+        )}
+      </ToggleSection>
+
+      {/* Punteggio / Obiettivo */}
+      <ToggleSection
+        label="Chiedere un punteggio / obiettivo"
+        enabled={block.score !== null}
+        onToggle={(on) => onChange({ score: on ? { type: SCORE_TYPES[0].value, target: "" } : null })}
+      >
+        {block.score && (
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              className="input"
+              value={block.score.type}
+              onChange={(e) => onChange({ score: { ...block.score!, type: e.target.value } })}
+            >
+              {SCORE_TYPES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input"
+              placeholder="Obiettivo (es. 100 kg, sub 5:00…)"
+              value={block.score.target}
+              onChange={(e) => onChange({ score: { ...block.score!, target: e.target.value } })}
+            />
+          </div>
+        )}
+      </ToggleSection>
+
+      {/* Timer */}
+      <ToggleSection
+        label="Aggiungere un timer"
+        enabled={block.timer !== null}
+        onToggle={(on) =>
+          onChange({ timer: on ? { type: TIMER_TYPES[0], minutes: 10, seconds: 0 } : null })
+        }
+      >
+        {block.timer && (
+          <div className="grid grid-cols-3 gap-2 items-center">
+            <select
+              className="input"
+              value={block.timer.type}
+              onChange={(e) => onChange({ timer: { ...block.timer!, type: e.target.value } })}
+            >
+              {TIMER_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {TIMER_LABELS[t]}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={0}
+              className="input"
+              value={block.timer.minutes}
+              onChange={(e) =>
+                onChange({ timer: { ...block.timer!, minutes: Number(e.target.value) } })
+              }
+              placeholder="min"
+            />
+            <input
+              type="number"
+              min={0}
+              max={59}
+              className="input"
+              value={block.timer.seconds}
+              onChange={(e) =>
+                onChange({ timer: { ...block.timer!, seconds: Number(e.target.value) } })
+              }
+              placeholder="sec"
+            />
+          </div>
+        )}
+      </ToggleSection>
+    </div>
+  );
+}
+
+function ToggleSection({
+  label,
+  enabled,
+  onToggle,
+  children,
+}: {
+  label: string;
+  enabled: boolean;
+  onToggle: (on: boolean) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+        <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
+        {label}
+      </label>
+      {enabled && <div className="mt-2">{children}</div>}
     </div>
   );
 }
