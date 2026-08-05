@@ -30,12 +30,18 @@ function formatClock(totalSeconds: number) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-export default function WorkoutTimer({ timer }: { timer: TimerConfig }) {
+export default function WorkoutTimer({
+  timer,
+  autoStart,
+}: {
+  timer: TimerConfig;
+  autoStart?: boolean;
+}) {
   const roundSeconds = Math.max(1, timer.minutes * 60 + timer.seconds);
   const isCountUp = timer.type === "FOR_TIME";
   const isInterval = timer.type === "EMOM" || timer.type === "TABATA";
 
-  const [running, setRunning] = useState(false);
+  const [running, setRunning] = useState(!!autoStart);
   const [elapsed, setElapsed] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const targetReachedRef = useRef(false);
