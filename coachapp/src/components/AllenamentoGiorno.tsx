@@ -37,6 +37,7 @@ export default function AllenamentoGiorno({
   const supabase = createClient();
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openBlocks, setOpenBlocks] = useState<Record<number, boolean>>({});
   const [openTimers, setOpenTimers] = useState<Record<number, boolean>>({});
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [draftValue, setDraftValue] = useState("");
@@ -59,6 +60,14 @@ export default function AllenamentoGiorno({
   useEffect(() => {
     load();
   }, [load]);
+
+  function isBlockOpen(index: number) {
+    return openBlocks[index] ?? index === 0;
+  }
+
+  function toggleBlock(index: number) {
+    setOpenBlocks((prev) => ({ ...prev, [index]: !isBlockOpen(index) }));
+  }
 
   function toggleTimer(index: number) {
     setOpenTimers((prev) => ({ ...prev, [index]: !prev[index] }));
@@ -95,6 +104,7 @@ export default function AllenamentoGiorno({
     setDraftValue(existing?.value || "");
     setDraftRx(existing?.rx ?? true);
     setEditingIndex(index);
+    setOpenBlocks((prev) => ({ ...prev, [index]: true }));
   }
 
   async function saveScore(index: number) {
@@ -115,7 +125,7 @@ export default function AllenamentoGiorno({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0c1210] text-gray-400 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 text-gray-400 flex items-center justify-center">
         Caricamento…
       </div>
     );
@@ -125,28 +135,28 @@ export default function AllenamentoGiorno({
   const likeCount = assignment?.liked_by?.length || 0;
 
   return (
-    <div className="min-h-screen bg-[#0c1210] text-white pb-28">
+    <div className="min-h-screen bg-gray-50 text-gray-900 pb-28">
       <div className="p-4 space-y-4 max-w-xl mx-auto">
-        <Link href="/cliente" className="text-gray-400 text-sm inline-block">
+        <Link href="/cliente" className="text-gray-500 text-sm inline-block">
           ← Torna al calendario
         </Link>
 
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 bg-white/10 text-gray-200 text-xs px-2.5 py-1 rounded-full">
+          <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 text-xs px-2.5 py-1 rounded-full">
             🌐 {trainerName}
           </span>
         </div>
 
         {!assignment ? (
-          <div className="bg-white/5 rounded-2xl p-6 text-gray-400">
-            <p className="text-lg font-semibold text-white mb-1">{dateLabel}</p>
+          <div className="card text-gray-500">
+            <p className="text-lg font-semibold text-gray-900 mb-1">{dateLabel}</p>
             Giorno di riposo / nessuna scheda assegnata.
           </div>
         ) : (
           <>
             <div>
-              <h1 className="text-3xl font-bold">{assignment.title}</h1>
-              <p className="text-gray-400 text-sm mt-1">{dateLabel}</p>
+              <h1 className="text-3xl font-bold text-gray-900">{assignment.title}</h1>
+              <p className="text-gray-500 text-sm mt-1">{dateLabel}</p>
             </div>
 
             <button
@@ -162,13 +172,13 @@ export default function AllenamentoGiorno({
                   : "Siate i primi a reagire!"}
               </span>
               <span className="flex items-center gap-2">
-                <span className="w-9 h-9 rounded-full bg-black/30 flex items-center justify-center">
+                <span className="w-9 h-9 rounded-full bg-black/20 flex items-center justify-center">
                   {liked ? "❤️" : "🤍"}
                 </span>
                 <Link
                   href="/cliente/chat"
                   onClick={(e) => e.stopPropagation()}
-                  className="w-9 h-9 rounded-full bg-black/30 flex items-center justify-center"
+                  className="w-9 h-9 rounded-full bg-black/20 flex items-center justify-center"
                 >
                   💬
                 </Link>
@@ -189,133 +199,150 @@ export default function AllenamentoGiorno({
                   Controllare la classifica e confrontarsi con altri atleti
                 </span>
               </span>
-              <span className="w-9 h-9 rounded-full bg-black/20 flex items-center justify-center text-white">
+              <span className="w-9 h-9 rounded-full bg-black/10 flex items-center justify-center text-white">
                 →
               </span>
             </Link>
 
-            <p className="text-xs uppercase tracking-wide text-gray-500 pt-2">
-              ({assignment.blocks.length}) blocchi
+            <p className="text-xs uppercase tracking-wide text-gray-400 pt-2">
+              ({assignment.blocks.length}) blocchi · tocca per aprire
             </p>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {assignment.blocks.map((b, i) => {
                 const scoreEntry = assignment.client_scores?.[String(i)];
                 const isEditing = editingIndex === i;
+                const open = isBlockOpen(i);
                 return (
-                  <div key={i} className="bg-white/5 rounded-2xl p-4 space-y-3">
-                    <span className="inline-block bg-white/10 text-sm px-3 py-1 rounded-full">
-                      {b.type}
-                    </span>
-
-                    <div className="flex items-center justify-between text-sm text-gray-400">
-                      {b.timer ? (
-                        <span>
-                          ⏱ {TIMER_LABELS[b.timer.type]} · {b.timer.minutes}:
-                          {String(b.timer.seconds).padStart(2, "0")}
+                  <div key={i} className="card">
+                    <button
+                      onClick={() => toggleBlock(i)}
+                      className="w-full flex items-center justify-between text-left"
+                    >
+                      <span className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-block bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full">
+                          {b.type}
                         </span>
-                      ) : (
-                        <span>⏱ Nessun cronometro</span>
-                      )}
-                      {b.timer && (
-                        <button
-                          onClick={() => toggleTimer(i)}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                          style={{ background: "#d4f547", color: "#0c1210" }}
-                        >
-                          {openTimers[i] ? "Nascondi" : "▶ Inizia"}
-                        </button>
-                      )}
-                    </div>
-
-                    {b.timer && openTimers[i] && (
-                      <div className="text-gray-900">
-                        <WorkoutTimer timer={b.timer} autoStart />
-                      </div>
-                    )}
-
-                    <div
-                      className="text-sm text-gray-200 [&_a]:text-lime-400 [&_a]:underline [&_ul]:list-disc [&_ul]:ml-5 [&_ol]:list-decimal [&_ol]:ml-5 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-semibold"
-                      dangerouslySetInnerHTML={{ __html: b.description }}
-                    />
-
-                    {b.rpe !== null && (
-                      <span className="inline-block text-xs bg-white/10 rounded-full px-2 py-1">
-                        RPE {b.rpe}
+                        {scoreEntry && (
+                          <span className="text-xs font-bold px-2 py-1 rounded-full bg-brand/30 text-brand-dark">
+                            {scoreEntry.rx ? "RX" : "SC"} {scoreEntry.value}
+                          </span>
+                        )}
                       </span>
-                    )}
+                      <span
+                        className={`text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+                      >
+                        ▾
+                      </span>
+                    </button>
 
-                    {b.score && (
-                      <div className="pt-2 border-t border-white/10">
-                        <div className="flex items-center justify-between text-sm text-gray-400 mb-2">
-                          <span>Punteggio</span>
-                          <span>{scoreLabel(b.score.type)}</span>
+                    {open && (
+                      <div className="mt-3 space-y-3">
+                        <div className="flex items-center justify-between text-sm text-gray-500">
+                          {b.timer ? (
+                            <span>
+                              ⏱ {TIMER_LABELS[b.timer.type]} · {b.timer.minutes}:
+                              {String(b.timer.seconds).padStart(2, "0")}
+                            </span>
+                          ) : (
+                            <span>⏱ Nessun cronometro</span>
+                          )}
+                          {b.timer && (
+                            <button
+                              onClick={() => toggleTimer(i)}
+                              className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                              style={{ background: "#d4f547", color: "#0c1210" }}
+                            >
+                              {openTimers[i] ? "Nascondi" : "▶ Inizia"}
+                            </button>
+                          )}
                         </div>
 
-                        {isEditing ? (
-                          <div className="space-y-2">
-                            <input
-                              className="w-full bg-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 focus:outline-none"
-                              placeholder="es. 100 kg, 5 giri + 12 rep…"
-                              value={draftValue}
-                              onChange={(e) => setDraftValue(e.target.value)}
-                            />
-                            <div className="flex items-center gap-3 text-sm">
-                              <label className="flex items-center gap-1">
-                                <input
-                                  type="radio"
-                                  checked={draftRx}
-                                  onChange={() => setDraftRx(true)}
-                                />
-                                RX
-                              </label>
-                              <label className="flex items-center gap-1">
-                                <input
-                                  type="radio"
-                                  checked={!draftRx}
-                                  onChange={() => setDraftRx(false)}
-                                />
-                                Scalato
-                              </label>
+                        {b.timer && openTimers[i] && <WorkoutTimer timer={b.timer} autoStart />}
+
+                        <div
+                          className="text-sm text-gray-600 [&_a]:text-brand-dark [&_a]:underline [&_ul]:list-disc [&_ul]:ml-5 [&_ol]:list-decimal [&_ol]:ml-5 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-semibold"
+                          dangerouslySetInnerHTML={{ __html: b.description }}
+                        />
+
+                        {b.rpe !== null && (
+                          <span className="inline-block text-xs bg-gray-100 text-gray-700 rounded-full px-2 py-1">
+                            RPE {b.rpe}
+                          </span>
+                        )}
+
+                        {b.score && (
+                          <div className="pt-2 border-t border-gray-100">
+                            <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
+                              <span>Punteggio</span>
+                              <span>{scoreLabel(b.score.type)}</span>
                             </div>
-                            <div className="flex gap-2">
+
+                            {isEditing ? (
+                              <div className="space-y-2">
+                                <input
+                                  className="input"
+                                  placeholder="es. 100 kg, 5 giri + 12 rep…"
+                                  value={draftValue}
+                                  onChange={(e) => setDraftValue(e.target.value)}
+                                />
+                                <div className="flex items-center gap-3 text-sm">
+                                  <label className="flex items-center gap-1">
+                                    <input
+                                      type="radio"
+                                      checked={draftRx}
+                                      onChange={() => setDraftRx(true)}
+                                    />
+                                    RX
+                                  </label>
+                                  <label className="flex items-center gap-1">
+                                    <input
+                                      type="radio"
+                                      checked={!draftRx}
+                                      onChange={() => setDraftRx(false)}
+                                    />
+                                    Scalato
+                                  </label>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => saveScore(i)}
+                                    disabled={saving}
+                                    className="btn-primary text-sm"
+                                  >
+                                    Salva
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingIndex(null)}
+                                    className="btn-secondary text-sm"
+                                  >
+                                    Annulla
+                                  </button>
+                                </div>
+                              </div>
+                            ) : scoreEntry ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                                  {scoreEntry.rx ? "RX" : "SC"}
+                                </span>
+                                <span className="font-semibold flex-1">{scoreEntry.value}</span>
+                                <button
+                                  onClick={() => startEditScore(i)}
+                                  className="btn-secondary text-sm"
+                                >
+                                  Modificare il mio punteggio
+                                </button>
+                              </div>
+                            ) : (
                               <button
-                                onClick={() => saveScore(i)}
-                                disabled={saving}
-                                className="text-sm font-semibold px-4 py-2 rounded-full"
+                                onClick={() => startEditScore(i)}
+                                className="w-full text-sm font-semibold px-4 py-3 rounded-full flex items-center justify-center gap-2"
                                 style={{ background: "#d4f547", color: "#0c1210" }}
                               >
-                                Salva
+                                🏆 Inserire il mio punteggio
                               </button>
-                              <button
-                                onClick={() => setEditingIndex(null)}
-                                className="text-sm px-4 py-2 rounded-full bg-white/10"
-                              >
-                                Annulla
-                              </button>
-                            </div>
+                            )}
                           </div>
-                        ) : scoreEntry ? (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold px-2 py-1 rounded-full bg-white/10">
-                              {scoreEntry.rx ? "RX" : "SC"}
-                            </span>
-                            <span className="font-semibold flex-1">{scoreEntry.value}</span>
-                            <button
-                              onClick={() => startEditScore(i)}
-                              className="text-sm px-4 py-2 rounded-full bg-white/10"
-                            >
-                              Modificare il mio punteggio
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => startEditScore(i)}
-                            className="w-full text-sm font-semibold px-4 py-3 rounded-full flex items-center justify-center gap-2"
-                            style={{ background: "#d4f547", color: "#0c1210" }}
-                          >
-                            🏆 Inserire il mio punteggio
-                          </button>
                         )}
                       </div>
                     )}
@@ -328,13 +355,13 @@ export default function AllenamentoGiorno({
       </div>
 
       {assignment && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0c1210] via-[#0c1210] to-transparent">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent">
           <button
             onClick={toggleCompleted}
             className="max-w-xl mx-auto w-full flex items-center justify-center gap-2 font-semibold rounded-full px-5 py-3.5"
             style={
               assignment.completed
-                ? { background: "rgba(255,255,255,0.1)", color: "white" }
+                ? { background: "#e5e7eb", color: "#374151" }
                 : { background: "#d4f547", color: "#0c1210" }
             }
           >
