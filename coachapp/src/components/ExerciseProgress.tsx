@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { createClient } from "@/lib/supabase/client";
-import { Block, ClientScores, parseScoreNumber } from "@/lib/workoutTypes";
+import {
+  Block,
+  ClientScores,
+  normalizeEntry,
+  numericScoreValue,
+  displayScoreValue,
+} from "@/lib/workoutTypes";
 
 type AssignmentRow = {
   date: string;
@@ -35,12 +41,17 @@ export default function ExerciseProgress({ clientId }: { clientId: string }) {
       (a.blocks || []).forEach((b, i) => {
         const name = b.exerciseName?.trim();
         if (!name) return;
-        const entry = a.client_scores?.[String(i)];
+        const entry = normalizeEntry(a.client_scores?.[String(i)]);
         if (!entry) return;
-        const value = parseScoreNumber(entry.value);
+        const value = numericScoreValue(entry, b.score?.aggregation);
         if (value === null) return;
         if (!grouped[name]) grouped[name] = [];
-        grouped[name].push({ date: a.date, value, raw: entry.value, rx: entry.rx });
+        grouped[name].push({
+          date: a.date,
+          value,
+          raw: displayScoreValue(entry, b.score?.aggregation),
+          rx: entry.rx,
+        });
       });
     });
     setSeries(grouped);
