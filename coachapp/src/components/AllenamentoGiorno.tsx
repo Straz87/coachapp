@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { addDays, toISODate } from "@/lib/dates";
 import {
   Block,
   ClientScores,
@@ -36,6 +37,7 @@ export default function AllenamentoGiorno({
 }) {
   const supabase = createClient();
   const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const [prevScores, setPrevScores] = useState<ClientScores | null>(null);
   const [loading, setLoading] = useState(true);
   const [openBlocks, setOpenBlocks] = useState<Record<number, boolean>>({});
   const [openTimers, setOpenTimers] = useState<Record<number, boolean>>({});
@@ -53,6 +55,18 @@ export default function AllenamentoGiorno({
       .eq("date", date)
       .maybeSingle();
     setAssignment(data as Assignment | null);
+
+    // Punteggi della stessa scheda della settimana scorsa (solo come riferimento,
+    // non tocca in alcun modo l'eventuale massimale dell'esercizio).
+    const prevDate = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
+    const { data: prevData } = await supabase
+      .from("workout_assignments")
+      .select("client_scores")
+      .eq("client_id", clientId)
+      .eq("date", prevDate)
+      .maybeSingle();
+    setPrevScores((prevData?.client_scores as ClientScores | null) || null);
+
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, date]);
@@ -223,6 +237,9 @@ export default function AllenamentoGiorno({
                         <span className="inline-block bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full">
                           {b.type}
                         </span>
+                        {b.exerciseName && (
+                          <span className="text-sm font-semibold text-gray-700">{b.exerciseName}</span>
+                        )}
                         {scoreEntry && (
                           <span className="text-xs font-bold px-2 py-1 rounded-full bg-brand/30 text-brand-dark">
                             {scoreEntry.rx ? "RX" : "SC"} {scoreEntry.value}
@@ -277,6 +294,18 @@ export default function AllenamentoGiorno({
                               <span>Punteggio</span>
                               <span>{scoreLabel(b.score.type)}</span>
                             </div>
+
+                            {prevScores?.[String(i)] && (
+                              <div className="flex items-center gap-2 bg-brand/10 border border-brand/30 rounded-xl px-3 py-2 mb-2">
+                                <span className="text-brand-dark">🕐</span>
+                                <span className="text-sm text-gray-700">
+                                  Settimana scorsa:{" "}
+                                  <span className="font-semibold">
+                                    {prevScores[String(i)].value} {prevScores[String(i)].rx ? "RX" : "SC"}
+                                  </span>
+                                </span>
+                              </div>
+                            )}
 
                             {isEditing ? (
                               <div className="space-y-2">
