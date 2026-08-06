@@ -1,11 +1,13 @@
 import { requireTrainer } from "@/lib/auth";
 import ClientSelector from "@/components/ClientSelector";
+import GroupSelector from "@/components/GroupSelector";
 import WeekCalendar from "@/components/WeekCalendar";
+import GroupWeekCalendar from "@/components/GroupWeekCalendar";
 
 export default async function CalendarioPage({
   searchParams,
 }: {
-  searchParams: { cliente?: string };
+  searchParams: { cliente?: string; gruppo?: string };
 }) {
   const { supabase, profile } = await requireTrainer();
 
@@ -15,24 +17,48 @@ export default async function CalendarioPage({
     .eq("trainer_id", profile.id)
     .order("created_at", { ascending: false });
 
-  const options = (clients || []).map((c: any) => ({
+  const { data: groups } = await supabase
+    .from("workout_groups")
+    .select("id, name")
+    .eq("trainer_id", profile.id)
+    .order("created_at", { ascending: false });
+
+  const clientOptions = (clients || []).map((c: any) => ({
     id: c.id,
     name: c.profiles?.full_name || "Cliente",
   }));
 
-  const selectedId = searchParams.cliente || null;
+  const groupOptions = (groups || []).map((g: any) => ({
+    id: g.id,
+    name: g.name,
+  }));
+
+  const selectedClientId = searchParams.cliente || null;
+  const selectedGroupId = searchParams.gruppo || null;
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Calendario allenamenti</h1>
-      <div className="mb-6">
-        <ClientSelector clients={options} selected={selectedId} />
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div>
+          <p className="text-xs text-gray-400 mb-1">Cliente singolo</p>
+          <ClientSelector clients={clientOptions} selected={selectedClientId} />
+        </div>
+        <div>
+          <p className="text-xs text-gray-400 mb-1">Gruppo (allenamento condiviso)</p>
+          <GroupSelector groups={groupOptions} selected={selectedGroupId} />
+        </div>
       </div>
 
-      {selectedId ? (
-        <WeekCalendar clientId={selectedId} trainerId={profile.id} />
+      {selectedGroupId ? (
+        <GroupWeekCalendar groupId={selectedGroupId} trainerId={profile.id} />
+      ) : selectedClientId ? (
+        <WeekCalendar clientId={selectedClientId} trainerId={profile.id} />
       ) : (
-        <p className="text-gray-400">Seleziona un cliente per vedere/assegnare gli allenamenti.</p>
+        <p className="text-gray-400">
+          Seleziona un cliente per una scheda individuale, oppure un gruppo per assegnare lo stesso
+          allenamento a tutti i suoi membri.
+        </p>
       )}
     </div>
   );
