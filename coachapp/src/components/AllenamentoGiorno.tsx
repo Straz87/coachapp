@@ -475,6 +475,7 @@ export default function AllenamentoGiorno({
                                                   formatAmrapValue(Number(e.target.value) || 0, reps)
                                                 )
                                             }
+                                              />
                                           </div>
                                           <div>
                                             <label className="text-xs text-gray-500">Reps supplementari</label>
