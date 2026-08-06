@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { TimerConfig, TIMER_LABELS } from "@/lib/workoutTypes";
 
 function playBeep(frequency = 880, duration = 150) {
@@ -30,6 +30,46 @@ function formatClock(totalSeconds: number) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+function CircularProgress({
+  progress,
+  size = 176,
+  color = "#84cc16",
+  trackColor = "#e5e7eb",
+}: {
+  progress: number;
+  size?: number;
+  color?: string;
+  trackColor?: string;
+}) {
+  const strokeWidth = 10;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.min(1, Math.max(0, progress));
+  const offset = circumference * (1 - clamped);
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={radius} stroke={trackColor} strokeWidth={strokeWidth} fill="none" />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        stroke={color}
+        strokeWidth={strokeWidth}
+        fill="none"
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        style={{ transition: "stroke-dashoffset 0.3s linear" }}
+      />
+    </svg>
+  );
+}
+
+// Conto alla rovescia prima di iniziare (EMOM e AMRAP a giri multipli).
+const PRESTART_SECONDS = 10;
+
+type Phase = "idle" | "countdown" | "work" | "rest" | "done";
+
 export default function WorkoutTimer({
   timer,
   autoStart,
@@ -38,58 +78,202 @@ export default function WorkoutTimer({
   autoStart?: boolean;
 }) {
   const roundSeconds = Math.max(1, timer.minutes * 60 + timer.seconds);
+  const totalRounds = Math.max(1, timer.rounds ?? 1);
+  const restSeconds = Math.max(0, (timer.restMinutes ?? 0) * 60 + (timer.restSeconds ?? 0));
   const isCountUp = timer.type === "FOR_TIME";
-  const isInterval = timer.type === "EMOM" || timer.type === "TABATA";
+  const isTabata = timer.type === "TABATA";
+  const isEmom = timer.type === "EMOM";
+  const isAmrap = timer.type === "AMRAP";
+
+  // EMOM e AMRAP a giri multipli usano il nuovo motore a fasi (conto alla
+  // rovescia iniziale, lavoro/riposo per ogni giro, stop automatico
+  // all'ultimo giro). AMRAP singolo, TABATA e FOR TIME restano invariati.
+  const useNewEngine = isEmom || (isAmrap && totalRounds > 1);
 
   const [running, setRunning] = useState(!!autoStart);
+
+  // --- Motore "classico": AMRAP singolo, TABATA, FOR TIME ---
   const [elapsed, setElapsed] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const targetReachedRef = useRef(false);
+  const [targetReached, setTargetReached] = useState(false);
 
   useEffect(() => {
-    if (running) {
-      intervalRef.current = setInterval(() => {
-        setElapsed((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [running]);
+    if (useNewEngine || !running) return;
+    const id = setInterval(() => setElapsed((prev) => prev + 1), 1000);
+    return () => clearInterval(id);
+  }, [running, useNewEngine]);
 
-  // AMRAP: si ferma da sola a zero
+  // AMRAP singolo: si ferma da sola a zero
   useEffect(() => {
+    if (useNewEngine) return;
     if (timer.type === "AMRAP" && running && elapsed >= roundSeconds) {
       setRunning(false);
       playBeep(660, 600);
     }
-  }, [elapsed, running, timer.type, roundSeconds]);
+  }, [elapsed, running, timer.type, roundSeconds, useNewEngine]);
 
-  // EMOM / TABATA: beep a ogni nuovo giro
+  // TABATA: beep a ogni nuovo giro
   useEffect(() => {
-    if (isInterval && running && elapsed > 0 && elapsed % roundSeconds === 0) {
+    if (useNewEngine) return;
+    if (isTabata && running && elapsed > 0 && elapsed % roundSeconds === 0) {
       playBeep(1046, 200);
     }
-  }, [elapsed, isInterval, running, roundSeconds]);
+  }, [elapsed, isTabata, running, roundSeconds, useNewEngine]);
 
   // FOR TIME: beep quando si raggiunge l'obiettivo (una sola volta)
   useEffect(() => {
-    if (isCountUp && running && elapsed >= roundSeconds && !targetReachedRef.current) {
-      targetReachedRef.current = true;
+    if (useNewEngine) return;
+    if (isCountUp && running && elapsed >= roundSeconds && !targetReached) {
+      setTargetReached(true);
       playBeep(660, 400);
     }
-  }, [elapsed, isCountUp, running, roundSeconds]);
+  }, [elapsed, isCountUp, running, roundSeconds, targetReached, useNewEngine]);
+
+  // --- Nuovo motore a fasi: EMOM, AMRAP a giri multipli ---
+  const [phase, setPhase] = useState<Phase>(autoStart && useNewEngine ? "countdown" : "idle");
+  const [phaseElapsed, setPhaseElapsed] = useState(0);
+  const [currentRound, setCurrentRound] = useState(1);
+
+  useEffect(() => {
+    if (!useNewEngine || !running) return;
+    const id = setInterval(() => setPhaseElapsed((prev) => prev + 1), 1000);
+    return () => clearInterval(id);
+  }, [running, useNewEngine]);
+
+  useEffect(() => {
+    if (!useNewEngine || !running) return;
+
+    if (phase === "countdown" && phaseElapsed >= PRESTART_SECONDS) {
+      setPhase("work");
+      setPhaseElapsed(0);
+      setCurrentRound(1);
+      playBeep(1046, 250);
+      return;
+    }
+
+    if (phase === "work" && phaseElapsed >= roundSeconds) {
+      if (currentRound >= totalRounds) {
+        setPhase("done");
+        setRunning(false);
+        playBeep(660, 700);
+        return;
+      }
+      if (isAmrap && restSeconds > 0) {
+        setPhase("rest");
+        setPhaseElapsed(0);
+        playBeep(523, 200);
+      } else {
+        setCurrentRound((r) => r + 1);
+        setPhaseElapsed(0);
+        playBeep(1046, 200);
+      }
+      return;
+    }
+
+    if (phase === "rest" && phaseElapsed >= restSeconds) {
+      setCurrentRound((r) => r + 1);
+      setPhase("work");
+      setPhaseElapsed(0);
+      playBeep(1046, 200);
+    }
+  }, [phase, phaseElapsed, running, useNewEngine, roundSeconds, restSeconds, totalRounds, currentRound, isAmrap]);
 
   function handleStartPause() {
+    if (useNewEngine && phase === "idle" && !running) {
+      setPhase("countdown");
+      setPhaseElapsed(0);
+      setRunning(true);
+      return;
+    }
     setRunning((r) => !r);
   }
 
   function handleReset() {
     setRunning(false);
     setElapsed(0);
-    targetReachedRef.current = false;
+    setTargetReached(false);
+    setPhase("idle");
+    setPhaseElapsed(0);
+    setCurrentRound(1);
   }
 
+  // --- Rendering: nuovo motore ---
+  if (useNewEngine) {
+    let mainDisplay: string;
+    let caption: string;
+    let progress = 0;
+    let ringColor = "#84cc16";
+
+    if (phase === "idle") {
+      const totalDuration = isEmom
+        ? roundSeconds * totalRounds
+        : roundSeconds * totalRounds + restSeconds * Math.max(0, totalRounds - 1);
+      mainDisplay = "▶";
+      caption = `Giri: ${totalRounds} · Durata: ${formatClock(totalDuration)}`;
+    } else if (phase === "countdown") {
+      const remaining = PRESTART_SECONDS - phaseElapsed;
+      mainDisplay = String(Math.max(1, remaining));
+      caption = "Si parte tra...";
+      progress = phaseElapsed / PRESTART_SECONDS;
+      ringColor = "#f59e0b";
+    } else if (phase === "work") {
+      const displaySeconds = isEmom ? phaseElapsed : Math.max(0, roundSeconds - phaseElapsed);
+      mainDisplay = formatClock(displaySeconds);
+      caption = `Giro ${currentRound} di ${totalRounds}`;
+      progress = phaseElapsed / roundSeconds;
+      ringColor = "#84cc16";
+    } else if (phase === "rest") {
+      const remaining = Math.max(0, restSeconds - phaseElapsed);
+      mainDisplay = formatClock(remaining);
+      caption = `Riposo · prossimo giro ${currentRound + 1} di ${totalRounds}`;
+      progress = restSeconds > 0 ? phaseElapsed / restSeconds : 1;
+      ringColor = "#38bdf8";
+    } else {
+      mainDisplay = "✓";
+      caption = "Sessione completata!";
+      progress = 1;
+      ringColor = "#84cc16";
+    }
+
+    return (
+      <div className="mt-2 rounded-xl border border-gray-200 bg-white p-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            {TIMER_LABELS[timer.type]}
+          </span>
+          <span className="text-xs text-gray-400">{caption}</span>
+        </div>
+        <div
+          className="relative mx-auto my-2 flex items-center justify-center"
+          style={{ width: 176, height: 176 }}
+        >
+          <CircularProgress progress={progress} color={ringColor} />
+          <span className="absolute text-3xl font-bold tabular-nums text-gray-800">
+            {mainDisplay}
+          </span>
+        </div>
+        <div className="flex justify-center gap-2">
+          <button
+            onClick={handleStartPause}
+            className={running ? "btn-secondary" : "btn-primary"}
+            disabled={phase === "done"}
+          >
+            {running
+              ? "Pausa"
+              : phase === "done"
+              ? "Completato"
+              : phase === "idle"
+              ? "Avvia"
+              : "Riprendi"}
+          </button>
+          <button onClick={handleReset} className="btn-secondary">
+            Reset
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Rendering: motore classico ---
   let mainDisplay: string;
   let caption: string;
 
@@ -103,9 +287,9 @@ export default function WorkoutTimer({
   } else {
     const inRound = elapsed % roundSeconds;
     const remaining = roundSeconds - inRound;
-    const currentRound = Math.floor(elapsed / roundSeconds) + 1;
+    const currentRoundClassic = Math.floor(elapsed / roundSeconds) + 1;
     mainDisplay = formatClock(remaining);
-    caption = `Giro ${currentRound}`;
+    caption = `Giro ${currentRoundClassic}`;
   }
 
   return (
