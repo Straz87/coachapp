@@ -37,7 +37,7 @@ export default async function AllenamentoGiornoPage({
     .single();
 
   return (
-    <div className="-m-8">
+    <div className="-m-4 md:-m-8">
       <AllenamentoGiorno
         clientId={client.id}
         profileId={profile.id}
