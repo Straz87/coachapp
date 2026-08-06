@@ -250,39 +250,94 @@ function BlockEditor({
         }
       >
         {block.timer && (
-          <div className="grid grid-cols-3 gap-2 items-center">
-            <select
-              className="input"
-              value={block.timer.type}
-              onChange={(e) => onChange({ timer: { ...block.timer!, type: e.target.value } })}
-            >
-              {TIMER_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {TIMER_LABELS[t]}
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min={0}
-              className="input"
-              value={block.timer.minutes}
-              onChange={(e) =>
-                onChange({ timer: { ...block.timer!, minutes: Number(e.target.value) } })
-              }
-              placeholder="min"
-            />
-            <input
-              type="number"
-              min={0}
-              max={59}
-              className="input"
-              value={block.timer.seconds}
-              onChange={(e) =>
-                onChange({ timer: { ...block.timer!, seconds: Number(e.target.value) } })
-              }
-              placeholder="sec"
-            />
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-2 items-center">
+              <select
+                className="input"
+                value={block.timer.type}
+                onChange={(e) => onChange({ timer: { ...block.timer!, type: e.target.value } })}
+              >
+                {TIMER_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {TIMER_LABELS[t]}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min={0}
+                className="input"
+                value={block.timer.minutes}
+                onChange={(e) =>
+                  onChange({ timer: { ...block.timer!, minutes: Number(e.target.value) } })
+                }
+                placeholder={block.timer.type === "EMOM" ? "ogni (min)" : "min"}
+              />
+              <input
+                type="number"
+                min={0}
+                max={59}
+                className="input"
+                value={block.timer.seconds}
+                onChange={(e) =>
+                  onChange({ timer: { ...block.timer!, seconds: Number(e.target.value) } })
+                }
+                placeholder="sec"
+              />
+            </div>
+            {(block.timer.type === "EMOM" || block.timer.type === "AMRAP") && (
+              <div className="grid grid-cols-2 gap-2 items-end">
+                <div>
+                  <label className="text-xs text-gray-500">Giri</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="input"
+                    value={block.timer.rounds ?? 1}
+                    onChange={(e) =>
+                      onChange({
+                        timer: {
+                          ...block.timer!,
+                          rounds: Math.max(1, Number(e.target.value) || 1),
+                        },
+                      })
+                    }
+                  />
+                </div>
+                {block.timer.type === "AMRAP" && (block.timer.rounds ?? 1) > 1 && (
+                  <div>
+                    <label className="text-xs text-gray-500">Riposo tra i giri</label>
+                    <div className="flex gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        className="input"
+                        placeholder="min"
+                        value={block.timer.restMinutes ?? 0}
+                        onChange={(e) =>
+                          onChange({
+                            timer: { ...block.timer!, restMinutes: Number(e.target.value) },
+                          })
+                        }
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={59}
+                        className="input"
+                        placeholder="sec"
+                        value={block.timer.restSeconds ?? 0}
+                        onChange={(e) =>
+                          onChange({
+                            timer: { ...block.timer!, restSeconds: Number(e.target.value) },
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
         {block.timer && (
