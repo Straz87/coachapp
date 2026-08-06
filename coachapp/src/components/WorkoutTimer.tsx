@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TimerConfig, TIMER_LABELS } from "@/lib/workoutTypes";
 
-function playBeep(frequency = 880, duration = 150) {
-  if (typeof window === "undefined") return;
+// I browser mobili (soprattutto Safari/iOS) permettono di produrre audio solo
+// se l'AudioContext viene creato/riattivato dentro un tap/click reale. Per
+// questo teniamo un unico AudioContext per timer, sbloccato al primo tocco su
+// Avvia, e lo riusiamo per tutti i beep successivi (anche quelli lanciati dai
+// setInterval, che da soli non sono "gesture" valide per i browser).
+function playBeep(ctx: AudioContext | null, frequency = 880, duration = 150) {
+  if (!ctx) return;
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    const ctx = new AudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -17,7 +20,6 @@ function playBeep(frequency = 880, duration = 150) {
     gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + duration / 1000);
-    osc.onended = () => ctx.close();
   } catch {
     // audio non disponibile, ignora
   }
@@ -92,6 +94,31 @@ export default function WorkoutTimer({
 
   const [running, setRunning] = useState(!!autoStart);
 
+  // Un solo AudioContext per istanza di timer, creato/sbloccato al primo tap
+  // su Avvia e riutilizzato per tutti i beep successivi.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  function unlockAudio() {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new AudioCtx();
+      }
+      if (audioCtxRef.current.state === "suspended") {
+        audioCtxRef.current.resume();
+      }
+    } catch {
+      // audio non disponibile, ignora
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      audioCtxRef.current?.close();
+    };
+  }, []);
+
   // --- Motore "classico": AMRAP singolo, TABATA, FOR TIME ---
   const [elapsed, setElapsed] = useState(0);
   const [targetReached, setTargetReached] = useState(false);
@@ -107,7 +134,7 @@ export default function WorkoutTimer({
     if (useNewEngine) return;
     if (timer.type === "AMRAP" && running && elapsed >= roundSeconds) {
       setRunning(false);
-      playBeep(660, 600);
+      playBeep(audioCtxRef.current, 660, 600);
     }
   }, [elapsed, running, timer.type, roundSeconds, useNewEngine]);
 
@@ -115,7 +142,7 @@ export default function WorkoutTimer({
   useEffect(() => {
     if (useNewEngine) return;
     if (isTabata && running && elapsed > 0 && elapsed % roundSeconds === 0) {
-      playBeep(1046, 200);
+      playBeep(audioCtxRef.current, 1046, 200);
     }
   }, [elapsed, isTabata, running, roundSeconds, useNewEngine]);
 
@@ -124,7 +151,7 @@ export default function WorkoutTimer({
     if (useNewEngine) return;
     if (isCountUp && running && elapsed >= roundSeconds && !targetReached) {
       setTargetReached(true);
-      playBeep(660, 400);
+      playBeep(audioCtxRef.current, 660, 400);
     }
   }, [elapsed, isCountUp, running, roundSeconds, targetReached, useNewEngine]);
 
@@ -146,7 +173,7 @@ export default function WorkoutTimer({
       setPhase("work");
       setPhaseElapsed(0);
       setCurrentRound(1);
-      playBeep(1046, 250);
+      playBeep(audioCtxRef.current, 1046, 250);
       return;
     }
 
@@ -154,17 +181,17 @@ export default function WorkoutTimer({
       if (currentRound >= totalRounds) {
         setPhase("done");
         setRunning(false);
-        playBeep(660, 700);
+        playBeep(audioCtxRef.current, 660, 700);
         return;
       }
       if (isAmrap && restSeconds > 0) {
         setPhase("rest");
         setPhaseElapsed(0);
-        playBeep(523, 200);
+        playBeep(audioCtxRef.current, 523, 200);
       } else {
         setCurrentRound((r) => r + 1);
         setPhaseElapsed(0);
-        playBeep(1046, 200);
+        playBeep(audioCtxRef.current, 1046, 200);
       }
       return;
     }
@@ -173,11 +200,12 @@ export default function WorkoutTimer({
       setCurrentRound((r) => r + 1);
       setPhase("work");
       setPhaseElapsed(0);
-      playBeep(1046, 200);
+      playBeep(audioCtxRef.current, 1046, 200);
     }
   }, [phase, phaseElapsed, running, useNewEngine, roundSeconds, restSeconds, totalRounds, currentRound, isAmrap]);
 
   function handleStartPause() {
+    unlockAudio();
     if (useNewEngine && phase === "idle" && !running) {
       setPhase("countdown");
       setPhaseElapsed(0);
