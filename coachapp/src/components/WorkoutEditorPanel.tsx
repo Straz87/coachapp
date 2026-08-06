@@ -190,6 +190,20 @@ function BlockEditor({
             />
           </div>
         )}
+        {block.score && (
+          <div className="mt-2">
+            <input
+              className="input"
+              placeholder="Nome esercizio per la progressione (es. Back Squat) — opzionale"
+              value={block.exerciseName || ""}
+              onChange={(e) => onChange({ exerciseName: e.target.value.trim() || null })}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Se lo compili, i punteggi inseriti dal cliente in blocchi con lo stesso nome
+              finiscono automaticamente nel grafico di progressione (pagina Progressi).
+            </p>
+          </div>
+        )}
       </ToggleSection>
 
       {/* Timer */}
@@ -272,4 +286,3 @@ function ToggleSection({
     </div>
   );
 }
-
