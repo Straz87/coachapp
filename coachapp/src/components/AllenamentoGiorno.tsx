@@ -9,6 +9,8 @@ import {
   ClientScores,
   TIMER_LABELS,
   scoreLabel,
+  normalizeEntry,
+  displayScoreValue,
 } from "@/lib/workoutTypes";
 import WorkoutTimer from "@/components/WorkoutTimer";
 
@@ -49,7 +51,7 @@ export default function AllenamentoGiorno({
   const [openBlocks, setOpenBlocks] = useState<Record<number, boolean>>({});
   const [openTimers, setOpenTimers] = useState<Record<number, boolean>>({});
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [draftValue, setDraftValue] = useState("");
+  const [draftValues, setDraftValues] = useState<string[]>([""]);
   const [draftRx, setDraftRx] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -224,19 +226,25 @@ export default function AllenamentoGiorno({
   }
 
   function startEditScore(index: number) {
-    const existing = vm?.clientScores?.[String(index)];
-    setDraftValue(existing?.value || "");
+    const sets = Math.max(1, vm?.blocks[index]?.score?.sets ?? 1);
+    const existing = normalizeEntry(vm?.clientScores?.[String(index)]);
+    const values = Array.from({ length: sets }, (_, i) => existing?.values[i] || "");
+    setDraftValues(values);
     setDraftRx(existing?.rx ?? true);
     setEditingIndex(index);
     setOpenBlocks((prev) => ({ ...prev, [index]: true }));
   }
 
+  function updateDraftValue(setIndex: number, value: string) {
+    setDraftValues((prev) => prev.map((v, i) => (i === setIndex ? value : v)));
+  }
+
   async function saveScore(index: number) {
-    if (!vm || draftValue.trim() === "") return;
+    if (!vm || draftValues.some((v) => v.trim() === "")) return;
     setSaving(true);
     const nextScores: ClientScores = {
       ...vm.clientScores,
-      [String(index)]: { value: draftValue.trim(), rx: draftRx },
+      [String(index)]: { values: draftValues.map((v) => v.trim()), rx: draftRx },
     };
     setVm({ ...vm, clientScores: nextScores });
 
@@ -351,9 +359,10 @@ export default function AllenamentoGiorno({
 
             <div className="space-y-3">
               {vm.blocks.map((b, i) => {
-                const scoreEntry = vm.clientScores?.[String(i)];
+                const scoreEntry = normalizeEntry(vm.clientScores?.[String(i)]);
                 const isEditing = editingIndex === i;
                 const open = isBlockOpen(i);
+                const sets = Math.max(1, b.score?.sets ?? 1);
                 return (
                   <div key={i} className="card">
                     <button
@@ -369,7 +378,7 @@ export default function AllenamentoGiorno({
                         )}
                         {scoreEntry && (
                           <span className="text-xs font-bold px-2 py-1 rounded-full bg-brand/30 text-brand-dark">
-                            {scoreEntry.rx ? "RX" : "SC"} {scoreEntry.value}
+                            {scoreEntry.rx ? "RX" : "SC"} {displayScoreValue(scoreEntry, b.score?.aggregation)}
                           </span>
                         )}
                       </span>
@@ -422,26 +431,38 @@ export default function AllenamentoGiorno({
                               <span>{scoreLabel(b.score.type)}</span>
                             </div>
 
-                            {prevScores?.[String(i)] && (
-                              <div className="flex items-center gap-2 bg-brand/10 border border-brand/30 rounded-xl px-3 py-2 mb-2">
-                                <span className="text-brand-dark">🕐</span>
-                                <span className="text-sm text-gray-700">
-                                  Settimana scorsa:{" "}
-                                  <span className="font-semibold">
-                                    {prevScores[String(i)].value} {prevScores[String(i)].rx ? "RX" : "SC"}
+                            {(() => {
+                              const prevEntry = normalizeEntry(prevScores?.[String(i)]);
+                              if (!prevEntry) return null;
+                              return (
+                                <div className="flex items-center gap-2 bg-brand/10 border border-brand/30 rounded-xl px-3 py-2 mb-2">
+                                  <span className="text-brand-dark">🕐</span>
+                                  <span className="text-sm text-gray-700">
+                                    Settimana scorsa:{" "}
+                                    <span className="font-semibold">
+                                      {displayScoreValue(prevEntry, b.score?.aggregation)}{" "}
+                                      {prevEntry.rx ? "RX" : "SC"}
+                                    </span>
                                   </span>
-                                </span>
-                              </div>
-                            )}
+                                </div>
+                              );
+                            })()}
 
                             {isEditing ? (
                               <div className="space-y-2">
-                                <input
-                                  className="input"
-                                  placeholder="es. 100 kg, 5 giri + 12 rep…"
-                                  value={draftValue}
-                                  onChange={(e) => setDraftValue(e.target.value)}
-                                />
+                                {Array.from({ length: sets }).map((_, setIdx) => (
+                                  <input
+                                    key={setIdx}
+                                    className="input"
+                                    placeholder={
+                                      sets > 1
+                                        ? `Serie ${setIdx + 1}`
+                                        : "es. 100 kg, 5 giri + 12 rep…"
+                                    }
+                                    value={draftValues[setIdx] || ""}
+                                    onChange={(e) => updateDraftValue(setIdx, e.target.value)}
+                                  />
+                                ))}
                                 <div className="flex items-center gap-3 text-sm">
                                   <label className="flex items-center gap-1">
                                     <input
@@ -449,7 +470,7 @@ export default function AllenamentoGiorno({
                                       checked={draftRx}
                                       onChange={() => setDraftRx(true)}
                                     />
-                                    RX
+                                  RX
                                   </label>
                                   <label className="flex items-center gap-1">
                                     <input
@@ -481,7 +502,9 @@ export default function AllenamentoGiorno({
                                 <span className="text-xs font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-700">
                                   {scoreEntry.rx ? "RX" : "SC"}
                                 </span>
-                                <span className="font-semibold flex-1">{scoreEntry.value}</span>
+                                <span className="font-semibold flex-1">
+                                  {displayScoreValue(scoreEntry, b.score?.aggregation)}
+                                </span>
                                 <button
                                   onClick={() => startEditScore(i)}
                                   className="btn-secondary text-sm"
