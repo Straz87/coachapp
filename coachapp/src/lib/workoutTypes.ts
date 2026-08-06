@@ -58,8 +58,11 @@ export type ScoreConfig = {
 
 export type TimerConfig = {
   type: string;
-  minutes: number;
+  minutes: number; // durata di un giro (EMOM/AMRAP/TABATA) o obiettivo (FOR TIME)
   seconds: number;
+  rounds?: number; // numero di giri (EMOM, AMRAP a giri multipli). Default 1.
+  restMinutes?: number; // riposo tra un giro e l'altro (solo AMRAP a giri multipli)
+  restSeconds?: number;
 };
 
 export type Block = {
