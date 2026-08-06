@@ -51,6 +51,10 @@ export type Block = {
   rpe: number | null;
   score: ScoreConfig | null;
   timer: TimerConfig | null;
+  // Nome del movimento (es. "Back Squat"), usato SOLO per raggruppare i punteggi
+  // nel grafico di progressione settimanale. Non è un massimale/1RM: è solo
+  // la serie storica dei pesi di lavoro inseriti dal cliente nelle schede.
+  exerciseName: string | null;
 };
 
 export function emptyBlock(): Block {
@@ -60,7 +64,14 @@ export function emptyBlock(): Block {
     rpe: null,
     score: null,
     timer: null,
+    exerciseName: null,
   };
+}
+
+// Estrae il primo numero da una stringa punteggio (es. "100 kg" -> 100, "5 giri + 12 rep" -> 5).
+export function parseScoreNumber(raw: string): number | null {
+  const match = raw.match(/(\d+(\.\d+)?)/);
+  return match ? Number(match[1]) : null;
 }
 
 // Punteggio effettivo inserito dal cliente per un blocco specifico
