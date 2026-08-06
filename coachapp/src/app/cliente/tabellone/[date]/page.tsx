@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireClientRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Block, ClientScores, scoreLabel, normalizeEntry } from "@/lib/workoutTypes";
+import { Block, ClientScores, scoreLabel, normalizeEntry, parseAmrapValue } from "@/lib/workoutTypes";
 
 type ProfilesRef = { full_name: string } | { full_name: string }[] | null;
 
@@ -43,11 +43,23 @@ function firstName(clients: { profile_id: string; profiles: ProfilesRef } | null
   return p?.full_name || "Atleta";
 }
 
+// Per l'AMRAP il punteggio giusto da ordinare non è il primo numero della
+// stringa ma "giri" come criterio principale e "reps supplementari" come
+// spareggio (es. "10 giri & 35 reps" batte "10 giri & 20 reps").
+function parseValueForType(raw: string, scoreType: string): number | null {
+  if (scoreType === "amrap") {
+    const { giri, reps } = parseAmrapValue(raw);
+    return giri * 100000 + reps;
+  }
+  return parseValue(raw);
+}
+
 // Combina le eventuali serie multiple di un punteggio in un unico valore da
 // mostrare/ordinare nel tabellone, secondo l'aggregazione scelta dal trainer.
 function aggregateForBoard(
   raw: unknown,
-  aggregation: string | undefined
+  aggregation: string | undefined,
+  scoreType: string
 ): { display: string; rx: boolean; sortKey: number | null } | null {
   const entry = normalizeEntry(raw);
   if (!entry) return null;
@@ -55,10 +67,10 @@ function aggregateForBoard(
   if (values.length === 0) return null;
 
   if (values.length === 1) {
-    return { display: values[0], rx: entry.rx, sortKey: parseValue(values[0]) };
+    return { display: values[0], rx: entry.rx, sortKey: parseValueForType(values[0], scoreType) };
   }
 
-  const nums = values.map(parseValue);
+  const nums = values.map((v) => parseValueForType(v, scoreType));
   const validNums = nums.filter((n): n is number => n !== null);
   if ((aggregation === "totale" || aggregation === "media") && validNums.length === values.length) {
     const sum = validNums.reduce((a, b) => a + b, 0);
@@ -90,7 +102,7 @@ function buildLeaderboard(
       if (!b.score) return;
       const raw = row.client_scores?.[String(i)];
       if (!raw) return;
-      const agg = aggregateForBoard(raw, b.score.aggregation);
+      const agg = aggregateForBoard(raw, b.score.aggregation, b.score.type);
       if (!agg) return;
       const key = `${b.type} · ${scoreLabel(b.score.type)}`;
       if (!groups[key]) groups[key] = [];
