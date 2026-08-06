@@ -56,7 +56,7 @@ export default async function TabellonePage({
 
   if (!myAssignment) {
     return (
-      <div className="-m-8 min-h-screen bg-gray-50 text-gray-900 p-4">
+      <div className="-m-4 md:-m-8 min-h-screen bg-gray-50 text-gray-900 p-4">
         <Link href={`/cliente/allenamento/${params.date}`} className="text-gray-500 text-sm">
           ← Torna alla scheda
         </Link>
@@ -109,7 +109,7 @@ export default async function TabellonePage({
   const groupKeys = Object.keys(groups);
 
   return (
-    <div className="-m-8 min-h-screen bg-gray-50 text-gray-900 pb-16">
+    <div className="-m-4 md:-m-8 min-h-screen bg-gray-50 text-gray-900 pb-16">
       <div className="p-4 space-y-5 max-w-xl mx-auto">
         <Link href={`/cliente/allenamento/${params.date}`} className="text-gray-500 text-sm inline-block">
           ← Torna alla scheda
