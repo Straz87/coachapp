@@ -6,10 +6,12 @@ import WorkoutTimer from "@/components/WorkoutTimer";
 import {
   BLOCK_TYPES,
   SCORE_TYPES,
+  AGGREGATION_TYPES,
   TIMER_TYPES,
   TIMER_LABELS,
   Block,
   emptyBlock,
+  emptyScoreConfig,
 } from "@/lib/workoutTypes";
 
 export type WorkoutDraft = {
@@ -167,7 +169,7 @@ function BlockEditor({
       <ToggleSection
         label="Chiedere un punteggio / obiettivo"
         enabled={block.score !== null}
-        onToggle={(on) => onChange({ score: on ? { type: SCORE_TYPES[0].value, target: "" } : null })}
+        onToggle={(on) => onChange({ score: on ? emptyScoreConfig() : null })}
       >
         {block.score && (
           <div className="grid grid-cols-2 gap-2">
@@ -188,6 +190,39 @@ function BlockEditor({
               value={block.score.target}
               onChange={(e) => onChange({ score: { ...block.score!, target: e.target.value } })}
             />
+          </div>
+        )}
+        {block.score && (
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div>
+              <label className="text-xs text-gray-500">Numero di serie</label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                className="input"
+                value={block.score.sets ?? 1}
+                onChange={(e) =>
+                  onChange({
+                    score: { ...block.score!, sets: Math.min(10, Math.max(1, Number(e.target.value) || 1)) },
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Come combinare le serie</label>
+              <select
+                className="input"
+                value={block.score.aggregation ?? "elenco"}
+                onChange={(e) => onChange({ score: { ...block.score!, aggregation: e.target.value } })}
+              >
+                {AGGREGATION_TYPES.map((a) => (
+                  <option key={a.value} value={a.value}>
+                    {a.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
         {block.score && (
