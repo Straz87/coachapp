@@ -12,14 +12,21 @@ import {
 } from "@/lib/workoutTypes";
 import WorkoutTimer from "@/components/WorkoutTimer";
 
-type Assignment = {
-  id: string;
-  date: string;
+// Rappresenta la scheda del giorno indipendentemente dal fatto che sia
+// un allenamento individuale (workout_assignments) o un allenamento di
+// gruppo/programma condiviso (group_workouts + group_workout_scores).
+// Un allenamento individuale ha SEMPRE la precedenza su quello di gruppo.
+type Source =
+  | { kind: "individual"; assignmentId: string }
+  | { kind: "group"; groupWorkoutId: string; groupId: string };
+
+type ViewModel = {
+  source: Source;
   title: string;
   blocks: Block[];
   completed: boolean;
-  client_scores: ClientScores;
-  liked_by: string[];
+  likedBy: string[];
+  clientScores: ClientScores;
 };
 
 export default function AllenamentoGiorno({
@@ -36,7 +43,7 @@ export default function AllenamentoGiorno({
   dateLabel: string;
 }) {
   const supabase = createClient();
-  const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const [vm, setVm] = useState<ViewModel | null>(null);
   const [prevScores, setPrevScores] = useState<ClientScores | null>(null);
   const [loading, setLoading] = useState(true);
   const [openBlocks, setOpenBlocks] = useState<Record<number, boolean>>({});
@@ -48,25 +55,106 @@ export default function AllenamentoGiorno({
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+
+    // 1) Un allenamento individuale ha sempre la precedenza.
+    const { data: assignment } = await supabase
       .from("workout_assignments")
       .select("*")
       .eq("client_id", clientId)
       .eq("date", date)
       .maybeSingle();
-    setAssignment(data as Assignment | null);
 
-    // Punteggi della stessa scheda della settimana scorsa (solo come riferimento,
-    // non tocca in alcun modo l'eventuale massimale dell'esercizio).
-    const prevDate = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
-    const { data: prevData } = await supabase
-      .from("workout_assignments")
-      .select("client_scores")
-      .eq("client_id", clientId)
-      .eq("date", prevDate)
-      .maybeSingle();
-    setPrevScores((prevData?.client_scores as ClientScores | null) || null);
+    if (assignment) {
+      setVm({
+        source: { kind: "individual", assignmentId: assignment.id },
+        title: assignment.title,
+        blocks: assignment.blocks || [],
+        completed: assignment.completed,
+        likedBy: assignment.liked_by || [],
+        clientScores: assignment.client_scores || {},
+      });
 
+      const prevDate = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
+      const { data: prevData } = await supabase
+        .from("workout_assignments")
+        .select("client_scores")
+        .eq("client_id", clientId)
+        .eq("date", prevDate)
+        .maybeSingle();
+      setPrevScores((prevData?.client_scores as ClientScores | null) || null);
+
+      setLoading(false);
+      return;
+    }
+
+    // 2) Nessun allenamento individuale: controlla se il cliente segue un
+    // gruppo con un allenamento condiviso per questo giorno.
+    const { data: memberships } = await supabase
+      .from("group_members")
+      .select("group_id")
+      .eq("client_id", clientId);
+
+    const groupIds = (memberships || []).map((m) => m.group_id);
+
+    if (groupIds.length > 0) {
+      const { data: groupWorkout } = await supabase
+        .from("group_workouts")
+        .select("*")
+        .in("group_id", groupIds)
+        .eq("date", date)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (groupWorkout) {
+        const { data: scoreRow } = await supabase
+          .from("group_workout_scores")
+          .select("*")
+          .eq("group_workout_id", groupWorkout.id)
+          .eq("client_id", clientId)
+          .maybeSingle();
+
+        setVm({
+          source: {
+            kind: "group",
+            groupWorkoutId: groupWorkout.id,
+            groupId: groupWorkout.group_id,
+          },
+          title: groupWorkout.title,
+          blocks: groupWorkout.blocks || [],
+          completed: scoreRow?.completed || false,
+          likedBy: groupWorkout.liked_by || [],
+          clientScores: scoreRow?.client_scores || {},
+        });
+
+        const prevDate = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
+        const { data: prevGroupWorkout } = await supabase
+          .from("group_workouts")
+          .select("id")
+          .eq("group_id", groupWorkout.group_id)
+          .eq("date", prevDate)
+          .maybeSingle();
+
+        if (prevGroupWorkout) {
+          const { data: prevScoreRow } = await supabase
+            .from("group_workout_scores")
+            .select("client_scores")
+            .eq("group_workout_id", prevGroupWorkout.id)
+            .eq("client_id", clientId)
+            .maybeSingle();
+          setPrevScores((prevScoreRow?.client_scores as ClientScores | null) || null);
+        } else {
+          setPrevScores(null);
+        }
+
+        setLoading(false);
+        return;
+      }
+    }
+
+    // 3) Nessun allenamento individuale né di gruppo per oggi.
+    setVm(null);
+    setPrevScores(null);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, date]);
@@ -88,33 +176,55 @@ export default function AllenamentoGiorno({
   }
 
   async function toggleLike() {
-    if (!assignment) return;
-    const already = assignment.liked_by?.includes(profileId);
+    if (!vm) return;
+    const already = vm.likedBy.includes(profileId);
     const nextLiked = already
-      ? assignment.liked_by.filter((id) => id !== profileId)
-      : [...(assignment.liked_by || []), profileId];
-    setAssignment({ ...assignment, liked_by: nextLiked });
-    await supabase
-      .from("workout_assignments")
-      .update({ liked_by: nextLiked })
-      .eq("id", assignment.id);
+      ? vm.likedBy.filter((id) => id !== profileId)
+      : [...vm.likedBy, profileId];
+    setVm({ ...vm, likedBy: nextLiked });
+
+    if (vm.source.kind === "individual") {
+      await supabase
+        .from("workout_assignments")
+        .update({ liked_by: nextLiked })
+        .eq("id", vm.source.assignmentId);
+    } else {
+      await supabase
+        .from("group_workouts")
+        .update({ liked_by: nextLiked })
+        .eq("id", vm.source.groupWorkoutId);
+    }
   }
 
   async function toggleCompleted() {
-    if (!assignment) return;
-    const nextCompleted = !assignment.completed;
-    setAssignment({ ...assignment, completed: nextCompleted });
-    await supabase
-      .from("workout_assignments")
-      .update({
-        completed: nextCompleted,
-        completed_at: nextCompleted ? new Date().toISOString() : null,
-      })
-      .eq("id", assignment.id);
+    if (!vm) return;
+    const nextCompleted = !vm.completed;
+    setVm({ ...vm, completed: nextCompleted });
+
+    if (vm.source.kind === "individual") {
+      await supabase
+        .from("workout_assignments")
+        .update({
+          completed: nextCompleted,
+          completed_at: nextCompleted ? new Date().toISOString() : null,
+        })
+        .eq("id", vm.source.assignmentId);
+    } else {
+      await supabase.from("group_workout_scores").upsert(
+        {
+          group_workout_id: vm.source.groupWorkoutId,
+          client_id: clientId,
+          completed: nextCompleted,
+          completed_at: nextCompleted ? new Date().toISOString() : null,
+          client_scores: vm.clientScores,
+        },
+        { onConflict: "group_workout_id,client_id" }
+      );
+    }
   }
 
   function startEditScore(index: number) {
-    const existing = assignment?.client_scores?.[String(index)];
+    const existing = vm?.clientScores?.[String(index)];
     setDraftValue(existing?.value || "");
     setDraftRx(existing?.rx ?? true);
     setEditingIndex(index);
@@ -122,17 +232,30 @@ export default function AllenamentoGiorno({
   }
 
   async function saveScore(index: number) {
-    if (!assignment || draftValue.trim() === "") return;
+    if (!vm || draftValue.trim() === "") return;
     setSaving(true);
     const nextScores: ClientScores = {
-      ...assignment.client_scores,
+      ...vm.clientScores,
       [String(index)]: { value: draftValue.trim(), rx: draftRx },
     };
-    setAssignment({ ...assignment, client_scores: nextScores });
-    await supabase
-      .from("workout_assignments")
-      .update({ client_scores: nextScores })
-      .eq("id", assignment.id);
+    setVm({ ...vm, clientScores: nextScores });
+
+    if (vm.source.kind === "individual") {
+      await supabase
+        .from("workout_assignments")
+        .update({ client_scores: nextScores })
+        .eq("id", vm.source.assignmentId);
+    } else {
+      await supabase.from("group_workout_scores").upsert(
+        {
+          group_workout_id: vm.source.groupWorkoutId,
+          client_id: clientId,
+          client_scores: nextScores,
+          completed: vm.completed,
+        },
+        { onConflict: "group_workout_id,client_id" }
+      );
+    }
     setSaving(false);
     setEditingIndex(null);
   }
@@ -145,8 +268,12 @@ export default function AllenamentoGiorno({
     );
   }
 
-  const liked = !!assignment?.liked_by?.includes(profileId);
-  const likeCount = assignment?.liked_by?.length || 0;
+  const liked = !!vm?.likedBy.includes(profileId);
+  const likeCount = vm?.likedBy.length || 0;
+  const tabelloneHref =
+    vm?.source.kind === "group"
+      ? `/cliente/tabellone/${date}?g=${vm.source.groupWorkoutId}`
+      : `/cliente/tabellone/${date}`;
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 pb-28">
@@ -161,7 +288,7 @@ export default function AllenamentoGiorno({
           </span>
         </div>
 
-        {!assignment ? (
+        {!vm ? (
           <div className="card text-gray-500">
             <p className="text-lg font-semibold text-gray-900 mb-1">{dateLabel}</p>
             Giorno di riposo / nessuna scheda assegnata.
@@ -169,7 +296,7 @@ export default function AllenamentoGiorno({
         ) : (
           <>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{assignment.title}</h1>
+              <h1 className="text-3xl font-bold text-gray-900">{vm.title}</h1>
               <p className="text-gray-500 text-sm mt-1">{dateLabel}</p>
             </div>
 
@@ -200,7 +327,7 @@ export default function AllenamentoGiorno({
             </button>
 
             <Link
-              href={`/cliente/tabellone/${date}`}
+              href={tabelloneHref}
               className="block rounded-2xl px-5 py-4 font-semibold flex items-center justify-between"
               style={{
                 background: "linear-gradient(90deg, #84cc16, #a3e635)",
@@ -219,12 +346,12 @@ export default function AllenamentoGiorno({
             </Link>
 
             <p className="text-xs uppercase tracking-wide text-gray-400 pt-2">
-              ({assignment.blocks.length}) blocchi · tocca per aprire
+              ({vm.blocks.length}) blocchi · tocca per aprire
             </p>
 
             <div className="space-y-3">
-              {assignment.blocks.map((b, i) => {
-                const scoreEntry = assignment.client_scores?.[String(i)];
+              {vm.blocks.map((b, i) => {
+                const scoreEntry = vm.clientScores?.[String(i)];
                 const isEditing = editingIndex === i;
                 const open = isBlockOpen(i);
                 return (
@@ -383,18 +510,18 @@ export default function AllenamentoGiorno({
         )}
       </div>
 
-      {assignment && (
+      {vm && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent">
           <button
             onClick={toggleCompleted}
             className="max-w-xl mx-auto w-full flex items-center justify-center gap-2 font-semibold rounded-full px-5 py-3.5"
             style={
-              assignment.completed
+              vm.completed
                 ? { background: "#e5e7eb", color: "#374151" }
                 : { background: "#d4f547", color: "#0c1210" }
             }
           >
-            {assignment.completed ? "✓ Sessione completata" : "Convalida della sessione"}
+            {vm.completed ? "✓ Sessione completata" : "Convalida della sessione"}
           </button>
         </div>
       )}
