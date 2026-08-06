@@ -198,3 +198,13 @@ create policy "messages_participants" on messages
 -- Realtime: abilita gli aggiornamenti live per la chat
 -- ============================================================
 alter publication supabase_realtime add table messages;
+
+-- ============================================================
+-- NOTA: colonne aggiunte in seguito direttamente da SQL Editor
+-- (non ancora incluse sopra come CREATE TABLE originale):
+--   alter table workout_assignments
+--     add column client_scores jsonb not null default '{}',
+--     add column liked_by uuid[] not null default '{}';
+-- Per i GRUPPI/PROGRAMMI CONDIVISI (workout_groups, group_members,
+-- group_workouts, group_workout_scores) vedi supabase/migrations/002_groups.sql
+-- ============================================================
