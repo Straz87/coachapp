@@ -56,11 +56,11 @@ export default async function TabellonePage({
 
   if (!myAssignment) {
     return (
-      <div className="-m-8 min-h-screen bg-[#0c1210] text-white p-4">
-        <Link href={`/cliente/allenamento/${params.date}`} className="text-gray-400 text-sm">
+      <div className="-m-8 min-h-screen bg-gray-50 text-gray-900 p-4">
+        <Link href={`/cliente/allenamento/${params.date}`} className="text-gray-500 text-sm">
           ← Torna alla scheda
         </Link>
-        <p className="text-gray-400 mt-4">Nessuna scheda trovata per questo giorno.</p>
+        <p className="text-gray-500 mt-4">Nessuna scheda trovata per questo giorno.</p>
       </div>
     );
   }
@@ -109,36 +109,36 @@ export default async function TabellonePage({
   const groupKeys = Object.keys(groups);
 
   return (
-    <div className="-m-8 min-h-screen bg-[#0c1210] text-white pb-16">
+    <div className="-m-8 min-h-screen bg-gray-50 text-gray-900 pb-16">
       <div className="p-4 space-y-5 max-w-xl mx-auto">
-        <Link href={`/cliente/allenamento/${params.date}`} className="text-gray-400 text-sm inline-block">
+        <Link href={`/cliente/allenamento/${params.date}`} className="text-gray-500 text-sm inline-block">
           ← Torna alla scheda
         </Link>
 
         <div>
           <h1 className="text-2xl font-bold">Tabellone</h1>
-          <p className="text-gray-400 text-sm">{myAssignment.title}</p>
+          <p className="text-gray-500 text-sm">{myAssignment.title}</p>
         </div>
 
         {groupKeys.length === 0 ? (
-          <p className="text-gray-400">
+          <p className="text-gray-500">
             Nessun punteggio inserito ancora per questo allenamento. Sii il primo!
           </p>
         ) : (
           groupKeys.map((key) => (
-            <div key={key} className="bg-white/5 rounded-2xl p-4">
-              <p className="text-xs uppercase tracking-wide text-gray-500 mb-3">{key}</p>
+            <div key={key} className="card">
+              <p className="text-xs uppercase tracking-wide text-gray-400 mb-3">{key}</p>
               <div className="space-y-2">
                 {groups[key].map((e, idx) => (
                   <div
                     key={idx}
                     className={`flex items-center gap-3 rounded-xl px-3 py-2 ${
-                      e.isSelf ? "bg-lime-400/20" : "bg-white/5"
+                      e.isSelf ? "bg-brand/20" : "bg-gray-50"
                     }`}
                   >
                     <span className="w-6 text-center text-gray-400 font-semibold">{idx + 1}</span>
                     <span className="flex-1 font-medium">{e.name}</span>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white/10">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
                       {e.rx ? "RX" : "SC"}
                     </span>
                     <span className="font-semibold">{e.value}</span>
