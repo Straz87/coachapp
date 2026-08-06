@@ -12,9 +12,9 @@ export default async function ClienteLayout({ children }: { children: React.Reac
   const { profile } = await requireClientRole();
 
   return (
-    <div className="flex">
+    <div className="flex flex-col md:flex-row">
       <SideNav items={NAV_ITEMS} fullName={profile.full_name} />
-      <main className="flex-1 p-8">{children}</main>
+      <main className="flex-1 p-4 md:p-8 min-w-0">{children}</main>
     </div>
   );
 }
