@@ -141,6 +141,25 @@ export function displayScoreValue(entry: ClientScoreEntry, aggregation: string =
   return values.join(" · ");
 }
 
+// Per il tipo di punteggio "amrap" (round & rep) il cliente inserisce due
+// numeri separati: i giri completati e le ripetizioni supplementari nel
+// giro incompleto. Li combiniamo in un'unica stringa per riusare lo stesso
+// modello dati (ClientScoreEntry.values: string[]) degli altri tipi.
+export function formatAmrapValue(giri: number, reps: number): string {
+  return `${giri} giri & ${reps} reps`;
+}
+
+export function parseAmrapValue(raw: string): { giri: number; reps: number } {
+  const match = raw.match(/(\d+)\s*gir\w*[^\d]*(\d+)\s*rep/i);
+  if (match) {
+    return { giri: Number(match[1]), reps: Number(match[2]) };
+  }
+  // Compatibilità con punteggi amrap salvati prima di questa modifica
+  // (testo libero, es. "5 giri + 12 rep" o solo un numero di giri).
+  const single = parseScoreNumber(raw);
+  return { giri: single ?? 0, reps: 0 };
+}
+
 // Valore numerico rappresentativo di un punteggio (una o più serie), per
 // grafici e classifiche. Ritorna null se non c'è nulla di numerico.
 export function numericScoreValue(entry: ClientScoreEntry, aggregation: string = "elenco"): number | null {
