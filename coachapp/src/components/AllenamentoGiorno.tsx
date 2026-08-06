@@ -492,6 +492,7 @@ export default function AllenamentoGiorno({
                                             }
                                           />
                                         </div>
+                                        </div>
                                       </div>
                                     );
                                   }
