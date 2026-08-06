@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireClientRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Block, ClientScores, scoreLabel } from "@/lib/workoutTypes";
+import { Block, ClientScores, scoreLabel, normalizeEntry } from "@/lib/workoutTypes";
 
 type ProfilesRef = { full_name: string } | { full_name: string }[] | null;
 
@@ -43,6 +43,36 @@ function firstName(clients: { profile_id: string; profiles: ProfilesRef } | null
   return p?.full_name || "Atleta";
 }
 
+// Combina le eventuali serie multiple di un punteggio in un unico valore da
+// mostrare/ordinare nel tabellone, secondo l'aggregazione scelta dal trainer.
+function aggregateForBoard(
+  raw: unknown,
+  aggregation: string | undefined
+): { display: string; rx: boolean; sortKey: number | null } | null {
+  const entry = normalizeEntry(raw);
+  if (!entry) return null;
+  const values = entry.values.filter((v) => v.trim() !== "");
+  if (values.length === 0) return null;
+
+  if (values.length === 1) {
+    return { display: values[0], rx: entry.rx, sortKey: parseValue(values[0]) };
+  }
+
+  const nums = values.map(parseValue);
+  const validNums = nums.filter((n): n is number => n !== null);
+  if ((aggregation === "totale" || aggregation === "media") && validNums.length === values.length) {
+    const sum = validNums.reduce((a, b) => a + b, 0);
+    const result = aggregation === "totale" ? sum : sum / validNums.length;
+    const rounded = Math.round(result * 100) / 100;
+    return {
+      display: aggregation === "totale" ? `${rounded} (tot.)` : `${rounded} (media)`,
+      rx: entry.rx,
+      sortKey: result,
+    };
+  }
+  return { display: values.join(" · "), rx: entry.rx, sortKey: validNums[0] ?? null };
+}
+
 function buildLeaderboard(
   rows: {
     blocks: Block[];
@@ -58,16 +88,18 @@ function buildLeaderboard(
     const isSelf = row.clients?.profile_id === selfProfileId;
     row.blocks.forEach((b, i) => {
       if (!b.score) return;
-      const entry = row.client_scores?.[String(i)];
-      if (!entry) return;
+      const raw = row.client_scores?.[String(i)];
+      if (!raw) return;
+      const agg = aggregateForBoard(raw, b.score.aggregation);
+      if (!agg) return;
       const key = `${b.type} · ${scoreLabel(b.score.type)}`;
       if (!groups[key]) groups[key] = [];
       groups[key].push({
         name,
-        value: entry.value,
-        rx: entry.rx,
+        value: agg.display,
+        rx: agg.rx,
         isSelf,
-        sortKey: parseValue(entry.value),
+        sortKey: agg.sortKey,
       });
       (groups[key] as (Entry & { _scoreType?: string })[])[groups[key].length - 1]._scoreType =
         b.score.type;
