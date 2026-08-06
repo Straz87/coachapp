@@ -11,6 +11,8 @@ import {
   scoreLabel,
   normalizeEntry,
   displayScoreValue,
+  formatAmrapValue,
+  parseAmrapValue,
 } from "@/lib/workoutTypes";
 import WorkoutTimer from "@/components/WorkoutTimer";
 
@@ -450,19 +452,63 @@ export default function AllenamentoGiorno({
 
                             {isEditing ? (
                               <div className="space-y-2">
-                                {Array.from({ length: sets }).map((_, setIdx) => (
-                                  <input
-                                    key={setIdx}
-                                    className="input"
-                                    placeholder={
-                                      sets > 1
-                                        ? `Serie ${setIdx + 1}`
-                                        : "es. 100 kg, 5 giri + 12 rep…"
-                                    }
-                                    value={draftValues[setIdx] || ""}
-                                    onChange={(e) => updateDraftValue(setIdx, e.target.value)}
-                                  />
-                                ))}
+                                {Array.from({ length: sets }).map((_, setIdx) => {
+                                  if (b.score!.type === "amrap") {
+                                    const { giri, reps } = parseAmrapValue(draftValues[setIdx] || "");
+                                    return (
+                                      <div key={setIdx} className="space-y-1">
+                                        {sets > 1 && (
+                                          <p className="text-xs text-gray-400">Serie {setIdx + 1}</p>
+                                        )}
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="text-xs text-gray-500">Giri</label>
+                                            <input
+                                              type="number"
+                                              inputMode="numeric"
+                                              min={0}
+                                              className="input"
+                                              value={giri || ""}
+                                              onChange={(e) =>
+                                                updateDraftValue(
+                                                  setIdx,
+                                                  formatAmrapValue(Number(e.target.value) || 0, reps)
+                                                )
+                                            }
+                                          </div>
+                                          <div>
+                                            <label className="text-xs text-gray-500">Reps supplementari</label>
+                                            <input
+                                              type="number"
+                                              inputMode="numeric"
+                                              min={0}
+                                              className="input"
+                                              value={reps || ""}
+                                              onChange={(e) =>
+                                                updateDraftValue(
+                                                  setIdx,
+                                                  formatAmrapValue(giri, Number(e.target.value) || 0)
+                                                )
+                                            }
+                                          />
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <input
+                                      key={setIdx}
+                                      className="input"
+                                      placeholder={
+                                        sets > 1
+                                          ? `Serie ${setIdx + 1}`
+                                          : "es. 100 kg, 5 giri + 12 rep…"
+                                      }
+                                      value={draftValues[setIdx] || ""}
+                                      onChange={(e) => updateDraftValue(setIdx, e.target.value)}
+                                    />
+                                  );
+                                })}
                                 <div className="flex items-center gap-3 text-sm">
                                   <label className="flex items-center gap-1">
                                     <input
@@ -470,7 +516,7 @@ export default function AllenamentoGiorno({
                                       checked={draftRx}
                                       onChange={() => setDraftRx(true)}
                                     />
-                                  RX
+                                    RX
                                   </label>
                                   <label className="flex items-center gap-1">
                                     <input
