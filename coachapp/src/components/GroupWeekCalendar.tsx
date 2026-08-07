@@ -16,6 +16,19 @@ type GroupWorkout = {
 
 type DayInfo = { date: Date; iso: string; label: string; dayNumber: number; month: number };
 
+type TemplateDay = {
+  offset: number;
+  title: string;
+  blocks: Block[];
+  activityType: string | null;
+};
+
+type WeekTemplate = {
+  id: string;
+  name: string;
+  days: TemplateDay[];
+};
+
 export default function GroupWeekCalendar({
   groupId,
   trainerId,
@@ -29,6 +42,9 @@ export default function GroupWeekCalendar({
   const [loading, setLoading] = useState(true);
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [templates, setTemplates] = useState<WeekTemplate[]>([]);
+  const [openMenu, setOpenMenu] = useState<"template" | "copy" | null>(null);
+  const [banner, setBanner] = useState<string | null>(null);
 
   const days = getWeekDays(weekStart);
 
@@ -53,9 +69,27 @@ export default function GroupWeekCalendar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, weekStart]);
 
+  const loadTemplates = useCallback(async () => {
+    const { data } = await supabase
+      .from("week_templates")
+      .select("id, name, days")
+      .eq("trainer_id", trainerId)
+      .order("created_at", { ascending: false });
+    setTemplates((data || []) as WeekTemplate[]);
+  }, [trainerId]);
+
   useEffect(() => {
     loadWeek();
   }, [loadWeek]);
+
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
+
+  function flashBanner(text: string) {
+    setBanner(text);
+    setTimeout(() => setBanner(null), 4000);
+  }
 
   async function handleSave(draft: WorkoutDraft) {
     if (!editingDate) return;
@@ -123,6 +157,7 @@ export default function GroupWeekCalendar({
   // (stesso giorno della settimana). I giorni già pieni nella settimana visualizzata
   // vengono sovrascritti, dopo conferma.
   async function copyWeekFrom(offsetWeeks: number) {
+    setOpenMenu(null);
     const sourceWeekStart = addDays(weekStart, -7 * offsetWeeks);
     const sourceDays = getWeekDays(sourceWeekStart);
 
@@ -169,86 +204,220 @@ export default function GroupWeekCalendar({
       activity_type: p.source.activity_type,
     }));
     await supabase.from("group_workouts").upsert(rows, { onConflict: "group_id,date" });
+    flashBanner(`Copiati ${pairs.length} giorni sulla settimana visualizzata.`);
+    loadWeek();
+  }
+
+  // Salva la settimana visualizzata come modello riutilizzabile.
+  async function saveWeekAsTemplate() {
+    const name = window.prompt('Nome del modello (es. "Settimana forza 5x5")');
+    if (!name || !name.trim()) return;
+
+    const entries: TemplateDay[] = days
+      .map((d, i) => {
+        const w = workouts[d.iso];
+        if (!w) return null;
+        return { offset: i, title: w.title, blocks: w.blocks, activityType: w.activity_type };
+      })
+      .filter((e): e is TemplateDay => e !== null);
+
+    if (entries.length === 0) {
+      alert("Questa settimana non ha allenamenti da salvare come modello.");
+      return;
+    }
+
+    await supabase.from("week_templates").insert({
+      trainer_id: trainerId,
+      name: name.trim(),
+      days: entries,
+    });
+    setOpenMenu(null);
+    flashBanner(`Modello "${name.trim()}" salvato.`);
+    loadTemplates();
+  }
+
+  // Applica un modello salvato alla settimana visualizzata (stesso offset di giorno).
+  async function applyTemplate(tpl: WeekTemplate) {
+    const ok = window.confirm(
+      `Applicare il modello "${tpl.name}" a questa settimana? I giorni già pieni verranno sovrascritti.`
+    );
+    if (!ok) return;
+
+    const rows = tpl.days
+      .map((entry) => {
+        const targetIso = days[entry.offset]?.iso;
+        if (!targetIso) return null;
+        return {
+          group_id: groupId,
+          trainer_id: trainerId,
+          date: targetIso,
+          title: entry.title,
+          blocks: entry.blocks,
+          activity_type: entry.activityType,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    await supabase.from("group_workouts").upsert(rows, { onConflict: "group_id,date" });
+    setOpenMenu(null);
+    flashBanner(`Modello "${tpl.name}" applicato a questa settimana.`);
     loadWeek();
   }
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-        <button className="btn-secondary" onClick={() => setWeekStart(addDays(weekStart, -7))}>
-          ← Settimana prec.
-        </button>
-        <span className="font-medium">
-          {days[0].dayNumber}/{days[0].month} – {days[6].dayNumber}/{days[6].month}
-        </span>
-        <div className="flex items-center gap-2">
-          <select
-            className="input text-sm w-auto"
-            value=""
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v) copyWeekFrom(Number(v));
-              e.target.value = "";
-            }}
-          >
-            <option value="">Copia da settimana…</option>
-            <option value="1">Settimana precedente</option>
-            <option value="2">2 settimane fa</option>
-            <option value="3">3 settimane fa</option>
-            <option value="4">4 settimane fa</option>
-          </select>
-          <button className="btn-secondary" onClick={() => setWeekStart(addDays(weekStart, 7))}>
-            Settimana succ. →
-          </button>
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.7fr] gap-3 mb-3">
+        <div className="bg-brand-dark rounded-2xl px-5 py-4 text-white flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-xs font-semibold shrink-0">
+            {days[0].dayNumber}
+          </div>
+          <div>
+            <p className="font-semibold text-sm">Piano settimanale gruppo</p>
+            <p className="text-xs text-white/60">
+              {days[0].dayNumber}/{days[0].month} – {days[6].dayNumber}/{days[6].month}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-gray-100 rounded-2xl px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              className="text-gray-500 hover:text-gray-800 text-sm"
+              onClick={() => setWeekStart(addDays(weekStart, -7))}
+            >
+              ← Prec.
+            </button>
+            <span className="flex-1 text-center text-sm font-medium">
+              {days[0].dayNumber}/{days[0].month} – {days[6].dayNumber}/{days[6].month}
+            </span>
+            <button
+              className="text-gray-500 hover:text-gray-800 text-sm"
+              onClick={() => setWeekStart(addDays(weekStart, 7))}
+            >
+              Succ. →
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <button
+                onClick={() => setOpenMenu(openMenu === "template" ? null : "template")}
+                className="w-full bg-white rounded-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                Modello di settimana ▾
+              </button>
+              {openMenu === "template" && (
+                <div className="absolute z-10 mt-1 w-60 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden text-left">
+                  {templates.length === 0 && (
+                    <p className="px-4 py-3 text-xs text-gray-400">Nessun modello salvato</p>
+                  )}
+                  {templates.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => applyTemplate(t)}
+                      className="w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100"
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                  <button
+                    onClick={saveWeekAsTemplate}
+                    className="w-full text-left px-4 py-2.5 text-xs text-brand-dark bg-brand/10 hover:bg-brand/20 font-medium"
+                  >
+                    + Salva questa settimana come modello
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="relative flex-1">
+              <button
+                onClick={() => setOpenMenu(openMenu === "copy" ? null : "copy")}
+                className="w-full bg-white rounded-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                Settimana della copia ▾
+              </button>
+              {openMenu === "copy" && (
+                <div className="absolute z-10 mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden text-left">
+                  {[1, 2, 3, 4].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => copyWeekFrom(n)}
+                      className="w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                    >
+                      {n === 1 ? "Settimana precedente" : `${n} settimane fa`}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
+
+      {banner && (
+        <div className="bg-green-50 text-green-800 text-xs rounded-xl px-4 py-2.5 mb-3">✓ {banner}</div>
+      )}
 
       {loading ? (
         <p className="text-gray-400 text-sm">Caricamento…</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-7 gap-3 items-start">
-          {days.map((day) => {
+        <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-7 border-t border-gray-200 rounded-xl overflow-hidden">
+          {days.map((day, i) => {
             const w = workouts[day.iso];
             return (
-              <div key={day.iso} className="card flex flex-col">
-                <p className="text-xs text-gray-400 mb-2">
+              <div
+                key={day.iso}
+                className={`px-3 pb-3 min-h-[180px] ${i < 6 ? "sm:border-r border-gray-200" : ""}`}
+              >
+                <p className="text-xs font-medium text-gray-500 bg-gray-100 -mx-3 px-3 py-2 mb-2">
                   {day.label} {day.dayNumber}/{day.month}
                 </p>
                 {w ? (
-                  <div className="flex-1 flex flex-col">
-                    <p className="font-semibold text-sm mb-1">{w.title}</p>
+                  <div>
                     {w.activity_type && (
-                      <span className="inline-block self-start bg-brand/20 text-brand-dark text-[10px] font-semibold px-2 py-0.5 rounded-full mb-2">
+                      <span className="inline-block bg-brand/30 text-brand-dark text-[10px] font-semibold px-2 py-1 rounded mb-2">
                         {w.activity_type}
                       </span>
                     )}
-                    <div className="space-y-2 flex-1">
-                      {w.blocks.map((b, i) => (
-                        <div key={i}>
-                          <p className="text-xs font-medium text-gray-700">{b.type}</p>
-                          {htmlToLines(b.description).map((line, li) => (
-                            <p key={li} className="text-xs text-gray-500">
-                              {line}
+                    <p className="font-semibold text-sm mb-1">{w.title}</p>
+                    <div className="space-y-2">
+                      {w.blocks.map((b, bi) => {
+                        const isNote = b.type === "Nota per l'atleta";
+                        return (
+                          <div key={bi} className={isNote ? "bg-amber-50 rounded px-2 py-1.5" : ""}>
+                            <p
+                              className={`text-xs font-medium ${
+                                isNote ? "text-amber-800" : "text-gray-700"
+                              }`}
+                            >
+                              {b.type}
                             </p>
-                          ))}
-                        </div>
-                      ))}
+                            {htmlToLines(b.description).map((line, li) => (
+                              <p
+                                key={li}
+                                className={`text-xs ${isNote ? "text-amber-700" : "text-gray-500"}`}
+                              >
+                                {line}
+                              </p>
+                            ))}
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className="flex items-center gap-3 mt-2">
                       <button
-                        className="text-xs text-gray-500 hover:underline"
+                        className="text-xs text-gray-400 hover:text-gray-700"
                         onClick={() => setEditingDate(day.iso)}
                       >
                         Modifica
                       </button>
-                      <button className="text-xs text-gray-500 hover:underline" onClick={() => copyDay(day)}>
+                      <button className="text-xs text-gray-400 hover:text-gray-700" onClick={() => copyDay(day)}>
                         Copia →
                       </button>
                     </div>
                   </div>
                 ) : (
                   <button
-                    className="flex-1 flex items-center justify-center text-gray-300 hover:text-gray-500 text-2xl py-6"
+                    className="w-full h-24 flex items-center justify-center text-gray-300 hover:text-gray-500 text-2xl"
                     onClick={() => setEditingDate(day.iso)}
                   >
                     +
