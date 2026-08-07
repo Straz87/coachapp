@@ -36,6 +36,10 @@ export default async function CalendarioPage({
   const selectedClientId = searchParams.cliente || null;
   const selectedGroupId = searchParams.gruppo || null;
 
+  const selectedClientName = clientOptions.find((c) => c.id === selectedClientId)?.name;
+  const selectedGroupName = groupOptions.find((g) => g.id === selectedGroupId)?.name;
+  const trainerName = (profile as any).full_name || "Coach";
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Calendario allenamenti</h1>
@@ -51,9 +55,19 @@ export default async function CalendarioPage({
       </div>
 
       {selectedGroupId ? (
-        <GroupWeekCalendar groupId={selectedGroupId} trainerId={profile.id} />
+        <GroupWeekCalendar
+          groupId={selectedGroupId}
+          trainerId={profile.id}
+          groupName={selectedGroupName}
+          trainerName={trainerName}
+        />
       ) : selectedClientId ? (
-        <WeekCalendar clientId={selectedClientId} trainerId={profile.id} />
+        <WeekCalendar
+          clientId={selectedClientId}
+          trainerId={profile.id}
+          clientName={selectedClientName}
+          trainerName={trainerName}
+        />
       ) : (
         <p className="text-gray-400">
           Seleziona un cliente per una scheda individuale, oppure un gruppo per assegnare lo stesso
