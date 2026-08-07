@@ -9,6 +9,7 @@ import {
   AGGREGATION_TYPES,
   TIMER_TYPES,
   TIMER_LABELS,
+  ACTIVITY_TYPES,
   Block,
   emptyBlock,
   emptyScoreConfig,
@@ -17,6 +18,7 @@ import {
 export type WorkoutDraft = {
   title: string;
   blocks: Block[];
+  activityType?: string | null;
 };
 
 export default function WorkoutEditorPanel({
@@ -33,6 +35,7 @@ export default function WorkoutEditorPanel({
   saving?: boolean;
 }) {
   const [title, setTitle] = useState(initial.title);
+  const [activityType, setActivityType] = useState<string | null>(initial.activityType ?? null);
   const [blocks, setBlocks] = useState<Block[]>(
     initial.blocks.length > 0 ? initial.blocks : [emptyBlock()]
   );
@@ -41,8 +44,8 @@ export default function WorkoutEditorPanel({
     setBlocks((b) => b.map((blk, i) => (i === index ? { ...blk, ...patch } : blk)));
   }
 
-  function addBlock() {
-    setBlocks((b) => [...b, emptyBlock()]);
+  function addBlock(type?: string) {
+    setBlocks((b) => [...b, type ? { ...emptyBlock(), type } : emptyBlock()]);
   }
 
   function removeBlock(index: number) {
@@ -51,7 +54,7 @@ export default function WorkoutEditorPanel({
 
   function handleSave() {
     const cleaned = blocks.filter((b) => b.description.trim() !== "");
-    onSave({ title: title.trim() || "Allenamento", blocks: cleaned });
+    onSave({ title: title.trim() || "Allenamento", blocks: cleaned, activityType });
   }
 
   return (
@@ -69,6 +72,26 @@ export default function WorkoutEditorPanel({
           />
         </div>
 
+        <div>
+          <label className="text-sm font-medium mb-1 block">Attività principale</label>
+          <div className="flex flex-wrap gap-2">
+            {ACTIVITY_TYPES.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setActivityType(activityType === t ? null : t)}
+                className={
+                  activityType === t
+                    ? "bg-brand text-brand-dark font-semibold rounded-full px-4 py-1.5 text-sm"
+                    : "bg-gray-100 text-gray-700 rounded-full px-4 py-1.5 text-sm hover:bg-gray-200"
+                }
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="space-y-5">
           {blocks.map((block, i) => (
             <BlockEditor
@@ -80,9 +103,14 @@ export default function WorkoutEditorPanel({
           ))}
         </div>
 
-        <button onClick={addBlock} className="btn-secondary text-sm">
-          + Aggiungi sezione
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => addBlock()} className="btn-secondary text-sm">
+            + Aggiungi sezione
+          </button>
+          <button onClick={() => addBlock("Nota per l'atleta")} className="btn-secondary text-sm">
+            + Nota per l&apos;atleta
+          </button>
+        </div>
 
         <div className="flex items-center justify-between pt-3 border-t border-gray-100">
           <div className="flex gap-2">
