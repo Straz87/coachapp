@@ -16,6 +16,8 @@ import {
   IconChat,
   IconShare,
   IconSettings,
+  IconCopy,
+  IconTrash,
 } from "@/components/icons";
 
 type GroupWorkout = {
@@ -70,6 +72,12 @@ export default function GroupWeekCalendar({
   const [banner, setBanner] = useState<string | null>(null);
   const [libraryTab, setLibraryTab] = useState<"programmi" | "templates">("programmi");
   const [memberCount, setMemberCount] = useState<number | null>(null);
+  const [dayMenuOpen, setDayMenuOpen] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<{
+    title: string;
+    blocks: Block[];
+    activityType: string | null;
+  } | null>(null);
 
   const days = getWeekDays(weekStart);
   const todayIso = toISODate(new Date());
@@ -166,28 +174,19 @@ export default function GroupWeekCalendar({
     loadWeek();
   }
 
-  // Copia l'allenamento di un giorno sulla stessa data della settimana successiva.
-  async function copyDay(day: DayInfo) {
-    const source = workouts[day.iso];
-    if (!source) return;
-    const targetDate = toISODate(addDays(day.date, 7));
+  function copySessionToClipboard(w: GroupWorkout) {
+    setClipboard({ title: w.title, blocks: w.blocks, activityType: w.activity_type });
+    setDayMenuOpen(null);
+    flashBanner("Sessione copiata. Apri un giorno vuoto e premi + per incollarla.");
+  }
 
-    const ok = window.confirm(
-      `Copiare questo giorno sul ${targetDate}? Se il gruppo ha già un allenamento in quella data verrà sovrascritto.`
-    );
+  async function deleteDay(day: DayInfo) {
+    const w = workouts[day.iso];
+    if (!w) return;
+    const ok = window.confirm(`Eliminare la scheda del ${day.dayNumber}/${day.month}?`);
     if (!ok) return;
-
-    await supabase.from("group_workouts").upsert(
-      {
-        group_id: groupId,
-        trainer_id: trainerId,
-        date: targetDate,
-        title: source.title,
-        blocks: source.blocks,
-        activity_type: source.activity_type,
-      },
-      { onConflict: "group_id,date" }
-    );
+    await supabase.from("group_workouts").delete().eq("id", w.id);
+    setDayMenuOpen(null);
     loadWeek();
   }
 
@@ -409,6 +408,18 @@ export default function GroupWeekCalendar({
             <IconEdit className="w-5 h-5" />
           </div>
           <p className="text-lg font-semibold mb-3">Action</p>
+          {clipboard && (
+            <div className="w-full flex items-center justify-between bg-brand/10 text-brand-dark text-[11px] rounded-full px-3 py-1.5 mb-2">
+              <span className="truncate">Sessione copiata, pronta da incollare</span>
+              <button
+                onClick={() => setClipboard(null)}
+                className="ml-2 shrink-0 hover:text-brand-dark/70"
+                title="Svuota"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           <button
             onClick={openNewSession}
             className="w-full bg-brand text-brand-dark rounded-full px-3 py-2.5 text-sm font-medium mb-2"
@@ -534,24 +545,50 @@ export default function GroupWeekCalendar({
                           );
                         })}
                       </div>
-                      <div className="flex items-center gap-3 mt-2">
+                      <div className="relative mt-2">
                         <button
-                          className="text-xs text-gray-400 hover:text-gray-700"
-                          onClick={() => setEditingDate(day.iso)}
+                          className="text-gray-400 hover:text-gray-700 text-sm px-1"
+                          onClick={() => setDayMenuOpen(dayMenuOpen === day.iso ? null : day.iso)}
                         >
-                          Modifica
+                          •••
                         </button>
-                        <button className="text-xs text-gray-400 hover:text-gray-700" onClick={() => copyDay(day)}>
-                          Copia →
-                        </button>
+                        {dayMenuOpen === day.iso && (
+                          <div className="absolute z-10 mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden text-left">
+                            <button
+                              onClick={() => {
+                                setEditingDate(day.iso);
+                                setDayMenuOpen(null);
+                              }}
+                              className="w-full flex items-center gap-2 text-left px-3 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100"
+                            >
+                              <IconEdit className="w-3.5 h-3.5" />
+                              Modifica
+                            </button>
+                            <button
+                              onClick={() => copySessionToClipboard(w)}
+                              className="w-full flex items-center gap-2 text-left px-3 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100"
+                            >
+                              <IconCopy className="w-3.5 h-3.5" />
+                              Copia sessione
+                            </button>
+                            <button
+                              onClick={() => deleteDay(day)}
+                              className="w-full flex items-center gap-2 text-left px-3 py-2.5 text-xs text-red-600 hover:bg-red-50"
+                            >
+                              <IconTrash className="w-3.5 h-3.5" />
+                              Elimina scheda
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (
                     <button
-                      className="w-full h-24 flex items-center justify-center text-gray-300 hover:text-gray-500 text-2xl"
+                      className="w-full h-24 flex flex-col items-center justify-center text-gray-300 hover:text-gray-500"
                       onClick={() => setEditingDate(day.iso)}
                     >
-                      +
+                      <span className="text-2xl leading-none">+</span>
+                      {clipboard && <span className="text-[10px] text-brand-dark mt-1">Incolla sessione</span>}
                     </button>
                   )}
                 </div>
@@ -571,6 +608,8 @@ export default function GroupWeekCalendar({
                   blocks: workouts[editingDate].blocks,
                   activityType: workouts[editingDate].activity_type,
                 }
+              : clipboard
+              ? { title: clipboard.title, blocks: clipboard.blocks, activityType: clipboard.activityType }
               : { title: "", blocks: [], activityType: null }
           }
           onCancel={() => setEditingDate(null)}
