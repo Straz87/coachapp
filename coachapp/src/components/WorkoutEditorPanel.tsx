@@ -3,6 +3,8 @@
 import { useState } from "react";
 import RichTextEditor from "@/components/RichTextEditor";
 import WorkoutTimer from "@/components/WorkoutTimer";
+import { WEEKDAY_LABELS } from "@/lib/dates";
+import { IconEdit } from "@/components/icons";
 import {
   BLOCK_TYPES,
   SCORE_TYPES,
@@ -13,6 +15,7 @@ import {
   Block,
   emptyBlock,
   emptyScoreConfig,
+  htmlToLines,
 } from "@/lib/workoutTypes";
 
 export type WorkoutDraft = {
@@ -21,14 +24,43 @@ export type WorkoutDraft = {
   activityType?: string | null;
 };
 
+function formatDatePill(iso?: string): string | null {
+  if (!iso) return null;
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const label = WEEKDAY_LABELS[(date.getDay() + 6) % 7];
+  return `${label} ${d}/${m}`;
+}
+
+function timerSummary(block: Block): string | null {
+  if (!block.timer) return null;
+  const t = block.timer;
+  if (t.type === "EMOM") return `EMOM ${t.minutes}:${String(t.seconds).padStart(2, "0")}`;
+  if (t.type === "AMRAP") {
+    const rounds = t.rounds ?? 1;
+    return rounds > 1
+      ? `${rounds}x AMRAP ${t.minutes}:${String(t.seconds).padStart(2, "0")}`
+      : `AMRAP ${t.minutes}:${String(t.seconds).padStart(2, "0")}`;
+  }
+  if (t.type === "TABATA") return `Tabata ${t.minutes}:${String(t.seconds).padStart(2, "0")}`;
+  return `For Time ${t.minutes}:${String(t.seconds).padStart(2, "0")}`;
+}
+
+function blockPreview(block: Block): string {
+  const lines = htmlToLines(block.description);
+  return lines.join(" · ").slice(0, 90) || "Vuoto — tocca per compilare";
+}
+
 export default function WorkoutEditorPanel({
   initial,
+  date,
   onCancel,
   onSave,
   onDelete,
   saving,
 }: {
   initial: WorkoutDraft;
+  date?: string;
   onCancel: () => void;
   onSave: (draft: WorkoutDraft) => void;
   onDelete?: () => void;
@@ -39,17 +71,41 @@ export default function WorkoutEditorPanel({
   const [blocks, setBlocks] = useState<Block[]>(
     initial.blocks.length > 0 ? initial.blocks : [emptyBlock()]
   );
+  const [openBlocks, setOpenBlocks] = useState<Set<number>>(
+    new Set(initial.blocks.length > 0 ? [] : [0])
+  );
 
   function updateBlock(index: number, patch: Partial<Block>) {
     setBlocks((b) => b.map((blk, i) => (i === index ? { ...blk, ...patch } : blk)));
   }
 
   function addBlock(type?: string) {
-    setBlocks((b) => [...b, type ? { ...emptyBlock(), type } : emptyBlock()]);
+    setBlocks((b) => {
+      const next = [...b, type ? { ...emptyBlock(), type } : emptyBlock()];
+      setOpenBlocks((s) => new Set(s).add(next.length - 1));
+      return next;
+    });
   }
 
   function removeBlock(index: number) {
     setBlocks((b) => b.filter((_, i) => i !== index));
+    setOpenBlocks((s) => {
+      const next = new Set<number>();
+      s.forEach((i) => {
+        if (i < index) next.add(i);
+        else if (i > index) next.add(i - 1);
+      });
+      return next;
+    });
+  }
+
+  function toggleBlock(index: number) {
+    setOpenBlocks((s) => {
+      const next = new Set(s);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
   }
 
   function handleSave() {
@@ -57,46 +113,52 @@ export default function WorkoutEditorPanel({
     onSave({ title: title.trim() || "Allenamento", blocks: cleaned, activityType });
   }
 
+  const datePill = formatDatePill(date);
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto p-6 space-y-5">
-        <h2 className="text-lg font-bold">Scheda del giorno</h2>
-
-        <div>
-          <label className="text-sm font-medium">Titolo</label>
-          <input
-            className="input mt-1"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="es. WOD, Giorno 1…"
-          />
+        <div className="flex items-center gap-2 text-gray-400">
+          <IconEdit className="w-4 h-4" />
+          <p className="text-xs font-medium uppercase tracking-wide">Modifica la sessione</p>
         </div>
 
-        <div>
-          <label className="text-sm font-medium mb-1 block">Attività principale</label>
-          <div className="flex flex-wrap gap-2">
-            {ACTIVITY_TYPES.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setActivityType(activityType === t ? null : t)}
-                className={
-                  activityType === t
-                    ? "bg-brand text-brand-dark font-semibold rounded-full px-4 py-1.5 text-sm"
-                    : "bg-gray-100 text-gray-700 rounded-full px-4 py-1.5 text-sm hover:bg-gray-200"
-                }
-              >
-                {t}
-              </button>
-            ))}
-          </div>
+        <input
+          className="w-full text-xl font-semibold border-none outline-none px-0 placeholder:text-gray-300"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="es. WOD, Giorno 1…"
+        />
+
+        <div className="flex flex-wrap gap-2">
+          {datePill && (
+            <span className="bg-gray-100 text-gray-600 rounded-full px-4 py-1.5 text-sm">
+              {datePill}
+            </span>
+          )}
+          {ACTIVITY_TYPES.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setActivityType(activityType === t ? null : t)}
+              className={
+                activityType === t
+                  ? "bg-brand text-brand-dark font-semibold rounded-full px-4 py-1.5 text-sm"
+                  : "bg-gray-100 text-gray-700 rounded-full px-4 py-1.5 text-sm hover:bg-gray-200"
+              }
+            >
+              {t}
+            </button>
+          ))}
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-2">
           {blocks.map((block, i) => (
             <BlockEditor
               key={i}
               block={block}
+              open={openBlocks.has(i)}
+              onToggle={() => toggleBlock(i)}
               onChange={(patch) => updateBlock(i, patch)}
               onRemove={() => removeBlock(i)}
             />
@@ -105,7 +167,7 @@ export default function WorkoutEditorPanel({
 
         <div className="flex gap-2">
           <button onClick={() => addBlock()} className="btn-secondary text-sm">
-            + Aggiungi sezione
+            + Aggiungi blocco
           </button>
           <button onClick={() => addBlock("Nota per l'atleta")} className="btn-secondary text-sm">
             + Nota per l&apos;atleta
@@ -134,14 +196,55 @@ export default function WorkoutEditorPanel({
 
 function BlockEditor({
   block,
+  open,
+  onToggle,
   onChange,
   onRemove,
 }: {
   block: Block;
+  open: boolean;
+  onToggle: () => void;
   onChange: (patch: Partial<Block>) => void;
   onRemove: () => void;
 }) {
   const [showTimerPreview, setShowTimerPreview] = useState(false);
+  const isNote = block.type === "Nota per l'atleta";
+  const summary = timerSummary(block);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`w-full text-left border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 ${
+          isNote ? "bg-amber-50" : "bg-white hover:bg-gray-50"
+        }`}
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span
+              className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                isNote ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              {block.type}
+            </span>
+            {summary && (
+              <span className="text-xs text-gray-500 flex items-center gap-1 shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5">
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M12 8v4l3 2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {summary}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-400 truncate">{blockPreview(block)}</p>
+        </div>
+        <span className="text-gray-300 shrink-0">▾</span>
+      </button>
+    );
+  }
 
   return (
     <div className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50/40">
@@ -157,6 +260,13 @@ function BlockEditor({
             </option>
           ))}
         </select>
+        <button
+          onClick={onToggle}
+          className="text-gray-400 hover:text-gray-700 text-sm px-2 shrink-0"
+          title="Comprimi"
+        >
+          ▴
+        </button>
         <button
           onClick={onRemove}
           className="text-gray-400 hover:text-red-600 text-sm px-2 shrink-0"
