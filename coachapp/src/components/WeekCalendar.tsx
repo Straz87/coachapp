@@ -1,10 +1,21 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, getWeekDays, startOfWeek, toISODate } from "@/lib/dates";
 import WorkoutEditorPanel, { WorkoutDraft } from "@/components/WorkoutEditorPanel";
 import { Block, htmlToLines } from "@/lib/workoutTypes";
+import {
+  IconLibrary,
+  IconEdit,
+  IconInfinity,
+  IconGrid,
+  IconList,
+  IconChat,
+  IconShare,
+  IconSettings,
+} from "@/components/icons";
 
 type Assignment = {
   id: string;
@@ -30,12 +41,23 @@ type WeekTemplate = {
   days: TemplateDay[];
 };
 
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export default function WeekCalendar({
   clientId,
   trainerId,
+  clientName = "Cliente",
+  trainerName = "Coach",
 }: {
   clientId: string;
   trainerId: string;
+  clientName?: string;
+  trainerName?: string;
 }) {
   const supabase = createClient();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
@@ -46,8 +68,10 @@ export default function WeekCalendar({
   const [templates, setTemplates] = useState<WeekTemplate[]>([]);
   const [openMenu, setOpenMenu] = useState<"template" | "copy" | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  const [libraryTab, setLibraryTab] = useState<"programmi" | "templates">("programmi");
 
   const days = getWeekDays(weekStart);
+  const todayIso = toISODate(new Date());
 
   const loadWeek = useCallback(async () => {
     setLoading(true);
@@ -296,40 +320,117 @@ export default function WeekCalendar({
     loadWeek();
   }
 
+  function goToday() {
+    setWeekStart(startOfWeek(new Date()));
+  }
+
+  function openNewSession() {
+    const target = days.find((d) => d.iso === todayIso)?.iso || days[0].iso;
+    setEditingDate(target);
+  }
+
   return (
     <div>
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.7fr] gap-3 mb-3">
-        <div className="bg-brand-dark rounded-2xl px-5 py-4 text-white flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-xs font-semibold shrink-0">
-            {days[0].dayNumber}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.25fr_1fr] gap-3 mb-3">
+        <div className="bg-[#F1F0EA] rounded-2xl p-5 flex flex-col items-center text-center">
+          <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center mb-2 text-gray-700">
+            <IconLibrary className="w-5 h-5" />
           </div>
-          <div>
-            <p className="font-semibold text-sm">Piano settimanale</p>
-            <p className="text-xs text-white/60">
-              {days[0].dayNumber}/{days[0].month} – {days[6].dayNumber}/{days[6].month}
-            </p>
+          <p className="text-lg font-semibold mb-3">Library</p>
+          <div className="flex gap-2 w-full">
+            <button
+              onClick={() => setLibraryTab("programmi")}
+              className={`flex-1 rounded-full px-3 py-2 text-xs font-medium ${
+                libraryTab === "programmi" ? "bg-brand text-brand-dark" : "bg-white text-gray-600"
+              }`}
+            >
+              Programmi
+            </button>
+            <button
+              onClick={() => setLibraryTab("templates")}
+              className={`flex-1 rounded-full px-3 py-2 text-xs font-medium ${
+                libraryTab === "templates" ? "bg-brand text-brand-dark" : "bg-white text-gray-600"
+              }`}
+            >
+              Templates
+            </button>
           </div>
-        </div>
-
-        <div className="bg-gray-100 rounded-2xl px-5 py-4">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 w-full mt-3">
+            <button
+              onClick={goToday}
+              className="bg-white rounded-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+            >
+              Oggi
+            </button>
             <button
               className="text-gray-500 hover:text-gray-800 text-sm"
               onClick={() => setWeekStart(addDays(weekStart, -7))}
             >
-              ← Prec.
+              ←
             </button>
-            <span className="flex-1 text-center text-sm font-medium">
+            <span className="flex-1 text-center text-xs font-medium text-gray-600">
               {days[0].dayNumber}/{days[0].month} – {days[6].dayNumber}/{days[6].month}
             </span>
             <button
               className="text-gray-500 hover:text-gray-800 text-sm"
               onClick={() => setWeekStart(addDays(weekStart, 7))}
             >
-              Succ. →
+              →
             </button>
+            <IconGrid className="w-4 h-4 text-gray-300" />
+            <IconList className="w-4 h-4 text-gray-700" />
           </div>
-          <div className="flex gap-2">
+        </div>
+
+        <div className="bg-[#15171D] rounded-2xl p-5 text-white flex flex-col justify-between">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <IconInfinity className="w-5 h-5" />
+                <p className="text-xl font-semibold">{clientName}</p>
+              </div>
+              <p className="text-xs text-white/50">Scheda individuale</p>
+            </div>
+            <div className="flex items-center gap-2 pl-4 border-l border-white/10 text-right">
+              <div>
+                <p className="text-sm font-semibold">{trainerName}</p>
+                <p className="text-xs text-white/50">Coach</p>
+              </div>
+              <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-xs font-semibold shrink-0">
+                {initials(trainerName)}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-4">
+            <Link href="/trainer/calendario" className="text-xs text-white/60 hover:text-white underline">
+              ← Torna ai clienti
+            </Link>
+            <div className="flex items-center gap-2">
+              <button className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 hover:bg-white">
+                <IconChat className="w-4 h-4" />
+              </button>
+              <button className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 hover:bg-white">
+                <IconShare className="w-4 h-4" />
+              </button>
+              <button className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-brand-dark">
+                <IconSettings className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-[#F1F0EA] rounded-2xl p-5 flex flex-col items-center text-center">
+          <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center mb-2 text-gray-700">
+            <IconEdit className="w-5 h-5" />
+          </div>
+          <p className="text-lg font-semibold mb-3">Action</p>
+          <button
+            onClick={openNewSession}
+            className="w-full bg-brand text-brand-dark rounded-full px-3 py-2.5 text-sm font-medium mb-2"
+          >
+            + Sessione
+          </button>
+          <div className="flex gap-2 w-full">
             <div className="relative flex-1">
               <button
                 onClick={() => setOpenMenu(openMenu === "template" ? null : "template")}
@@ -392,80 +493,95 @@ export default function WeekCalendar({
       {loading ? (
         <p className="text-gray-400 text-sm">Caricamento…</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-7 border-t border-gray-200 rounded-xl overflow-hidden">
-          {days.map((day, i) => {
-            const a = assignments[day.iso];
-            return (
+        <div className="rounded-xl overflow-hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-7 bg-[#E9E8E1]">
+            {days.map((day, i) => (
               <div
                 key={day.iso}
-                className={`px-3 pb-3 min-h-[180px] ${i < 6 ? "sm:border-r border-gray-200" : ""}`}
+                className={`px-3 py-2.5 text-sm font-semibold text-gray-800 ${
+                  i < 6 ? "sm:border-r border-gray-300/60" : ""
+                }`}
               >
-                <p className="text-xs font-medium text-gray-500 bg-gray-100 -mx-3 px-3 py-2 mb-2">
-                  {day.label} {day.dayNumber}/{day.month}
-                </p>
-                {a ? (
-                  <div>
-                    {a.activity_type && (
-                      <span className="inline-block bg-brand/30 text-brand-dark text-[10px] font-semibold px-2 py-1 rounded mb-2">
-                        {a.activity_type}
-                      </span>
-                    )}
-                    <p className="font-semibold text-sm mb-1">{a.title}</p>
-                    <div className="space-y-2">
-                      {a.blocks.map((b, bi) => {
-                        const isNote = b.type === "Nota per l'atleta";
-                        return (
-                          <div key={bi} className={isNote ? "bg-amber-50 rounded px-2 py-1.5" : ""}>
-                            <p
-                              className={`text-xs font-medium ${
-                                isNote ? "text-amber-800" : "text-gray-700"
-                              }`}
-                            >
-                              {b.type}
-                            </p>
-                            {htmlToLines(b.description).map((line, li) => (
-                              <p
-                                key={li}
-                                className={`text-xs ${isNote ? "text-amber-700" : "text-gray-500"}`}
-                              >
-                                {line}
-                              </p>
-                            ))}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {a.completed && (
-                      <span className="text-green-600 text-xs mt-2 block">✓ Completato dal cliente</span>
-                    )}
-                    <div className="flex items-center gap-3 mt-2">
-                      <button
-                        className="text-xs text-gray-400 hover:text-gray-700"
-                        onClick={() => setEditingDate(day.iso)}
-                      >
-                        Modifica
-                      </button>
-                      <button className="text-xs text-gray-400 hover:text-gray-700" onClick={() => copyDay(day)}>
-                        Copia →
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    className="w-full h-24 flex items-center justify-center text-gray-300 hover:text-gray-500 text-2xl"
-                    onClick={() => setEditingDate(day.iso)}
-                  >
-                    +
-                  </button>
-                )}
+                {day.label} {day.dayNumber}/{day.month}
               </div>
-            );
-          })}
+            ))}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-7 border border-t-0 border-gray-200">
+            {days.map((day, i) => {
+              const a = assignments[day.iso];
+              const isToday = day.iso === todayIso;
+              return (
+                <div
+                  key={day.iso}
+                  className={`px-3 py-3 min-h-[180px] ${i < 6 ? "sm:border-r border-gray-200" : ""} ${
+                    isToday ? "bg-brand/10" : ""
+                  }`}
+                >
+                  {a ? (
+                    <div>
+                      {a.activity_type && (
+                        <span className="inline-block bg-brand/30 text-brand-dark text-[10px] font-semibold px-2 py-1 rounded mb-2">
+                          {a.activity_type}
+                        </span>
+                      )}
+                      <p className="font-semibold text-sm mb-1">{a.title}</p>
+                      <div className="space-y-2">
+                        {a.blocks.map((b, bi) => {
+                          const isNote = b.type === "Nota per l'atleta";
+                          return (
+                            <div key={bi} className={isNote ? "bg-amber-50 rounded px-2 py-1.5" : ""}>
+                              <p
+                                className={`text-xs font-medium ${
+                                  isNote ? "text-amber-800" : "text-gray-700"
+                                }`}
+                              >
+                                {b.type}
+                              </p>
+                              {htmlToLines(b.description).map((line, li) => (
+                                <p
+                                  key={li}
+                                  className={`text-xs ${isNote ? "text-amber-700" : "text-gray-500"}`}
+                                >
+                                  {line}
+                                </p>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {a.completed && (
+                        <span className="text-green-600 text-xs mt-2 block">✓ Completato dal cliente</span>
+                      )}
+                      <div className="flex items-center gap-3 mt-2">
+                        <button
+                          className="text-xs text-gray-400 hover:text-gray-700"
+                          onClick={() => setEditingDate(day.iso)}
+                        >
+                          Modifica
+                        </button>
+                        <button className="text-xs text-gray-400 hover:text-gray-700" onClick={() => copyDay(day)}>
+                          Copia →
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      className="w-full h-24 flex items-center justify-center text-gray-300 hover:text-gray-500 text-2xl"
+                      onClick={() => setEditingDate(day.iso)}
+                    >
+                      +
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {editingDate && (
         <WorkoutEditorPanel
+          date={editingDate}
           initial={
             assignments[editingDate]
               ? {
