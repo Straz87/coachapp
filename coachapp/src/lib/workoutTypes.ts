@@ -10,7 +10,12 @@ export const BLOCK_TYPES = [
   "Bodybuilding",
   "Mobility",
   "Altro",
+  "Nota per l'atleta",
 ];
+
+// Tipo di attività principale della giornata (facoltativo, mostrato come
+// etichetta nel calendario e nell'editor).
+export const ACTIVITY_TYPES = ["Palestra", "Metcon", "Sollevamento pesi"];
 
 export const SCORE_TYPES = [
   { value: "peso", label: "Peso (kg)" },
@@ -173,4 +178,18 @@ export function numericScoreValue(entry: ClientScoreEntry, aggregation: string =
   if (aggregation === "totale") return nums.reduce((a, b) => a + b, 0);
   if (aggregation === "media") return nums.reduce((a, b) => a + b, 0) / nums.length;
   return nums[0];
+}
+
+// Converte l'HTML del RichTextEditor in righe di solo testo, per mostrare
+// l'intero contenuto di un blocco nel calendario (nessun troncamento).
+export function htmlToLines(html: string): string[] {
+  if (!html) return [];
+  const withBreaks = html
+    .replace(/<\/(p|li|div|h[1-6])>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n");
+  const text = withBreaks.replace(/<[^>]+>/g, "");
+  return text
+    .split("\n")
+    .map((l) => l.replace(/&nbsp;/g, " ").trim())
+    .filter((l) => l.length > 0);
 }
