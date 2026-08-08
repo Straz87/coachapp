@@ -13,7 +13,7 @@ export default async function TrainerLayout({ children }: { children: React.Reac
 
   return (
     <div className="flex flex-col md:flex-row">
-      <SideNav items={NAV_ITEMS} fullName={profile.full_name} />
+      <SideNav items={NAV_ITEMS} fullName={profile.full_name} trainerId={profile.id} />
       <main className="flex-1 p-4 md:p-8 min-w-0">{children}</main>
     </div>
   );
