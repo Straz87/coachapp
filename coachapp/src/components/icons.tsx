@@ -110,3 +110,12 @@ export function IconTrash({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconBell({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className={className}>
+      <path d="M6 10a6 6 0 0 1 12 0c0 3.2 1 5 1.8 6H4.2C5 15 6 13.2 6 10z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 19a2 2 0 0 0 4 0" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
