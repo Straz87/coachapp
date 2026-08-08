@@ -4,15 +4,18 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import NotificationBell from "@/components/NotificationBell";
 
 type NavItem = { href: string; label: string; icon: string };
 
 export default function SideNav({
   items,
   fullName,
+  trainerId,
 }: {
   items: NavItem[];
   fullName: string;
+  trainerId?: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -36,7 +39,8 @@ export default function SideNav({
         >
           ☰
         </button>
-        <span className="text-lg font-bold">💪 Coach App</span>
+        <span className="text-lg font-bold flex-1">💪 Coach App</span>
+        {trainerId && <NotificationBell trainerId={trainerId} />}
       </div>
 
       {/* Sfondo scuro dietro al menu quando è aperto su mobile */}
@@ -52,8 +56,9 @@ export default function SideNav({
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="px-6 py-6 flex items-center justify-between">
+        <div className="px-6 py-6 flex items-center justify-between gap-2">
           <span className="text-xl font-bold">💪 Coach App</span>
+          <div className="hidden md:block">{trainerId && <NotificationBell trainerId={trainerId} />}</div>
           <button
             onClick={() => setOpen(false)}
             aria-label="Torna indietro"
