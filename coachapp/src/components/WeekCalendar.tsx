@@ -560,7 +560,7 @@ export default function WeekCalendar({
                           ⋯
                         </button>
                         {dayMenuOpen === day.iso && (
-                          <div className="absolute z-10 mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden text-left">
+                          <div className="absolute z-20 bottom-full mb-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden text-left">
                             <button
                               onClick={() => {
                                 setEditingDate(day.iso);
