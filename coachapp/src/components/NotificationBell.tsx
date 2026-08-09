@@ -10,7 +10,7 @@ type Notification = {
   client_id: string;
   client_name: string;
   workout_title: string;
-  kind: "individual" | "group";
+  kind: "individual" | "group" | "inattivita" | "scadenza";
   date: string | null;
   group_id: string | null;
   read_at: string | null;
@@ -96,6 +96,12 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
 
   function goToSession(n: Notification) {
     setOpen(false);
+    // I promemoria (cliente inattivo / abbonamento in scadenza) non sono
+    // legati a una giornata specifica: portano alla scheda del cliente.
+    if (n.kind === "inattivita" || n.kind === "scadenza") {
+      router.push(`/trainer/clienti/${n.client_id}`);
+      return;
+    }
     if (!n.date) return;
     // Porta sempre alla vista di sola lettura della giornata (non
     // all'editor della scheda): il trainer deve vedere cosa ha fatto il
@@ -136,9 +142,19 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
                 className="w-full text-left px-4 py-3 border-b border-gray-50 last:border-b-0 hover:bg-gray-50"
               >
                 <p className="text-xs text-gray-800">
-                  <span className="font-semibold">{n.client_name}</span> ha completato{" "}
-                  <span className="font-medium">&ldquo;{n.workout_title}&rdquo;</span>
-                  {n.kind === "group" ? " (gruppo)" : ""}
+                  {n.kind === "inattivita" || n.kind === "scadenza" ? (
+                    <>
+                      <span>{n.kind === "inattivita" ? "⏰" : "💳"} </span>
+                      <span className="font-semibold">{n.client_name}</span>{" "}
+                      <span className="font-medium">{n.workout_title}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-semibold">{n.client_name}</span> ha completato{" "}
+                      <span className="font-medium">&ldquo;{n.workout_title}&rdquo;</span>
+                      {n.kind === "group" ? " (gruppo)" : ""}
+                    </>
+                  )}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-1">{timeAgo(n.created_at)}</p>
               </button>
