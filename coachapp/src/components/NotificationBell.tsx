@@ -105,7 +105,7 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50 text-left">
+        <div className="absolute left-0 mt-2 w-80 max-w-[90vw] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50 text-left">
           <div className="px-4 py-3 border-b border-gray-100 font-semibold text-sm">Notifiche</div>
           <div className="max-h-96 overflow-y-auto">
             {items.length === 0 && (
