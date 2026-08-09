@@ -1,14 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { IconBell } from "@/components/icons";
 
 type Notification = {
   id: string;
+  client_id: string;
   client_name: string;
   workout_title: string;
   kind: "individual" | "group";
+  date: string | null;
+  group_id: string | null;
   read_at: string | null;
   created_at: string;
 };
@@ -26,6 +30,7 @@ function timeAgo(iso: string) {
 
 export default function NotificationBell({ trainerId }: { trainerId: string }) {
   const supabase = createClient();
+  const router = useRouter();
   const [items, setItems] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -35,7 +40,7 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
   const load = useCallback(async () => {
     const { data } = await supabase
       .from("notifications")
-      .select("id, client_name, workout_title, kind, read_at, created_at")
+      .select("id, client_id, client_name, workout_title, kind, date, group_id, read_at, created_at")
       .eq("trainer_id", trainerId)
       .order("created_at", { ascending: false })
       .limit(20);
@@ -89,6 +94,16 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
     }
   }
 
+  function goToSession(n: Notification) {
+    setOpen(false);
+    if (!n.date) return;
+    const params =
+      n.kind === "group" && n.group_id
+        ? `gruppo=${n.group_id}`
+        : `cliente=${n.client_id}`;
+    router.push(`/trainer/calendario?${params}&data=${n.date}`);
+  }
+
   return (
     <div className="relative" ref={containerRef}>
       <button
@@ -112,14 +127,18 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
               <p className="px-4 py-6 text-xs text-gray-400 text-center">Nessuna notifica per ora</p>
             )}
             {items.map((n) => (
-              <div key={n.id} className="px-4 py-3 border-b border-gray-50 last:border-b-0">
+              <button
+                key={n.id}
+                onClick={() => goToSession(n)}
+                className="w-full text-left px-4 py-3 border-b border-gray-50 last:border-b-0 hover:bg-gray-50"
+              >
                 <p className="text-xs text-gray-800">
                   <span className="font-semibold">{n.client_name}</span> ha completato{" "}
                   <span className="font-medium">&ldquo;{n.workout_title}&rdquo;</span>
                   {n.kind === "group" ? " (gruppo)" : ""}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-1">{timeAgo(n.created_at)}</p>
-              </div>
+              </button>
             ))}
           </div>
         </div>
