@@ -1,0 +1,125 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { IconBell } from "@/components/icons";
+
+type Notification = {
+  id: string;
+  client_name: string;
+  workout_title: string;
+  kind: "individual" | "group";
+  read_at: string | null;
+  created_at: string;
+};
+
+function timeAgo(iso: string) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return "adesso";
+  if (min < 60) return `${min} min fa`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `${hours} h fa`;
+  const days = Math.floor(hours / 24);
+  return `${days} g fa`;
+}
+
+export default function NotificationBell({ trainerId }: { trainerId: string }) {
+  const supabase = createClient();
+  const [items, setItems] = useState<Notification[]>([]);
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const unreadCount = items.filter((n) => !n.read_at).length;
+
+  const load = useCallback(async () => {
+    const { data } = await supabase
+      .from("notifications")
+      .select("id, client_name, workout_title, kind, read_at, created_at")
+      .eq("trainer_id", trainerId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    setItems((data as Notification[]) || []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainerId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`notifications-${trainerId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `trainer_id=eq.${trainerId}` },
+        (payload) => {
+          setItems((prev) => [payload.new as Notification, ...prev].slice(0, 20));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainerId]);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  async function handleOpen() {
+    const next = !open;
+    setOpen(next);
+    if (next && unreadCount > 0) {
+      const unreadIds = items.filter((n) => !n.read_at).map((n) => n.id);
+      setItems((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: new Date().toISOString() })));
+      await supabase.from("notifications").update({ read_at: new Date().toISOString() }).in("id", unreadIds);
+    }
+  }
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        onClick={handleOpen}
+        aria-label="Notifiche"
+        className="relative w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-700"
+      >
+        <IconBell className="w-4.5 h-4.5" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50 text-left">
+          <div className="px-4 py-3 border-b border-gray-100 font-semibold text-sm">Notifiche</div>
+          <div className="max-h-96 overflow-y-auto">
+            {items.length === 0 && (
+              <p className="px-4 py-6 text-xs text-gray-400 text-center">Nessuna notifica per ora</p>
+            )}
+            {items.map((n) => (
+              <div key={n.id} className="px-4 py-3 border-b border-gray-50 last:border-b-0">
+                <p className="text-xs text-gray-800">
+                  <span className="font-semibold">{n.client_name}</span> ha completato{" "}
+                  <span className="font-medium">&ldquo;{n.workout_title}&rdquo;</span>
+                  {n.kind === "group" ? " (gruppo)" : ""}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-1">{timeAgo(n.created_at)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
