@@ -2,8 +2,11 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Protegge le rotte: se non sei loggato vieni rimandato a /login.
-// Le rotte pubbliche (login, invito) restano accessibili.
-const PUBLIC_PATHS = ["/login", "/invito", "/auth"];
+// Le rotte pubbliche (login, invito) restano accessibili. Le API route
+// gestiscono la propria autenticazione internamente (sessione cookie per
+// le chiamate dal browser, CRON_SECRET per i job schedulati come
+// /api/cron/*, che non hanno alcuna sessione utente).
+const PUBLIC_PATHS = ["/login", "/invito", "/auth", "/api"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
