@@ -13,6 +13,9 @@ import {
   displayScoreValue,
   formatAmrapValue,
   parseAmrapValue,
+  getTimerSets,
+  totalTimerSeconds,
+  formatClock,
 } from "@/lib/workoutTypes";
 import WorkoutTimer from "@/components/WorkoutTimer";
 
@@ -241,6 +244,23 @@ export default function AllenamentoGiorno({
     setDraftValues((prev) => prev.map((v, i) => (i === setIndex ? value : v)));
   }
 
+  // Chiamata quando il timer AMRAP finisce (o viene fermato): somma i giri
+  // registrati con il tasto "+" durante ogni set e apre l'editor del
+  // punteggio già precompilato, così l'atleta deve solo controllare/correggere.
+  function applyTimerResult(index: number, roundsBySet: number[][]) {
+    if (!vm) return;
+    const block = vm.blocks[index];
+    if (!block.score || block.score.type !== "amrap") return;
+    const totalGiri = roundsBySet.reduce((sum, arr) => sum + arr.length, 0);
+    if (totalGiri === 0) return;
+    startEditScore(index);
+    setDraftValues((prev) => {
+      const next = [...prev];
+      next[0] = formatAmrapValue(totalGiri, 0);
+      return next;
+    });
+  }
+
   async function saveScore(index: number) {
     if (!vm || draftValues.some((v) => v.trim() === "")) return;
     setSaving(true);
@@ -396,8 +416,8 @@ export default function AllenamentoGiorno({
                         <div className="flex items-center justify-between text-sm text-gray-500">
                           {b.timer ? (
                             <span>
-                              ⏱ {TIMER_LABELS[b.timer.type]} · {b.timer.minutes}:
-                              {String(b.timer.seconds).padStart(2, "0")}
+                              ⏱ {TIMER_LABELS[b.timer.type]} ·{" "}
+                              {formatClock(totalTimerSeconds(getTimerSets(b.timer)))}
                             </span>
                           ) : (
                             <span>⏱ Nessun cronometro</span>
@@ -413,7 +433,13 @@ export default function AllenamentoGiorno({
                           )}
                         </div>
 
-                        {b.timer && openTimers[i] && <WorkoutTimer timer={b.timer} autoStart />}
+                        {b.timer && openTimers[i] && (
+                          <WorkoutTimer
+                            timer={b.timer}
+                            autoStart
+                            onComplete={(roundsBySet) => applyTimerResult(i, roundsBySet)}
+                          />
+                        )}
 
                         <div
                           className="text-sm text-gray-600 [&_a]:text-brand-dark [&_a]:underline [&_ul]:list-disc [&_ul]:ml-5 [&_ol]:list-decimal [&_ol]:ml-5 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-semibold"
@@ -474,8 +500,8 @@ export default function AllenamentoGiorno({
                                                   setIdx,
                                                   formatAmrapValue(Number(e.target.value) || 0, reps)
                                                 )
-                                            }
-                                              />
+                                              }
+                                            />
                                           </div>
                                           <div>
                                             <label className="text-xs text-gray-500">Reps supplementari</label>
@@ -490,9 +516,9 @@ export default function AllenamentoGiorno({
                                                   setIdx,
                                                   formatAmrapValue(giri, Number(e.target.value) || 0)
                                                 )
-                                            }
-                                          />
-                                        </div>
+                                              }
+                                            />
+                                          </div>
                                         </div>
                                       </div>
                                     );
