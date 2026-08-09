@@ -55,17 +55,21 @@ export default function GroupWeekCalendar({
   trainerId,
   groupName = "Gruppo",
   trainerName = "Coach",
+  initialDate,
 }: {
   groupId: string;
   trainerId: string;
   groupName?: string;
   trainerName?: string;
+  initialDate?: string | null;
 }) {
   const supabase = createClient();
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const [weekStart, setWeekStart] = useState(() =>
+    startOfWeek(initialDate ? new Date(`${initialDate}T00:00:00`) : new Date())
+  );
   const [workouts, setWorkouts] = useState<Record<string, GroupWorkout>>({});
   const [loading, setLoading] = useState(true);
-  const [editingDate, setEditingDate] = useState<string | null>(null);
+  const [editingDate, setEditingDate] = useState<string | null>(initialDate || null);
   const [saving, setSaving] = useState(false);
   const [templates, setTemplates] = useState<WeekTemplate[]>([]);
   const [openMenu, setOpenMenu] = useState<"template" | "copy" | null>(null);
