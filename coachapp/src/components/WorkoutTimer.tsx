@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { TimerConfig, TIMER_LABELS } from "@/lib/workoutTypes";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  TimerConfig,
+  TIMER_LABELS,
+  getTimerSets,
+  timerSetSeconds,
+  timerRestSeconds,
+  totalTimerSeconds,
+  formatClock,
+} from "@/lib/workoutTypes";
 
 // I browser mobili (soprattutto Safari/iOS) permettono di produrre audio solo
 // se l'AudioContext viene creato/riattivato dentro un tap/click reale. Per
@@ -23,13 +31,6 @@ function playBeep(ctx: AudioContext | null, frequency = 880, duration = 150) {
   } catch {
     // audio non disponibile, ignora
   }
-}
-
-function formatClock(totalSeconds: number) {
-  const clamped = Math.max(0, Math.round(totalSeconds));
-  const m = Math.floor(clamped / 60);
-  const s = clamped % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 function CircularProgress({
@@ -67,7 +68,8 @@ function CircularProgress({
   );
 }
 
-// Conto alla rovescia prima di iniziare (EMOM e AMRAP a giri multipli).
+// Conto alla rovescia prima di iniziare, e prima di ogni nuovo set dopo un
+// riposo (EMOM e AMRAP a più set).
 const PRESTART_SECONDS = 10;
 
 type Phase = "idle" | "countdown" | "work" | "rest" | "done";
@@ -75,22 +77,29 @@ type Phase = "idle" | "countdown" | "work" | "rest" | "done";
 export default function WorkoutTimer({
   timer,
   autoStart,
+  onComplete,
 }: {
   timer: TimerConfig;
   autoStart?: boolean;
+  // Chiamato una volta, quando il timer finisce tutti i set: passa i giri
+  // registrati con il tasto "+" durante ogni set AMRAP (usati per
+  // precompilare il punteggio "Giri e ripetizioni").
+  onComplete?: (roundsBySet: number[][]) => void;
 }) {
-  const roundSeconds = Math.max(1, timer.minutes * 60 + timer.seconds);
-  const totalRounds = Math.max(1, timer.rounds ?? 1);
-  const restSeconds = Math.max(0, (timer.restMinutes ?? 0) * 60 + (timer.restSeconds ?? 0));
-  const isCountUp = timer.type === "FOR_TIME";
   const isTabata = timer.type === "TABATA";
   const isEmom = timer.type === "EMOM";
   const isAmrap = timer.type === "AMRAP";
+  const isCountUp = timer.type === "FOR_TIME";
 
-  // EMOM e AMRAP a giri multipli usano il nuovo motore a fasi (conto alla
-  // rovescia iniziale, lavoro/riposo per ogni giro, stop automatico
-  // all'ultimo giro). AMRAP singolo, TABATA e FOR TIME restano invariati.
-  const useNewEngine = isEmom || (isAmrap && totalRounds > 1);
+  // AMRAP ed EMOM usano il motore a più set (conto alla rovescia iniziale,
+  // lavoro/riposo per ogni set, stop automatico all'ultimo). TABATA e FOR
+  // TIME restano sul motore "classico" con una sola durata.
+  const useNewEngine = isEmom || isAmrap;
+
+  // JSON.stringify come chiave stabile: getTimerSets() crea un nuovo array a
+  // ogni chiamata, e senza questo il motore ripartirebbe ad ogni render.
+  const setsKey = JSON.stringify(timer.sets ?? [timer.minutes, timer.seconds, timer.rounds, timer.restMinutes, timer.restSeconds]);
+  const sets = useMemo(() => getTimerSets(timer), [setsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [running, setRunning] = useState(!!autoStart);
 
@@ -119,7 +128,8 @@ export default function WorkoutTimer({
     };
   }, []);
 
-  // --- Motore "classico": AMRAP singolo, TABATA, FOR TIME ---
+  // --- Motore "classico": TABATA, FOR TIME ---
+  const classicSeconds = Math.max(1, (timer.minutes ?? 0) * 60 + (timer.seconds ?? 0));
   const [elapsed, setElapsed] = useState(0);
   const [targetReached, setTargetReached] = useState(false);
 
@@ -129,36 +139,30 @@ export default function WorkoutTimer({
     return () => clearInterval(id);
   }, [running, useNewEngine]);
 
-  // AMRAP singolo: si ferma da sola a zero
-  useEffect(() => {
-    if (useNewEngine) return;
-    if (timer.type === "AMRAP" && running && elapsed >= roundSeconds) {
-      setRunning(false);
-      playBeep(audioCtxRef.current, 660, 600);
-    }
-  }, [elapsed, running, timer.type, roundSeconds, useNewEngine]);
-
   // TABATA: beep a ogni nuovo giro
   useEffect(() => {
     if (useNewEngine) return;
-    if (isTabata && running && elapsed > 0 && elapsed % roundSeconds === 0) {
+    if (isTabata && running && elapsed > 0 && elapsed % classicSeconds === 0) {
       playBeep(audioCtxRef.current, 1046, 200);
     }
-  }, [elapsed, isTabata, running, roundSeconds, useNewEngine]);
+  }, [elapsed, isTabata, running, classicSeconds, useNewEngine]);
 
   // FOR TIME: beep quando si raggiunge l'obiettivo (una sola volta)
   useEffect(() => {
     if (useNewEngine) return;
-    if (isCountUp && running && elapsed >= roundSeconds && !targetReached) {
+    if (isCountUp && running && elapsed >= classicSeconds && !targetReached) {
       setTargetReached(true);
       playBeep(audioCtxRef.current, 660, 400);
     }
-  }, [elapsed, isCountUp, running, roundSeconds, targetReached, useNewEngine]);
+  }, [elapsed, isCountUp, running, classicSeconds, targetReached, useNewEngine]);
 
-  // --- Nuovo motore a fasi: EMOM, AMRAP a giri multipli ---
+  // --- Motore a più set: AMRAP, EMOM ---
   const [phase, setPhase] = useState<Phase>(autoStart && useNewEngine ? "countdown" : "idle");
   const [phaseElapsed, setPhaseElapsed] = useState(0);
-  const [currentRound, setCurrentRound] = useState(1);
+  const [currentSetIndex, setCurrentSetIndex] = useState(0);
+  const [roundsBySet, setRoundsBySet] = useState<number[][]>(() => sets.map(() => []));
+  const [lastRoundAt, setLastRoundAt] = useState(0);
+  const completedRef = useRef(false);
 
   useEffect(() => {
     if (!useNewEngine || !running) return;
@@ -169,40 +173,89 @@ export default function WorkoutTimer({
   useEffect(() => {
     if (!useNewEngine || !running) return;
 
-    if (phase === "countdown" && phaseElapsed >= PRESTART_SECONDS) {
-      setPhase("work");
-      setPhaseElapsed(0);
-      setCurrentRound(1);
-      playBeep(audioCtxRef.current, 1046, 250);
-      return;
-    }
-
-    if (phase === "work" && phaseElapsed >= roundSeconds) {
-      if (currentRound >= totalRounds) {
-        setPhase("done");
-        setRunning(false);
-        playBeep(audioCtxRef.current, 660, 700);
-        return;
+    if (phase === "countdown") {
+      const remaining = PRESTART_SECONDS - phaseElapsed;
+      if (remaining === 3 || remaining === 2 || remaining === 1) {
+        playBeep(audioCtxRef.current, 880, 120);
       }
-      if (isAmrap && restSeconds > 0) {
-        setPhase("rest");
+      if (phaseElapsed >= PRESTART_SECONDS) {
+        setPhase("work");
         setPhaseElapsed(0);
-        playBeep(audioCtxRef.current, 523, 200);
-      } else {
-        setCurrentRound((r) => r + 1);
-        setPhaseElapsed(0);
-        playBeep(audioCtxRef.current, 1046, 200);
+        setCurrentSetIndex(0);
+        setLastRoundAt(0);
+        playBeep(audioCtxRef.current, 1046, 250);
       }
       return;
     }
 
-    if (phase === "rest" && phaseElapsed >= restSeconds) {
-      setCurrentRound((r) => r + 1);
-      setPhase("work");
-      setPhaseElapsed(0);
-      playBeep(audioCtxRef.current, 1046, 200);
+    if (phase === "work") {
+      const workSeconds = timerSetSeconds(sets[currentSetIndex]);
+      if (phaseElapsed >= workSeconds) {
+        if (currentSetIndex >= sets.length - 1) {
+          setPhase("done");
+          setRunning(false);
+          playBeep(audioCtxRef.current, 660, 700);
+          return;
+        }
+        const nextSet = sets[currentSetIndex + 1];
+        const rest = isAmrap ? timerRestSeconds(nextSet) : 0;
+        if (rest > 0) {
+          setPhase("rest");
+          setPhaseElapsed(0);
+          playBeep(audioCtxRef.current, 523, 200);
+        } else {
+          setCurrentSetIndex((i) => i + 1);
+          setPhase("work");
+          setPhaseElapsed(0);
+          setLastRoundAt(0);
+          playBeep(audioCtxRef.current, 1046, 200);
+        }
+      }
+      return;
     }
-  }, [phase, phaseElapsed, running, useNewEngine, roundSeconds, restSeconds, totalRounds, currentRound, isAmrap]);
+
+    if (phase === "rest") {
+      const nextSet = sets[currentSetIndex + 1];
+      const restTotal = timerRestSeconds(nextSet);
+      const remaining = restTotal - phaseElapsed;
+      if (remaining === 3 || remaining === 2 || remaining === 1) {
+        playBeep(audioCtxRef.current, 880, 120);
+      }
+      if (phaseElapsed >= restTotal) {
+        setCurrentSetIndex((i) => i + 1);
+        setPhase("work");
+        setPhaseElapsed(0);
+        setLastRoundAt(0);
+        playBeep(audioCtxRef.current, 1046, 250);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, phaseElapsed, running, useNewEngine, sets, currentSetIndex, isAmrap]);
+
+  // Chiama onComplete una sola volta, quando il timer finisce da solo o
+  // viene fermato manualmente (tasto rosso).
+  useEffect(() => {
+    if (phase === "done" && !completedRef.current) {
+      completedRef.current = true;
+      onComplete?.(roundsBySet);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  function handleLogRound() {
+    if (phase !== "work" || !isAmrap) return;
+    unlockAudio();
+    const split = Math.max(0, phaseElapsed - lastRoundAt);
+    setLastRoundAt(phaseElapsed);
+    setRoundsBySet((prev) => prev.map((arr, idx) => (idx === currentSetIndex ? [...arr, split] : arr)));
+    playBeep(audioCtxRef.current, 784, 90);
+  }
+
+  function handleStopEarly() {
+    setRunning(false);
+    setPhase("done");
+    playBeep(audioCtxRef.current, 660, 500);
+  }
 
   function handleStartPause() {
     unlockAudio();
@@ -221,22 +274,144 @@ export default function WorkoutTimer({
     setTargetReached(false);
     setPhase("idle");
     setPhaseElapsed(0);
-    setCurrentRound(1);
+    setCurrentSetIndex(0);
+    setLastRoundAt(0);
+    setRoundsBySet(sets.map(() => []));
+    completedRef.current = false;
   }
 
-  // --- Rendering: nuovo motore ---
-  if (useNewEngine) {
+  // --- Rendering: AMRAP (schermata scura interattiva) ---
+  if (isAmrap) {
+    let mainDisplay: string;
+    let subCaption: string;
+    let progress = 0;
+    let ringColor = "#d4f547";
+    const currentSet = sets[Math.min(currentSetIndex, sets.length - 1)];
+
+    if (phase === "idle") {
+      mainDisplay = "▶";
+      subCaption = `${sets.length > 1 ? `${sets.length} set · ` : ""}Durata totale ${formatClock(totalTimerSeconds(sets))}`;
+    } else if (phase === "countdown") {
+      const remaining = PRESTART_SECONDS - phaseElapsed;
+      mainDisplay = String(Math.max(1, remaining));
+      subCaption = "Si parte tra...";
+      progress = phaseElapsed / PRESTART_SECONDS;
+      ringColor = "#f59e0b";
+    } else if (phase === "work") {
+      mainDisplay = formatClock(phaseElapsed);
+      subCaption = sets.length > 1 ? `Set ${currentSetIndex + 1} di ${sets.length}` : "Tempo trascorso";
+      progress = phaseElapsed / timerSetSeconds(currentSet);
+    } else if (phase === "rest") {
+      const restTotal = timerRestSeconds(sets[currentSetIndex + 1]);
+      const remaining = Math.max(0, restTotal - phaseElapsed);
+      mainDisplay = formatClock(remaining);
+      subCaption = `Riposo · prossimo set ${currentSetIndex + 2} di ${sets.length}`;
+      progress = restTotal > 0 ? phaseElapsed / restTotal : 1;
+      ringColor = "#38bdf8";
+    } else {
+      mainDisplay = "✓";
+      subCaption = "Sessione completata!";
+      progress = 1;
+    }
+
+    const giri = roundsBySet[Math.min(currentSetIndex, roundsBySet.length - 1)] || [];
+    const ultimoGiro = giri.length > 0 ? formatClock(giri[giri.length - 1]) : "--:--";
+    const setDurationLabel = formatClock(timerSetSeconds(currentSet));
+
+    return (
+      <div className="mt-2 rounded-2xl p-4" style={{ background: "#111412", color: "#fff" }}>
+        <div className="flex items-center justify-between text-xs mb-2">
+          <span className="opacity-40">←</span>
+          <span className="font-semibold tracking-wide">{TIMER_LABELS[timer.type]}</span>
+          <span style={{ color: "#d4f547" }} className="italic">
+            {phase === "work" ? "UP" : ""}
+          </span>
+        </div>
+        {(phase === "work" || phase === "rest") && (
+          <p className="text-center text-[11px] mb-2" style={{ color: "#9c9c96" }}>
+            {phase === "work" ? setDurationLabel : subCaption}
+          </p>
+        )}
+        <div className="relative mx-auto my-1 flex items-center justify-center" style={{ width: 160, height: 160 }}>
+          <CircularProgress progress={progress} color={ringColor} size={160} trackColor="#3a3a36" />
+          <span className="absolute text-4xl font-semibold tabular-nums">{mainDisplay}</span>
+        </div>
+        <p className="text-center text-xs mb-3" style={{ color: "#9c9c96" }}>
+          {phase === "idle" || phase === "countdown" ? subCaption : phase === "done" ? subCaption : running ? "Pausa" : "In pausa"}
+        </p>
+
+        {phase === "idle" || phase === "done" ? (
+          <div className="flex justify-center gap-2">
+            <button
+              onClick={handleStartPause}
+              className="btn-primary"
+              disabled={phase === "done"}
+              style={phase === "done" ? { background: "#d4f547", color: "#141a0a", opacity: 0.6 } : { background: "#d4f547", color: "#141a0a" }}
+            >
+              {phase === "done" ? "Completato" : "Avvia"}
+            </button>
+            <button onClick={handleReset} className="btn-secondary" style={{ borderColor: "#3a3a36", color: "#fff" }}>
+              Reset
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between px-2 mb-3">
+              <button
+                onClick={handleStopEarly}
+                aria-label="Termina"
+                className="w-12 h-12 rounded-full flex items-center justify-center"
+                style={{ background: "#e2453f" }}
+              >
+                <span className="block w-3.5 h-3.5 rounded-sm" style={{ background: "#fff" }} />
+              </button>
+              <button onClick={handleStartPause} className="text-xs" style={{ color: "#9c9c96" }}>
+                {running ? "Pausa" : "Riprendi"}
+              </button>
+              <button
+                onClick={handleLogRound}
+                disabled={phase !== "work"}
+                aria-label="Registra giro"
+                className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold"
+                style={{ background: "#fff", color: "#111", opacity: phase === "work" ? 1 : 0.35 }}
+              >
+                +
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-xl text-center py-2" style={{ background: "#1c1f1c" }}>
+                <p className="text-[10px] mb-0.5" style={{ color: "#9c9c96" }}>Set</p>
+                <p className="text-base">
+                  {currentSetIndex + 1}
+                  <span className="text-xs" style={{ color: "#9c9c96" }}>/{sets.length}</span>
+                </p>
+              </div>
+              <div className="rounded-xl text-center py-2" style={{ background: "#1c1f1c" }}>
+                <p className="text-[10px] mb-0.5" style={{ color: "#9c9c96" }}>Giri</p>
+                <p className="text-base">{giri.length}</p>
+              </div>
+              <div className="rounded-xl text-center py-2" style={{ background: "#1c1f1c" }}>
+                <p className="text-[10px] mb-0.5" style={{ color: "#9c9c96" }}>Ultimo giro</p>
+                <p className="text-base">{ultimoGiro}</p>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // --- Rendering: EMOM (motore a più set, card chiara come prima) ---
+  if (isEmom) {
     let mainDisplay: string;
     let caption: string;
     let progress = 0;
     let ringColor = "#84cc16";
+    const currentSet = sets[Math.min(currentSetIndex, sets.length - 1)];
 
     if (phase === "idle") {
-      const totalDuration = isEmom
-        ? roundSeconds * totalRounds
-        : roundSeconds * totalRounds + restSeconds * Math.max(0, totalRounds - 1);
       mainDisplay = "▶";
-      caption = `Giri: ${totalRounds} · Durata: ${formatClock(totalDuration)}`;
+      caption = `Giri: ${sets.length} · Durata: ${formatClock(totalTimerSeconds(sets))}`;
     } else if (phase === "countdown") {
       const remaining = PRESTART_SECONDS - phaseElapsed;
       mainDisplay = String(Math.max(1, remaining));
@@ -244,22 +419,13 @@ export default function WorkoutTimer({
       progress = phaseElapsed / PRESTART_SECONDS;
       ringColor = "#f59e0b";
     } else if (phase === "work") {
-      const displaySeconds = isEmom ? phaseElapsed : Math.max(0, roundSeconds - phaseElapsed);
-      mainDisplay = formatClock(displaySeconds);
-      caption = `Giro ${currentRound} di ${totalRounds}`;
-      progress = phaseElapsed / roundSeconds;
-      ringColor = "#84cc16";
-    } else if (phase === "rest") {
-      const remaining = Math.max(0, restSeconds - phaseElapsed);
-      mainDisplay = formatClock(remaining);
-      caption = `Riposo · prossimo giro ${currentRound + 1} di ${totalRounds}`;
-      progress = restSeconds > 0 ? phaseElapsed / restSeconds : 1;
-      ringColor = "#38bdf8";
+      mainDisplay = formatClock(phaseElapsed);
+      caption = `Giro ${currentSetIndex + 1} di ${sets.length}`;
+      progress = phaseElapsed / timerSetSeconds(currentSet);
     } else {
       mainDisplay = "✓";
       caption = "Sessione completata!";
       progress = 1;
-      ringColor = "#84cc16";
     }
 
     return (
@@ -270,28 +436,13 @@ export default function WorkoutTimer({
           </span>
           <span className="text-xs text-gray-400">{caption}</span>
         </div>
-        <div
-          className="relative mx-auto my-2 flex items-center justify-center"
-          style={{ width: 176, height: 176 }}
-        >
+        <div className="relative mx-auto my-2 flex items-center justify-center" style={{ width: 176, height: 176 }}>
           <CircularProgress progress={progress} color={ringColor} />
-          <span className="absolute text-3xl font-bold tabular-nums text-gray-800">
-            {mainDisplay}
-          </span>
+          <span className="absolute text-3xl font-bold tabular-nums text-gray-800">{mainDisplay}</span>
         </div>
         <div className="flex justify-center gap-2">
-          <button
-            onClick={handleStartPause}
-            className={running ? "btn-secondary" : "btn-primary"}
-            disabled={phase === "done"}
-          >
-            {running
-              ? "Pausa"
-              : phase === "done"
-              ? "Completato"
-              : phase === "idle"
-              ? "Avvia"
-              : "Riprendi"}
+          <button onClick={handleStartPause} className={running ? "btn-secondary" : "btn-primary"} disabled={phase === "done"}>
+            {running ? "Pausa" : phase === "done" ? "Completato" : phase === "idle" ? "Avvia" : "Riprendi"}
           </button>
           <button onClick={handleReset} className="btn-secondary">
             Reset
@@ -301,21 +452,17 @@ export default function WorkoutTimer({
     );
   }
 
-  // --- Rendering: motore classico ---
+  // --- Rendering: motore classico (TABATA, FOR TIME) ---
   let mainDisplay: string;
   let caption: string;
 
-  if (timer.type === "AMRAP") {
-    const remaining = roundSeconds - elapsed;
-    mainDisplay = formatClock(remaining);
-    caption = remaining <= 0 ? "Tempo scaduto!" : "Tempo rimanente";
-  } else if (isCountUp) {
+  if (isCountUp) {
     mainDisplay = formatClock(elapsed);
-    caption = `Obiettivo: ${formatClock(roundSeconds)}`;
+    caption = `Obiettivo: ${formatClock(classicSeconds)}`;
   } else {
-    const inRound = elapsed % roundSeconds;
-    const remaining = roundSeconds - inRound;
-    const currentRoundClassic = Math.floor(elapsed / roundSeconds) + 1;
+    const inRound = elapsed % classicSeconds;
+    const remaining = classicSeconds - inRound;
+    const currentRoundClassic = Math.floor(elapsed / classicSeconds) + 1;
     mainDisplay = formatClock(remaining);
     caption = `Giro ${currentRoundClassic}`;
   }
@@ -328,9 +475,7 @@ export default function WorkoutTimer({
         </span>
         <span className="text-xs text-gray-400">{caption}</span>
       </div>
-      <p className="text-center text-4xl font-bold tabular-nums my-2 text-gray-800">
-        {mainDisplay}
-      </p>
+      <p className="text-center text-4xl font-bold tabular-nums my-2 text-gray-800">{mainDisplay}</p>
       <div className="flex justify-center gap-2">
         <button onClick={handleStartPause} className={running ? "btn-secondary" : "btn-primary"}>
           {running ? "Pausa" : elapsed > 0 ? "Riprendi" : "Avvia"}
