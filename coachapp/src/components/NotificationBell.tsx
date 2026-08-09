@@ -97,11 +97,14 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
   function goToSession(n: Notification) {
     setOpen(false);
     if (!n.date) return;
+    // Porta sempre alla vista di sola lettura della giornata (non
+    // all'editor della scheda): il trainer deve vedere cosa ha fatto il
+    // cliente, non ritrovarsi a modificare il programma per sbaglio.
     const params =
       n.kind === "group" && n.group_id
-        ? `gruppo=${n.group_id}`
+        ? `cliente=${n.client_id}&gruppo=${n.group_id}`
         : `cliente=${n.client_id}`;
-    router.push(`/trainer/calendario?${params}&data=${n.date}`);
+    router.push(`/trainer/giornata?${params}&data=${n.date}`);
   }
 
   return (
