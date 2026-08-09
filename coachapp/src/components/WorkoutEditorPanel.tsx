@@ -13,9 +13,14 @@ import {
   TIMER_LABELS,
   ACTIVITY_TYPES,
   Block,
+  TimerConfig,
+  TimerSet,
   emptyBlock,
   emptyScoreConfig,
   htmlToLines,
+  getTimerSets,
+  totalTimerSeconds,
+  formatClock,
 } from "@/lib/workoutTypes";
 
 export type WorkoutDraft = {
@@ -29,21 +34,23 @@ function formatDatePill(iso?: string): string | null {
   const [y, m, d] = iso.split("-").map(Number);
   const date = new Date(y, m - 1, d);
   const label = WEEKDAY_LABELS[(date.getDay() + 6) % 7];
-  return `${label} ${d}/${m}`;
+  return \`\${label} \${d}/\${m}\`;
 }
 
 function timerSummary(block: Block): string | null {
   if (!block.timer) return null;
   const t = block.timer;
-  if (t.type === "EMOM") return `EMOM ${t.minutes}:${String(t.seconds).padStart(2, "0")}`;
-  if (t.type === "AMRAP") {
-    const rounds = t.rounds ?? 1;
-    return rounds > 1
-      ? `${rounds}x AMRAP ${t.minutes}:${String(t.seconds).padStart(2, "0")}`
-      : `AMRAP ${t.minutes}:${String(t.seconds).padStart(2, "0")}`;
+  if (t.type === "EMOM" || t.type === "AMRAP") {
+    const sets = getTimerSets(t);
+    if (sets.length > 1) {
+      return \`\${sets.length}x \${TIMER_LABELS[t.type]} · \${formatClock(totalTimerSeconds(sets))}\`;
+    }
+    const s = sets[0];
+    return \`\${TIMER_LABELS[t.type]} \${s.minutes}:\${String(s.seconds).padStart(2, "0")}\`;
   }
-  if (t.type === "TABATA") return `Tabata ${t.minutes}:${String(t.seconds).padStart(2, "0")}`;
-  return `For Time ${t.minutes}:${String(t.seconds).padStart(2, "0")}`;
+  const minutes = t.minutes ?? 0;
+  const seconds = t.seconds ?? 0;
+  return \`\${TIMER_LABELS[t.type]} \${minutes}:\${String(seconds).padStart(2, "0")}\`;
 }
 
 function blockPreview(block: Block): string {
@@ -216,16 +223,16 @@ function BlockEditor({
       <button
         type="button"
         onClick={onToggle}
-        className={`w-full text-left border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 ${
+        className={\`w-full text-left border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 \${
           isNote ? "bg-amber-50" : "bg-white hover:bg-gray-50"
-        }`}
+        }\`}
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
             <span
-              className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+              className={\`text-xs font-semibold px-2 py-0.5 rounded-full \${
                 isNote ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-700"
-              }`}
+              }\`}
             >
               {block.type}
             </span>
@@ -384,96 +391,61 @@ function BlockEditor({
         label="Aggiungere un timer"
         enabled={block.timer !== null}
         onToggle={(on) =>
-          onChange({ timer: on ? { type: TIMER_TYPES[0], minutes: 10, seconds: 0 } : null })
+          onChange({
+            timer: on
+              ? { type: TIMER_TYPES[0], sets: [{ minutes: 10, seconds: 0, restMinutes: 0, restSeconds: 0 }] }
+              : null,
+          })
         }
       >
         {block.timer && (
           <div className="space-y-2">
-            <div className="grid grid-cols-3 gap-2 items-center">
-              <select
-                className="input"
-                value={block.timer.type}
-                onChange={(e) => onChange({ timer: { ...block.timer!, type: e.target.value } })}
-              >
-                {TIMER_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {TIMER_LABELS[t]}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min={0}
-                className="input"
-                value={block.timer.minutes}
-                onChange={(e) =>
-                  onChange({ timer: { ...block.timer!, minutes: Number(e.target.value) } })
+            <select
+              className="input"
+              value={block.timer.type}
+              onChange={(e) => {
+                const newType = e.target.value;
+                const sets = getTimerSets(block.timer!);
+                if (newType === "AMRAP" || newType === "EMOM") {
+                  onChange({ timer: { type: newType, sets } });
+                } else {
+                  const first = sets[0];
+                  onChange({ timer: { type: newType, minutes: first.minutes, seconds: first.seconds } });
                 }
-                placeholder={block.timer.type === "EMOM" ? "ogni (min)" : "min"}
-              />
-              <input
-                type="number"
-                min={0}
-                max={59}
-                className="input"
-                value={block.timer.seconds}
-                onChange={(e) =>
-                  onChange({ timer: { ...block.timer!, seconds: Number(e.target.value) } })
-                }
-                placeholder="sec"
-              />
-            </div>
-            {(block.timer.type === "EMOM" || block.timer.type === "AMRAP") && (
-              <div className="grid grid-cols-2 gap-2 items-end">
-                <div>
-                  <label className="text-xs text-gray-500">Giri</label>
-                  <input
-                    type="number"
-                    min={1}
-                    className="input"
-                    value={block.timer.rounds ?? 1}
-                    onChange={(e) =>
-                      onChange({
-                        timer: {
-                          ...block.timer!,
-                          rounds: Math.max(1, Number(e.target.value) || 1),
-                        },
-                      })
-                    }
-                  />
-                </div>
-                {block.timer.type === "AMRAP" && (block.timer.rounds ?? 1) > 1 && (
-                  <div>
-                    <label className="text-xs text-gray-500">Riposo tra i giri</label>
-                    <div className="flex gap-1">
-                      <input
-                        type="number"
-                        min={0}
-                        className="input"
-                        placeholder="min"
-                        value={block.timer.restMinutes ?? 0}
-                        onChange={(e) =>
-                          onChange({
-                            timer: { ...block.timer!, restMinutes: Number(e.target.value) },
-                          })
-                        }
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        max={59}
-                        className="input"
-                        placeholder="sec"
-                        value={block.timer.restSeconds ?? 0}
-                        onChange={(e) =>
-                          onChange({
-                            timer: { ...block.timer!, restSeconds: Number(e.target.value) },
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                )}
+              }}
+            >
+              {TIMER_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {TIMER_LABELS[t]}
+                </option>
+              ))}
+            </select>
+
+            {block.timer.type === "AMRAP" || block.timer.type === "EMOM" ? (
+              <TimerSetsEditor timer={block.timer} onChange={(t) => onChange({ timer: t })} />
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  className="input"
+                  value={block.timer.minutes ?? 0}
+                  onChange={(e) =>
+                    onChange({ timer: { ...block.timer!, minutes: Number(e.target.value) || 0 } })
+                  }
+                  placeholder="min"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  className="input"
+                  value={block.timer.seconds ?? 0}
+                  onChange={(e) =>
+                    onChange({ timer: { ...block.timer!, seconds: Number(e.target.value) || 0 } })
+                  }
+                  placeholder="sec"
+                />
               </div>
             )}
           </div>
@@ -489,6 +461,113 @@ function BlockEditor({
         )}
         {block.timer && showTimerPreview && <WorkoutTimer timer={block.timer} />}
       </ToggleSection>
+    </div>
+  );
+}
+
+// Elenco dei set di un timer AMRAP/EMOM: il primo set ha solo la durata, ogni
+// set successivo ha anche un riposo (in min/sec) prima che inizi. In fondo
+// mostra la durata totale calcolata automaticamente (somma di tutto).
+function TimerSetsEditor({
+  timer,
+  onChange,
+}: {
+  timer: TimerConfig;
+  onChange: (t: TimerConfig) => void;
+}) {
+  const sets = getTimerSets(timer);
+  const showRest = timer.type === "AMRAP"; // l'EMOM passa da un giro all'altro senza riposo
+
+  function updateSet(i: number, patch: Partial<TimerSet>) {
+    const next = sets.map((s, idx) => (idx === i ? { ...s, ...patch } : s));
+    onChange({ type: timer.type, sets: next });
+  }
+
+  function addSet() {
+    const last = sets[sets.length - 1];
+    onChange({
+      type: timer.type,
+      sets: [...sets, { minutes: last.minutes, seconds: last.seconds, restMinutes: 0, restSeconds: 0 }],
+    });
+  }
+
+  function removeSet(i: number) {
+    if (sets.length <= 1) return;
+    onChange({ type: timer.type, sets: sets.filter((_, idx) => idx !== i) });
+  }
+
+  const total = totalTimerSeconds(sets);
+
+  return (
+    <div className="space-y-3">
+      {sets.map((s, i) => (
+        <div key={i} className="space-y-1.5">
+          {i > 0 && (
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <p className="text-xs font-medium text-gray-500">
+                {TIMER_LABELS[timer.type]} {i + 1}
+              </p>
+              <button
+                type="button"
+                onClick={() => removeSet(i)}
+                className="text-gray-400 hover:text-red-600 text-xs"
+                title="Rimuovi set"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          {i > 0 && showRest && (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={0}
+                className="input"
+                placeholder="min"
+                value={s.restMinutes}
+                onChange={(e) => updateSet(i, { restMinutes: Number(e.target.value) || 0 })}
+              />
+              <input
+                type="number"
+                min={0}
+                max={59}
+                className="input"
+                placeholder="sec"
+                value={s.restSeconds}
+                onChange={(e) => updateSet(i, { restSeconds: Number(e.target.value) || 0 })}
+              />
+              <span className="text-xs text-gray-400 shrink-0 w-14">Riposo</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <input
+              type="number"
+              min={0}
+              className="input"
+              placeholder="min"
+              value={s.minutes}
+              onChange={(e) => updateSet(i, { minutes: Number(e.target.value) || 0 })}
+            />
+            <input
+              type="number"
+              min={0}
+              max={59}
+              className="input"
+              placeholder="sec"
+              value={s.seconds}
+              onChange={(e) => updateSet(i, { seconds: Number(e.target.value) || 0 })}
+            />
+            <span className="text-xs text-gray-400 shrink-0 w-14">Durata</span>
+          </div>
+        </div>
+      ))}
+      <button type="button" onClick={addSet} className="btn-secondary text-xs w-full">
+        + Aggiungere un set
+      </button>
+      <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-200">
+        <span className="text-gray-500">Durata totale</span>
+        <span className="font-semibold text-gray-700">{formatClock(total)}</span>
+      </div>
     </div>
   );
 }
