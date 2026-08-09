@@ -48,8 +48,12 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
   }, [load]);
 
   useEffect(() => {
+    // Nome canale univoco per istanza: NotificationBell viene montato due
+    // volte (barra mobile + sidebar desktop), e Supabase Realtime non
+    // permette due sottoscrizioni con lo stesso nome di canale.
+    const instanceId = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel(`notifications-${trainerId}`)
+      .channel(`notifications-${trainerId}-${instanceId}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `trainer_id=eq.${trainerId}` },
