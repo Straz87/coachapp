@@ -280,12 +280,12 @@ export default function WorkoutTimer({
     completedRef.current = false;
   }
 
-  // --- Rendering: AMRAP (schermata scura interattiva) ---
+  // --- Rendering: AMRAP (card chiara, ghiera lime) ---
   if (isAmrap) {
     let mainDisplay: string;
     let subCaption: string;
     let progress = 0;
-    let ringColor = "#d4f547";
+    let ringColor = "#84cc16";
     const currentSet = sets[Math.min(currentSetIndex, sets.length - 1)];
 
     if (phase === "idle") {
@@ -307,7 +307,7 @@ export default function WorkoutTimer({
       mainDisplay = formatClock(remaining);
       subCaption = `Riposo · prossimo set ${currentSetIndex + 2} di ${sets.length}`;
       progress = restTotal > 0 ? phaseElapsed / restTotal : 1;
-      ringColor = "#38bdf8";
+      ringColor = "#0ea5e9";
     } else {
       mainDisplay = "✓";
       subCaption = "Sessione completata!";
@@ -319,38 +319,32 @@ export default function WorkoutTimer({
     const setDurationLabel = formatClock(timerSetSeconds(currentSet));
 
     return (
-      <div className="mt-2 rounded-2xl p-4" style={{ background: "#111412", color: "#fff" }}>
+      <div className="mt-2 rounded-2xl p-4 bg-white border border-gray-200">
         <div className="flex items-center justify-between text-xs mb-2">
-          <span className="opacity-40">←</span>
-          <span className="font-semibold tracking-wide">{TIMER_LABELS[timer.type]}</span>
-          <span style={{ color: "#d4f547" }} className="italic">
-            {phase === "work" ? "UP" : ""}
+          <span className="font-semibold tracking-wide text-gray-400 uppercase">{TIMER_LABELS[timer.type]}</span>
+          <span style={{ color: "#65a30d" }} className="font-semibold">
+            {phase === "work" ? "IN CORSO" : ""}
           </span>
         </div>
         {(phase === "work" || phase === "rest") && (
-          <p className="text-center text-[11px] mb-2" style={{ color: "#9c9c96" }}>
+          <p className="text-center text-[11px] mb-2 text-gray-400">
             {phase === "work" ? setDurationLabel : subCaption}
           </p>
         )}
         <div className="relative mx-auto my-1 flex items-center justify-center" style={{ width: 160, height: 160 }}>
-          <CircularProgress progress={progress} color={ringColor} size={160} trackColor="#3a3a36" />
-          <span className="absolute text-4xl font-semibold tabular-nums">{mainDisplay}</span>
+          <CircularProgress progress={progress} color={ringColor} size={160} trackColor="#e5e7eb" />
+          <span className="absolute text-4xl font-semibold tabular-nums text-gray-900">{mainDisplay}</span>
         </div>
-        <p className="text-center text-xs mb-3" style={{ color: "#9c9c96" }}>
+        <p className="text-center text-xs mb-3 text-gray-400">
           {phase === "idle" || phase === "countdown" ? subCaption : phase === "done" ? subCaption : running ? "Pausa" : "In pausa"}
         </p>
 
         {phase === "idle" || phase === "done" ? (
           <div className="flex justify-center gap-2">
-            <button
-              onClick={handleStartPause}
-              className="btn-primary"
-              disabled={phase === "done"}
-              style={phase === "done" ? { background: "#d4f547", color: "#141a0a", opacity: 0.6 } : { background: "#d4f547", color: "#141a0a" }}
-            >
+            <button onClick={handleStartPause} className="btn-primary" disabled={phase === "done"}>
               {phase === "done" ? "Completato" : "Avvia"}
             </button>
-            <button onClick={handleReset} className="btn-secondary" style={{ borderColor: "#3a3a36", color: "#fff" }}>
+            <button onClick={handleReset} className="btn-secondary">
               Reset
             </button>
           </div>
@@ -361,11 +355,11 @@ export default function WorkoutTimer({
                 onClick={handleStopEarly}
                 aria-label="Termina"
                 className="w-12 h-12 rounded-full flex items-center justify-center"
-                style={{ background: "#e2453f" }}
+                style={{ background: "#fdeceb" }}
               >
-                <span className="block w-3.5 h-3.5 rounded-sm" style={{ background: "#fff" }} />
+                <span className="block w-3.5 h-3.5 rounded-sm" style={{ background: "#e2453f" }} />
               </button>
-              <button onClick={handleStartPause} className="text-xs" style={{ color: "#9c9c96" }}>
+              <button onClick={handleStartPause} className="text-xs text-gray-400">
                 {running ? "Pausa" : "Riprendi"}
               </button>
               <button
@@ -373,26 +367,26 @@ export default function WorkoutTimer({
                 disabled={phase !== "work"}
                 aria-label="Registra giro"
                 className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold"
-                style={{ background: "#fff", color: "#111", opacity: phase === "work" ? 1 : 0.35 }}
+                style={{ background: "#d4f547", color: "#0c1210", opacity: phase === "work" ? 1 : 0.35 }}
               >
                 +
               </button>
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-xl text-center py-2" style={{ background: "#1c1f1c" }}>
-                <p className="text-[10px] mb-0.5" style={{ color: "#9c9c96" }}>Set</p>
-                <p className="text-base">
+              <div className="rounded-xl text-center py-2 bg-gray-100">
+                <p className="text-[10px] mb-0.5 text-gray-500">Set</p>
+                <p className="text-base text-gray-900">
                   {currentSetIndex + 1}
-                  <span className="text-xs" style={{ color: "#9c9c96" }}>/{sets.length}</span>
+                  <span className="text-xs text-gray-500">/{sets.length}</span>
                 </p>
               </div>
-              <div className="rounded-xl text-center py-2" style={{ background: "#1c1f1c" }}>
-                <p className="text-[10px] mb-0.5" style={{ color: "#9c9c96" }}>Giri</p>
-                <p className="text-base">{giri.length}</p>
+              <div className="rounded-xl text-center py-2 bg-gray-100">
+                <p className="text-[10px] mb-0.5 text-gray-500">Giri</p>
+                <p className="text-base text-gray-900">{giri.length}</p>
               </div>
-              <div className="rounded-xl text-center py-2" style={{ background: "#1c1f1c" }}>
-                <p className="text-[10px] mb-0.5" style={{ color: "#9c9c96" }}>Ultimo giro</p>
-                <p className="text-base">{ultimoGiro}</p>
+              <div className="rounded-xl text-center py-2 bg-gray-100">
+                <p className="text-[10px] mb-0.5 text-gray-500">Ultimo giro</p>
+                <p className="text-base text-gray-900">{ultimoGiro}</p>
               </div>
             </div>
           </>
