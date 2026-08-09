@@ -61,14 +61,67 @@ export type ScoreConfig = {
   aggregation: string; // come combinare le serie: "elenco" | "totale" | "media"
 };
 
+// Un singolo "set" di un timer a più round (es. AMRAP 1, AMRAP 2...): la sua
+// durata di lavoro e un riposo opzionale PRIMA che inizi (il primo set di un
+// timer ha sempre restMinutes/restSeconds a 0: non c'è riposo prima di iniziare).
+export type TimerSet = {
+  minutes: number;
+  seconds: number;
+  restMinutes: number;
+  restSeconds: number;
+};
+
 export type TimerConfig = {
   type: string;
-  minutes: number; // durata di un giro (EMOM/AMRAP/TABATA) o obiettivo (FOR TIME)
-  seconds: number;
-  rounds?: number; // numero di giri (EMOM, AMRAP a giri multipli). Default 1.
-  restMinutes?: number; // riposo tra un giro e l'altro (solo AMRAP a giri multipli)
+  // Formato nuovo (AMRAP/EMOM a più set con durate/riposi indipendenti).
+  sets?: TimerSet[];
+  // Formato precedente, mantenuto per retrocompatibilità con le schede già
+  // salvate: usato direttamente da TABATA/FOR TIME, e convertito al volo in
+  // `sets` per AMRAP/EMOM tramite getTimerSets().
+  minutes?: number;
+  seconds?: number;
+  rounds?: number;
+  restMinutes?: number;
   restSeconds?: number;
 };
+
+// Ricava l'elenco dei set di un timer, sia che sia stato salvato nel formato
+// nuovo (sets) sia nel vecchio formato (minutes/seconds/rounds/rest...).
+export function getTimerSets(timer: TimerConfig): TimerSet[] {
+  if (timer.sets && timer.sets.length > 0) return timer.sets;
+  const rounds = Math.max(1, timer.rounds ?? 1);
+  const minutes = timer.minutes ?? 0;
+  const seconds = timer.seconds ?? 0;
+  const restMinutes = timer.restMinutes ?? 0;
+  const restSeconds = timer.restSeconds ?? 0;
+  return Array.from({ length: rounds }, (_, i) => ({
+    minutes,
+    seconds,
+    restMinutes: i === 0 ? 0 : restMinutes,
+    restSeconds: i === 0 ? 0 : restSeconds,
+  }));
+}
+
+export function timerSetSeconds(s: TimerSet): number {
+  return Math.max(1, s.minutes * 60 + s.seconds);
+}
+
+export function timerRestSeconds(s: TimerSet): number {
+  return Math.max(0, s.restMinutes * 60 + s.restSeconds);
+}
+
+// Durata totale di un timer a più set: somma di tutte le durate di lavoro e
+// di tutti i riposi (il primo set non ne ha, essendo restMinutes/Seconds a 0).
+export function totalTimerSeconds(sets: TimerSet[]): number {
+  return sets.reduce((sum, s) => sum + timerSetSeconds(s) + timerRestSeconds(s), 0);
+}
+
+export function formatClock(totalSeconds: number): string {
+  const clamped = Math.max(0, Math.round(totalSeconds));
+  const m = Math.floor(clamped / 60);
+  const s = clamped % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 export type Block = {
   type: string;
