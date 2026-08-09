@@ -34,7 +34,7 @@ function formatDatePill(iso?: string): string | null {
   const [y, m, d] = iso.split("-").map(Number);
   const date = new Date(y, m - 1, d);
   const label = WEEKDAY_LABELS[(date.getDay() + 6) % 7];
-  return \`\${label} \${d}/\${m}\`;
+  return `${label} ${d}/${m}`;
 }
 
 function timerSummary(block: Block): string | null {
@@ -43,14 +43,14 @@ function timerSummary(block: Block): string | null {
   if (t.type === "EMOM" || t.type === "AMRAP") {
     const sets = getTimerSets(t);
     if (sets.length > 1) {
-      return \`\${sets.length}x \${TIMER_LABELS[t.type]} · \${formatClock(totalTimerSeconds(sets))}\`;
+      return `${sets.length}x ${TIMER_LABELS[t.type]} · ${formatClock(totalTimerSeconds(sets))}`;
     }
     const s = sets[0];
-    return \`\${TIMER_LABELS[t.type]} \${s.minutes}:\${String(s.seconds).padStart(2, "0")}\`;
+    return `${TIMER_LABELS[t.type]} ${s.minutes}:${String(s.seconds).padStart(2, "0")}`;
   }
   const minutes = t.minutes ?? 0;
   const seconds = t.seconds ?? 0;
-  return \`\${TIMER_LABELS[t.type]} \${minutes}:\${String(seconds).padStart(2, "0")}\`;
+  return `${TIMER_LABELS[t.type]} ${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 function blockPreview(block: Block): string {
@@ -223,16 +223,16 @@ function BlockEditor({
       <button
         type="button"
         onClick={onToggle}
-        className={\`w-full text-left border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 \${
+        className={`w-full text-left border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 ${
           isNote ? "bg-amber-50" : "bg-white hover:bg-gray-50"
-        }\`}
+        }`}
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
             <span
-              className={\`text-xs font-semibold px-2 py-0.5 rounded-full \${
+              className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                 isNote ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-700"
-              }\`}
+              }`}
             >
               {block.type}
             </span>
