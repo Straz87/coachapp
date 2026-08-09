@@ -7,7 +7,7 @@ import GroupWeekCalendar from "@/components/GroupWeekCalendar";
 export default async function CalendarioPage({
   searchParams,
 }: {
-  searchParams: { cliente?: string; gruppo?: string };
+  searchParams: { cliente?: string; gruppo?: string; data?: string };
 }) {
   const { supabase, profile } = await requireTrainer();
 
@@ -35,6 +35,7 @@ export default async function CalendarioPage({
 
   const selectedClientId = searchParams.cliente || null;
   const selectedGroupId = searchParams.gruppo || null;
+  const initialDate = searchParams.data || null;
 
   const selectedClientName = clientOptions.find((c) => c.id === selectedClientId)?.name;
   const selectedGroupName = groupOptions.find((g) => g.id === selectedGroupId)?.name;
@@ -60,6 +61,7 @@ export default async function CalendarioPage({
           trainerId={profile.id}
           groupName={selectedGroupName}
           trainerName={trainerName}
+          initialDate={initialDate}
         />
       ) : selectedClientId ? (
         <WeekCalendar
@@ -67,6 +69,7 @@ export default async function CalendarioPage({
           trainerId={profile.id}
           clientName={selectedClientName}
           trainerName={trainerName}
+          initialDate={initialDate}
         />
       ) : (
         <p className="text-gray-400">
