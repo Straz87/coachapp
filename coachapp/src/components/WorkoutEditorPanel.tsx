@@ -398,30 +398,34 @@ function BlockEditor({
       >
         {block.timer && (
           <div className="space-y-2">
-            <select
-              className="input"
-              value={block.timer.type}
-              onChange={(e) => {
-                const newType = e.target.value;
-                if (newType === "AMRAP") {
-                  onChange({ timer: { type: "AMRAP", minutes: 20, seconds: 0 } });
-                } else if (newType === "EMOM") {
-                  onChange({ timer: { type: "EMOM", minutes: 1, seconds: 0, rounds: 10 } });
-                } else if (newType === "TABATA") {
-                  onChange({
-                    timer: { type: "TABATA", minutes: 0, seconds: 20, restMinutes: 0, restSeconds: 10, rounds: 8 },
-                  });
-                } else {
-                  onChange({ timer: { type: newType, minutes: 10, seconds: 0 } });
-                }
-              }}
-            >
+            <div className="flex flex-wrap gap-2">
               {TIMER_TYPES.map((t) => (
-                <option key={t} value={t}>
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    if (t === "AMRAP") {
+                      onChange({ timer: { type: "AMRAP", minutes: 20, seconds: 0 } });
+                    } else if (t === "EMOM") {
+                      onChange({ timer: { type: "EMOM", minutes: 1, seconds: 0, rounds: 10 } });
+                    } else if (t === "TABATA") {
+                      onChange({
+                        timer: { type: "TABATA", minutes: 0, seconds: 20, restMinutes: 0, restSeconds: 10, rounds: 8 },
+                      });
+                    } else {
+                      onChange({ timer: { type: t, minutes: 10, seconds: 0 } });
+                    }
+                  }}
+                  className={
+                    block.timer!.type === t
+                      ? "border border-gray-800 rounded-xl px-4 py-2 text-sm font-medium text-gray-900"
+                      : "border border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                  }
+                >
                   {TIMER_LABELS[t]}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
 
             {block.timer.type === "AMRAP" ? (
               <AmrapEditor timer={block.timer} onChange={(t) => onChange({ timer: t })} />
@@ -430,28 +434,33 @@ function BlockEditor({
             ) : block.timer.type === "TABATA" ? (
               <TabataEditor timer={block.timer} onChange={(t) => onChange({ timer: t })} />
             ) : (
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  className="input"
-                  value={block.timer.minutes ?? 0}
-                  onChange={(e) =>
-                    onChange({ timer: { ...block.timer!, minutes: Number(e.target.value) || 0 } })
-                  }
-                  placeholder="min"
-                />
-                <input
-                  type="number"
-                  min={0}
-                  max={59}
-                  className="input"
-                  value={block.timer.seconds ?? 0}
-                  onChange={(e) =>
-                    onChange({ timer: { ...block.timer!, seconds: Number(e.target.value) || 0 } })
-                  }
-                  placeholder="sec"
-                />
+              <div className="border border-gray-200 rounded-xl p-3 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    className="input"
+                    value={block.timer.minutes ?? 0}
+                    onChange={(e) =>
+                      onChange({ timer: { ...block.timer!, minutes: Number(e.target.value) || 0 } })
+                    }
+                    placeholder="min"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    className="input"
+                    value={block.timer.seconds ?? 0}
+                    onChange={(e) =>
+                      onChange({ timer: { ...block.timer!, seconds: Number(e.target.value) || 0 } })
+                    }
+                    placeholder="sec"
+                  />
+                </div>
+                <p className="text-xs text-gray-400">
+                  Tempo massimo per completare l&apos;allenamento. Il cliente registra il tempo impiegato quando finisce.
+                </p>
               </div>
             )}
           </div>
@@ -483,25 +492,30 @@ function AmrapEditor({ timer, onChange }: { timer: TimerConfig; onChange: (t: Ti
   const seconds = timer.seconds ?? 0;
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1.5">
-        <input
-          type="number"
-          min={0}
-          className="input"
-          placeholder="min"
-          value={minutes}
-          onChange={(e) => onChange({ type: "AMRAP", minutes: Number(e.target.value) || 0, seconds })}
-        />
-        <input
-          type="number"
-          min={0}
-          max={59}
-          className="input"
-          placeholder="sec"
-          value={seconds}
-          onChange={(e) => onChange({ type: "AMRAP", minutes, seconds: Number(e.target.value) || 0 })}
-        />
-        <span className="text-xs text-gray-400 shrink-0 w-14">Durata</span>
+      <div className="border border-gray-200 rounded-xl p-3 space-y-2">
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            min={0}
+            className="input"
+            placeholder="min"
+            value={minutes}
+            onChange={(e) => onChange({ type: "AMRAP", minutes: Number(e.target.value) || 0, seconds })}
+          />
+          <input
+            type="number"
+            min={0}
+            max={59}
+            className="input"
+            placeholder="sec"
+            value={seconds}
+            onChange={(e) => onChange({ type: "AMRAP", minutes, seconds: Number(e.target.value) || 0 })}
+          />
+          <span className="text-xs text-gray-400 shrink-0 w-14">Durata</span>
+        </div>
+        <p className="text-xs text-gray-400">
+          Un solo campo: quanto dura l&apos;amrap. I giri li conta l&apos;atleta durante l&apos;allenamento.
+        </p>
       </div>
       <button
         type="button"
@@ -518,6 +532,9 @@ function AmrapEditor({ timer, onChange }: { timer: TimerConfig; onChange: (t: Ti
       >
         + Aggiungere un set (opzionale)
       </button>
+      <p className="text-xs text-gray-400">
+        Come oggi, resta possibile aggiungere set extra con riposo tra uno e l&apos;altro, ma non è più il punto di partenza obbligato.
+      </p>
     </div>
   );
 }
@@ -535,38 +552,43 @@ function EmomEditor({ timer, onChange }: { timer: TimerConfig; onChange: (t: Tim
   const total = (minutes * 60 + seconds) * rounds;
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1.5">
-        <input
-          type="number"
-          min={0}
-          className="input"
-          placeholder="min"
-          value={minutes}
-          onChange={(e) => onChange({ type: "EMOM", minutes: Number(e.target.value) || 0, seconds, rounds })}
-        />
-        <input
-          type="number"
-          min={0}
-          max={59}
-          className="input"
-          placeholder="sec"
-          value={seconds}
-          onChange={(e) => onChange({ type: "EMOM", minutes, seconds: Number(e.target.value) || 0, rounds })}
-        />
-        <span className="text-xs text-gray-400 shrink-0 w-20">Durata/giro</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <input
-          type="number"
-          min={1}
-          className="input"
-          placeholder="giri"
-          value={rounds}
-          onChange={(e) =>
-            onChange({ type: "EMOM", minutes, seconds, rounds: Math.max(1, Number(e.target.value) || 1) })
-          }
-        />
-        <span className="text-xs text-gray-400 shrink-0">Giri</span>
+      <div className="border border-gray-200 rounded-xl p-3 space-y-2">
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            min={0}
+            className="input"
+            placeholder="min"
+            value={minutes}
+            onChange={(e) => onChange({ type: "EMOM", minutes: Number(e.target.value) || 0, seconds, rounds })}
+          />
+          <input
+            type="number"
+            min={0}
+            max={59}
+            className="input"
+            placeholder="sec"
+            value={seconds}
+            onChange={(e) => onChange({ type: "EMOM", minutes, seconds: Number(e.target.value) || 0, rounds })}
+          />
+          <span className="text-xs text-gray-400 shrink-0 w-20">Durata/giro</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            min={1}
+            className="input"
+            placeholder="giri"
+            value={rounds}
+            onChange={(e) =>
+              onChange({ type: "EMOM", minutes, seconds, rounds: Math.max(1, Number(e.target.value) || 1) })
+            }
+          />
+          <span className="text-xs text-gray-400 shrink-0">Giri</span>
+        </div>
+        <p className="text-xs text-gray-400">
+          Due campi: quanto dura ogni giro e quanti giri fare. Il totale si calcola da solo.
+        </p>
       </div>
       <button
         type="button"
@@ -583,6 +605,9 @@ function EmomEditor({ timer, onChange }: { timer: TimerConfig; onChange: (t: Tim
       >
         + Aggiungere un set (opzionale)
       </button>
+      <p className="text-xs text-gray-400">
+        Come oggi, resta possibile aggiungere set extra con riposo tra uno e l&apos;altro, ma non è più il punto di partenza obbligato.
+      </p>
       <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-200">
         <span className="text-gray-500">Durata totale</span>
         <span className="font-semibold text-gray-700">{formatClock(total)}</span>
@@ -607,56 +632,61 @@ function TabataEditor({ timer, onChange }: { timer: TimerConfig; onChange: (t: T
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1.5">
-        <input
-          type="number"
-          min={0}
-          className="input"
-          placeholder="min"
-          value={minutes}
-          onChange={(e) => patch({ minutes: Number(e.target.value) || 0 })}
-        />
-        <input
-          type="number"
-          min={0}
-          max={59}
-          className="input"
-          placeholder="sec"
-          value={seconds}
-          onChange={(e) => patch({ seconds: Number(e.target.value) || 0 })}
-        />
-        <span className="text-xs text-gray-400 shrink-0 w-14">Lavoro</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <input
-          type="number"
-          min={0}
-          className="input"
-          placeholder="min"
-          value={restMinutes}
-          onChange={(e) => patch({ restMinutes: Number(e.target.value) || 0 })}
-        />
-        <input
-          type="number"
-          min={0}
-          max={59}
-          className="input"
-          placeholder="sec"
-          value={restSeconds}
-          onChange={(e) => patch({ restSeconds: Number(e.target.value) || 0 })}
-        />
-        <span className="text-xs text-gray-400 shrink-0 w-14">Recupero</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <input
-          type="number"
-          min={1}
-          className="input"
-          placeholder="round"
-          value={rounds}
-          onChange={(e) => patch({ rounds: Math.max(1, Number(e.target.value) || 1) })}
-        />
-        <span className="text-xs text-gray-400 shrink-0">Round</span>
+      <div className="border border-gray-200 rounded-xl p-3 space-y-2">
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            min={0}
+            className="input"
+            placeholder="min"
+            value={minutes}
+            onChange={(e) => patch({ minutes: Number(e.target.value) || 0 })}
+          />
+          <input
+            type="number"
+            min={0}
+            max={59}
+            className="input"
+            placeholder="sec"
+            value={seconds}
+            onChange={(e) => patch({ seconds: Number(e.target.value) || 0 })}
+          />
+          <span className="text-xs text-gray-400 shrink-0 w-14">Lavoro</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            min={0}
+            className="input"
+            placeholder="min"
+            value={restMinutes}
+            onChange={(e) => patch({ restMinutes: Number(e.target.value) || 0 })}
+          />
+          <input
+            type="number"
+            min={0}
+            max={59}
+            className="input"
+            placeholder="sec"
+            value={restSeconds}
+            onChange={(e) => patch({ restSeconds: Number(e.target.value) || 0 })}
+          />
+          <span className="text-xs text-gray-400 shrink-0 w-14">Recupero</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            min={1}
+            className="input"
+            placeholder="round"
+            value={rounds}
+            onChange={(e) => patch({ rounds: Math.max(1, Number(e.target.value) || 1) })}
+          />
+          <span className="text-xs text-gray-400 shrink-0">Round</span>
+        </div>
+        <p className="text-xs text-gray-400">
+          Tre campi: lavoro, recupero e round. Il timer alterna da solo lavoro e recupero per ogni round.
+        </p>
       </div>
       <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-200">
         <span className="text-gray-500">Durata totale</span>
