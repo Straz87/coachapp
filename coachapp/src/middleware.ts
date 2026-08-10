@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // gestiscono la propria autenticazione internamente (sessione cookie per
 // le chiamate dal browser, CRON_SECRET per i job schedulati come
 // /api/cron/*, che non hanno alcuna sessione utente).
-const PUBLIC_PATHS = ["/login", "/invito", "/auth", "/api"];
+const PUBLIC_PATHS = ["/login", "/invito", "/auth", "/api", "/iscriviti"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
