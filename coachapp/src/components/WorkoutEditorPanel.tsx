@@ -58,6 +58,92 @@ function blockPreview(block: Block): string {
   return lines.join(" · ").slice(0, 90) || "Vuoto — tocca per compilare";
 }
 
+// Icone semplici per le card di selezione del timer (stile Hustle Up).
+function AmrapIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <path d="M6 4v16M10 4v16M14 4v16M18 9l1 11" strokeLinecap="round" />
+    </svg>
+  );
+}
+function EmomIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <path d="M4 12h3M10 12h3M16 12h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+function TabataIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <path d="M6 18V9M12 18V4M18 18v-6" strokeLinecap="round" />
+    </svg>
+  );
+}
+function ForTimeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l3 2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 2h6M12 2v3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+const TIMER_META: Record<string, { color: string; desc: string; icon: React.ReactNode }> = {
+  AMRAP: { color: "bg-lime-400", desc: "Il maggior numero di giri possibile", icon: <AmrapIcon /> },
+  EMOM: { color: "bg-cyan-400", desc: "Ogni minuto al minuto", icon: <EmomIcon /> },
+  TABATA: {
+    color: "bg-indigo-400",
+    desc: "20 secondi di sforzo seguiti da 10 secondi di riposo",
+    icon: <TabataIcon />,
+  },
+  FOR_TIME: {
+    color: "bg-orange-400",
+    desc: "Il tempo per completare l'intero allenamento",
+    icon: <ForTimeIcon />,
+  },
+};
+
+// Campo durata con etichette "min"/"s" fisse accanto ai numeri, cosi restano
+// sempre visibili anche dopo aver digitato un valore (non solo da vuoti).
+function DurationField({
+  minutes,
+  seconds,
+  onMinutes,
+  onSeconds,
+  label,
+}: {
+  minutes: number;
+  seconds: number;
+  onMinutes: (v: number) => void;
+  onSeconds: (v: number) => void;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 border border-gray-200 rounded-xl px-3 py-2">
+      <input
+        type="number"
+        min={0}
+        className="w-10 text-right outline-none bg-transparent"
+        value={minutes}
+        onChange={(e) => onMinutes(Number(e.target.value) || 0)}
+      />
+      <span className="text-sm text-gray-400">min</span>
+      <input
+        type="number"
+        min={0}
+        max={59}
+        className="w-10 text-right outline-none bg-transparent ml-2"
+        value={seconds}
+        onChange={(e) => onSeconds(Number(e.target.value) || 0)}
+      />
+      <span className="text-sm text-gray-400">s</span>
+      <span className="ml-auto text-xs text-gray-400 shrink-0">{label}</span>
+    </div>
+  );
+}
+
 export default function WorkoutEditorPanel({
   initial,
   date,
@@ -398,71 +484,80 @@ function BlockEditor({
       >
         {block.timer && (
           <div className="space-y-2">
-            <div className="flex flex-wrap gap-2">
-              {TIMER_TYPES.map((t) => (
-                <button
+            {TIMER_TYPES.map((t) => {
+              const selected = block.timer!.type === t;
+              const meta = TIMER_META[t];
+              return (
+                <div
                   key={t}
-                  type="button"
-                  onClick={() => {
-                    if (t === "AMRAP") {
-                      onChange({ timer: { type: "AMRAP", minutes: 20, seconds: 0 } });
-                    } else if (t === "EMOM") {
-                      onChange({ timer: { type: "EMOM", minutes: 1, seconds: 0, rounds: 10 } });
-                    } else if (t === "TABATA") {
-                      onChange({
-                        timer: { type: "TABATA", minutes: 0, seconds: 20, restMinutes: 0, restSeconds: 10, rounds: 8 },
-                      });
-                    } else {
-                      onChange({ timer: { type: t, minutes: 10, seconds: 0 } });
-                    }
-                  }}
-                  className={
-                    block.timer!.type === t
-                      ? "border border-gray-800 rounded-xl px-4 py-2 text-sm font-medium text-gray-900"
-                      : "border border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
-                  }
+                  className={`rounded-xl border overflow-hidden ${
+                    selected ? "border-gray-800" : "border-gray-200"
+                  }`}
                 >
-                  {TIMER_LABELS[t]}
-                </button>
-              ))}
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (t === "AMRAP") {
+                        onChange({ timer: { type: "AMRAP", minutes: 20, seconds: 0 } });
+                      } else if (t === "EMOM") {
+                        onChange({ timer: { type: "EMOM", minutes: 1, seconds: 0, rounds: 10 } });
+                      } else if (t === "TABATA") {
+                        onChange({
+                          timer: {
+                            type: "TABATA",
+                            minutes: 0,
+                            seconds: 20,
+                            restMinutes: 0,
+                            restSeconds: 10,
+                            rounds: 8,
+                          },
+                        });
+                      } else {
+                        onChange({ timer: { type: t, minutes: 10, seconds: 0 } });
+                      }
+                    }}
+                    className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-50"
+                  >
+                    <span
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center text-white shrink-0 ${meta.color}`}
+                    >
+                      {meta.icon}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold text-sm text-gray-900">{TIMER_LABELS[t]}</span>
+                      <span className="block text-xs text-gray-500 truncate">{meta.desc}</span>
+                    </span>
+                    <span className="text-gray-300 shrink-0">{selected ? "▴" : "▾"}</span>
+                  </button>
 
-            {block.timer.type === "AMRAP" ? (
-              <AmrapEditor timer={block.timer} onChange={(t) => onChange({ timer: t })} />
-            ) : block.timer.type === "EMOM" ? (
-              <EmomEditor timer={block.timer} onChange={(t) => onChange({ timer: t })} />
-            ) : block.timer.type === "TABATA" ? (
-              <TabataEditor timer={block.timer} onChange={(t) => onChange({ timer: t })} />
-            ) : (
-              <div className="border border-gray-200 rounded-xl p-3 space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="number"
-                    min={0}
-                    className="input"
-                    value={block.timer.minutes ?? 0}
-                    onChange={(e) =>
-                      onChange({ timer: { ...block.timer!, minutes: Number(e.target.value) || 0 } })
-                    }
-                    placeholder="min"
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    max={59}
-                    className="input"
-                    value={block.timer.seconds ?? 0}
-                    onChange={(e) =>
-                      onChange({ timer: { ...block.timer!, seconds: Number(e.target.value) || 0 } })
-                    }
-                    placeholder="sec"
-                  />
+                  {selected && (
+                    <div className="px-3 pb-3">
+                      {t === "AMRAP" ? (
+                        <AmrapEditor timer={block.timer} onChange={(nt) => onChange({ timer: nt })} />
+                      ) : t === "EMOM" ? (
+                        <EmomEditor timer={block.timer} onChange={(nt) => onChange({ timer: nt })} />
+                      ) : t === "TABATA" ? (
+                        <TabataEditor timer={block.timer} onChange={(nt) => onChange({ timer: nt })} />
+                      ) : (
+                        <div className="space-y-2">
+                          <DurationField
+                            minutes={block.timer.minutes ?? 0}
+                            seconds={block.timer.seconds ?? 0}
+                            onMinutes={(m) => onChange({ timer: { ...block.timer!, minutes: m } })}
+                            onSeconds={(s) => onChange({ timer: { ...block.timer!, seconds: s } })}
+                            label="Durata"
+                          />
+                          <p className="text-xs text-gray-400">
+                            Tempo massimo per completare l&apos;allenamento. Il cliente registra il tempo
+                            impiegato quando finisce.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs text-gray-400">
-                  Tempo massimo per completare l&apos;allenamento. Il cliente registra il tempo impiegato quando finisce.
-                </p>
-              </div>
-            )}
+              );
+            })}
           </div>
         )}
         {block.timer && (
@@ -492,31 +587,16 @@ function AmrapEditor({ timer, onChange }: { timer: TimerConfig; onChange: (t: Ti
   const seconds = timer.seconds ?? 0;
   return (
     <div className="space-y-2">
-      <div className="border border-gray-200 rounded-xl p-3 space-y-2">
-        <div className="flex items-center gap-1.5">
-          <input
-            type="number"
-            min={0}
-            className="input"
-            placeholder="min"
-            value={minutes}
-            onChange={(e) => onChange({ type: "AMRAP", minutes: Number(e.target.value) || 0, seconds })}
-          />
-          <input
-            type="number"
-            min={0}
-            max={59}
-            className="input"
-            placeholder="sec"
-            value={seconds}
-            onChange={(e) => onChange({ type: "AMRAP", minutes, seconds: Number(e.target.value) || 0 })}
-          />
-          <span className="text-xs text-gray-400 shrink-0 w-14">Durata</span>
-        </div>
-        <p className="text-xs text-gray-400">
-          Un solo campo: quanto dura l&apos;amrap. I giri li conta l&apos;atleta durante l&apos;allenamento.
-        </p>
-      </div>
+      <DurationField
+        minutes={minutes}
+        seconds={seconds}
+        onMinutes={(m) => onChange({ type: "AMRAP", minutes: m, seconds })}
+        onSeconds={(s) => onChange({ type: "AMRAP", minutes, seconds: s })}
+        label="Durata"
+      />
+      <p className="text-xs text-gray-400">
+        Un solo campo: quanto dura l&apos;amrap. I giri li conta l&apos;atleta durante l&apos;allenamento.
+      </p>
       <button
         type="button"
         onClick={() =>
@@ -552,44 +632,28 @@ function EmomEditor({ timer, onChange }: { timer: TimerConfig; onChange: (t: Tim
   const total = (minutes * 60 + seconds) * rounds;
   return (
     <div className="space-y-2">
-      <div className="border border-gray-200 rounded-xl p-3 space-y-2">
-        <div className="flex items-center gap-1.5">
-          <input
-            type="number"
-            min={0}
-            className="input"
-            placeholder="min"
-            value={minutes}
-            onChange={(e) => onChange({ type: "EMOM", minutes: Number(e.target.value) || 0, seconds, rounds })}
-          />
-          <input
-            type="number"
-            min={0}
-            max={59}
-            className="input"
-            placeholder="sec"
-            value={seconds}
-            onChange={(e) => onChange({ type: "EMOM", minutes, seconds: Number(e.target.value) || 0, rounds })}
-          />
-          <span className="text-xs text-gray-400 shrink-0 w-20">Durata/giro</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <input
-            type="number"
-            min={1}
-            className="input"
-            placeholder="giri"
-            value={rounds}
-            onChange={(e) =>
-              onChange({ type: "EMOM", minutes, seconds, rounds: Math.max(1, Number(e.target.value) || 1) })
-            }
-          />
-          <span className="text-xs text-gray-400 shrink-0">Giri</span>
-        </div>
-        <p className="text-xs text-gray-400">
-          Due campi: quanto dura ogni giro e quanti giri fare. Il totale si calcola da solo.
-        </p>
+      <DurationField
+        minutes={minutes}
+        seconds={seconds}
+        onMinutes={(m) => onChange({ type: "EMOM", minutes: m, seconds, rounds })}
+        onSeconds={(s) => onChange({ type: "EMOM", minutes, seconds: s, rounds })}
+        label="Durata/giro"
+      />
+      <div className="flex items-center gap-1.5 border border-gray-200 rounded-xl px-3 py-2">
+        <input
+          type="number"
+          min={1}
+          className="w-14 outline-none bg-transparent"
+          value={rounds}
+          onChange={(e) =>
+            onChange({ type: "EMOM", minutes, seconds, rounds: Math.max(1, Number(e.target.value) || 1) })
+          }
+        />
+        <span className="ml-auto text-xs text-gray-400 shrink-0">Giri</span>
       </div>
+      <p className="text-xs text-gray-400">
+        Due campi: quanto dura ogni giro e quanti giri fare. Il totale si calcola da solo.
+      </p>
       <button
         type="button"
         onClick={() =>
@@ -632,62 +696,33 @@ function TabataEditor({ timer, onChange }: { timer: TimerConfig; onChange: (t: T
 
   return (
     <div className="space-y-2">
-      <div className="border border-gray-200 rounded-xl p-3 space-y-2">
-        <div className="flex items-center gap-1.5">
-          <input
-            type="number"
-            min={0}
-            className="input"
-            placeholder="min"
-            value={minutes}
-            onChange={(e) => patch({ minutes: Number(e.target.value) || 0 })}
-          />
-          <input
-            type="number"
-            min={0}
-            max={59}
-            className="input"
-            placeholder="sec"
-            value={seconds}
-            onChange={(e) => patch({ seconds: Number(e.target.value) || 0 })}
-          />
-          <span className="text-xs text-gray-400 shrink-0 w-14">Lavoro</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <input
-            type="number"
-            min={0}
-            className="input"
-            placeholder="min"
-            value={restMinutes}
-            onChange={(e) => patch({ restMinutes: Number(e.target.value) || 0 })}
-          />
-          <input
-            type="number"
-            min={0}
-            max={59}
-            className="input"
-            placeholder="sec"
-            value={restSeconds}
-            onChange={(e) => patch({ restSeconds: Number(e.target.value) || 0 })}
-          />
-          <span className="text-xs text-gray-400 shrink-0 w-14">Recupero</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <input
-            type="number"
-            min={1}
-            className="input"
-            placeholder="round"
-            value={rounds}
-            onChange={(e) => patch({ rounds: Math.max(1, Number(e.target.value) || 1) })}
-          />
-          <span className="text-xs text-gray-400 shrink-0">Round</span>
-        </div>
-        <p className="text-xs text-gray-400">
-          Tre campi: lavoro, recupero e round. Il timer alterna da solo lavoro e recupero per ogni round.
-        </p>
+      <DurationField
+        minutes={minutes}
+        seconds={seconds}
+        onMinutes={(m) => patch({ minutes: m })}
+        onSeconds={(s) => patch({ seconds: s })}
+        label="Lavoro"
+      />
+      <DurationField
+        minutes={restMinutes}
+        seconds={restSeconds}
+        onMinutes={(m) => patch({ restMinutes: m })}
+        onSeconds={(s) => patch({ restSeconds: s })}
+        label="Recupero"
+      />
+      <div className="flex items-center gap-1.5 border border-gray-200 rounded-xl px-3 py-2">
+        <input
+          type="number"
+          min={1}
+          className="w-14 outline-none bg-transparent"
+          value={rounds}
+          onChange={(e) => patch({ rounds: Math.max(1, Number(e.target.value) || 1) })}
+        />
+        <span className="ml-auto text-xs text-gray-400 shrink-0">Round</span>
       </div>
+      <p className="text-xs text-gray-400">
+        Tre campi: lavoro, recupero e round. Il timer alterna da solo lavoro e recupero per ogni round.
+      </p>
       <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-200">
         <span className="text-gray-500">Durata totale</span>
         <span className="font-semibold text-gray-700">{formatClock(total)}</span>
@@ -749,47 +784,21 @@ function TimerSetsEditor({
             </div>
           )}
           {i > 0 && showRest && (
-            <div className="flex items-center gap-1.5">
-              <input
-                type="number"
-                min={0}
-                className="input"
-                placeholder="min"
-                value={s.restMinutes}
-                onChange={(e) => updateSet(i, { restMinutes: Number(e.target.value) || 0 })}
-              />
-              <input
-                type="number"
-                min={0}
-                max={59}
-                className="input"
-                placeholder="sec"
-                value={s.restSeconds}
-                onChange={(e) => updateSet(i, { restSeconds: Number(e.target.value) || 0 })}
-              />
-              <span className="text-xs text-gray-400 shrink-0 w-14">Riposo</span>
-            </div>
+            <DurationField
+              minutes={s.restMinutes}
+              seconds={s.restSeconds}
+              onMinutes={(m) => updateSet(i, { restMinutes: m })}
+              onSeconds={(sec) => updateSet(i, { restSeconds: sec })}
+              label="Riposo"
+            />
           )}
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              min={0}
-              className="input"
-              placeholder="min"
-              value={s.minutes}
-              onChange={(e) => updateSet(i, { minutes: Number(e.target.value) || 0 })}
-            />
-            <input
-              type="number"
-              min={0}
-              max={59}
-              className="input"
-              placeholder="sec"
-              value={s.seconds}
-              onChange={(e) => updateSet(i, { seconds: Number(e.target.value) || 0 })}
-            />
-            <span className="text-xs text-gray-400 shrink-0 w-14">Durata</span>
-          </div>
+          <DurationField
+            minutes={s.minutes}
+            seconds={s.seconds}
+            onMinutes={(m) => updateSet(i, { minutes: m })}
+            onSeconds={(sec) => updateSet(i, { seconds: sec })}
+            label="Durata"
+          />
         </div>
       ))}
       <button type="button" onClick={addSet} className="btn-secondary text-xs w-full">
