@@ -91,10 +91,11 @@ export default function WorkoutTimer({
   const isAmrap = timer.type === "AMRAP";
   const isCountUp = timer.type === "FOR_TIME";
 
-  // AMRAP ed EMOM usano il motore a più set (conto alla rovescia iniziale,
-  // lavoro/riposo per ogni set, stop automatico all'ultimo). TABATA e FOR
-  // TIME restano sul motore "classico" con una sola durata.
-  const useNewEngine = isEmom || isAmrap;
+  // AMRAP, EMOM e TABATA usano il motore a più set (conto alla rovescia
+  // iniziale, lavoro/riposo per ogni set, stop automatico all'ultimo). Il
+  // TABATA li usa per alternare davvero lavoro e recupero come impostati
+  // dal trainer. Solo FOR TIME resta sul motore "classico" a durata unica.
+  const useNewEngine = isEmom || isAmrap || isTabata;
 
   // JSON.stringify come chiave stabile: getTimerSets() crea un nuovo array a
   // ogni chiamata, e senza questo il motore ripartirebbe ad ogni render.
@@ -138,14 +139,6 @@ export default function WorkoutTimer({
     const id = setInterval(() => setElapsed((prev) => prev + 1), 1000);
     return () => clearInterval(id);
   }, [running, useNewEngine]);
-
-  // TABATA: beep a ogni nuovo giro
-  useEffect(() => {
-    if (useNewEngine) return;
-    if (isTabata && running && elapsed > 0 && elapsed % classicSeconds === 0) {
-      playBeep(audioCtxRef.current, 1046, 200);
-    }
-  }, [elapsed, isTabata, running, classicSeconds, useNewEngine]);
 
   // FOR TIME: beep quando si raggiunge l'obiettivo (una sola volta)
   useEffect(() => {
@@ -198,7 +191,7 @@ export default function WorkoutTimer({
           return;
         }
         const nextSet = sets[currentSetIndex + 1];
-        const rest = isAmrap ? timerRestSeconds(nextSet) : 0;
+        const rest = isAmrap || isTabata ? timerRestSeconds(nextSet) : 0;
         if (rest > 0) {
           setPhase("rest");
           setPhaseElapsed(0);
@@ -230,7 +223,7 @@ export default function WorkoutTimer({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, phaseElapsed, running, useNewEngine, sets, currentSetIndex, isAmrap]);
+  }, [phase, phaseElapsed, running, useNewEngine, sets, currentSetIndex, isAmrap, isTabata]);
 
   // Chiama onComplete una sola volta, quando il timer finisce da solo o
   // viene fermato manualmente (tasto rosso).
@@ -446,20 +439,68 @@ export default function WorkoutTimer({
     );
   }
 
-  // --- Rendering: motore classico (TABATA, FOR TIME) ---
-  let mainDisplay: string;
-  let caption: string;
+  // --- Rendering: TABATA (motore a più set: lavoro/recupero/round veri) ---
+  if (isTabata) {
+    let mainDisplay: string;
+    let caption: string;
+    let progress = 0;
+    let ringColor = "#84cc16";
+    const currentSet = sets[Math.min(currentSetIndex, sets.length - 1)];
 
-  if (isCountUp) {
-    mainDisplay = formatClock(elapsed);
-    caption = `Obiettivo: ${formatClock(classicSeconds)}`;
-  } else {
-    const inRound = elapsed % classicSeconds;
-    const remaining = classicSeconds - inRound;
-    const currentRoundClassic = Math.floor(elapsed / classicSeconds) + 1;
-    mainDisplay = formatClock(remaining);
-    caption = `Giro ${currentRoundClassic}`;
+    if (phase === "idle") {
+      mainDisplay = "▶";
+      caption = `${sets.length} round · Durata ${formatClock(totalTimerSeconds(sets))}`;
+    } else if (phase === "countdown") {
+      const remaining = PRESTART_SECONDS - phaseElapsed;
+      mainDisplay = String(Math.max(1, remaining));
+      caption = "Si parte tra...";
+      progress = phaseElapsed / PRESTART_SECONDS;
+      ringColor = "#f59e0b";
+    } else if (phase === "work") {
+      const remaining = Math.max(0, timerSetSeconds(currentSet) - phaseElapsed);
+      mainDisplay = formatClock(remaining);
+      caption = `Lavoro · round ${currentSetIndex + 1} di ${sets.length}`;
+      progress = phaseElapsed / timerSetSeconds(currentSet);
+    } else if (phase === "rest") {
+      const restTotal = timerRestSeconds(sets[currentSetIndex + 1]);
+      const remaining = Math.max(0, restTotal - phaseElapsed);
+      mainDisplay = formatClock(remaining);
+      caption = `Recupero · prossimo round ${currentSetIndex + 2} di ${sets.length}`;
+      progress = restTotal > 0 ? phaseElapsed / restTotal : 1;
+      ringColor = "#0ea5e9";
+    } else {
+      mainDisplay = "✓";
+      caption = "Sessione completata!";
+      progress = 1;
+    }
+
+    return (
+      <div className="mt-2 rounded-xl border border-gray-200 bg-white p-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            {TIMER_LABELS[timer.type]}
+          </span>
+          <span className="text-xs text-gray-400">{caption}</span>
+        </div>
+        <div className="relative mx-auto my-2 flex items-center justify-center" style={{ width: 176, height: 176 }}>
+          <CircularProgress progress={progress} color={ringColor} />
+          <span className="absolute text-3xl font-bold tabular-nums text-gray-800">{mainDisplay}</span>
+        </div>
+        <div className="flex justify-center gap-2">
+          <button onClick={handleStartPause} className={running ? "btn-secondary" : "btn-primary"} disabled={phase === "done"}>
+            {running ? "Pausa" : phase === "done" ? "Completato" : phase === "idle" ? "Avvia" : "Riprendi"}
+          </button>
+          <button onClick={handleReset} className="btn-secondary">
+            Reset
+          </button>
+        </div>
+      </div>
+    );
   }
+
+  // --- Rendering: motore classico (FOR TIME) ---
+  const mainDisplay = formatClock(elapsed);
+  const caption = `Obiettivo: ${formatClock(classicSeconds)}`;
 
   return (
     <div className="mt-2 rounded-xl border border-gray-200 bg-white p-3">
