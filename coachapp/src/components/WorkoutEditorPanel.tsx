@@ -533,16 +533,16 @@ function BlockEditor({
                   {selected && (
                     <div className="px-3 pb-3">
                       {t === "AMRAP" ? (
-                        <AmrapEditor timer={block.timer} onChange={(nt) => onChange({ timer: nt })} />
+                        <AmrapEditor timer={block.timer!} onChange={(nt) => onChange({ timer: nt })} />
                       ) : t === "EMOM" ? (
-                        <EmomEditor timer={block.timer} onChange={(nt) => onChange({ timer: nt })} />
+                        <EmomEditor timer={block.timer!} onChange={(nt) => onChange({ timer: nt })} />
                       ) : t === "TABATA" ? (
-                        <TabataEditor timer={block.timer} onChange={(nt) => onChange({ timer: nt })} />
+                        <TabataEditor timer={block.timer!} onChange={(nt) => onChange({ timer: nt })} />
                       ) : (
                         <div className="space-y-2">
                           <DurationField
-                            minutes={block.timer.minutes ?? 0}
-                            seconds={block.timer.seconds ?? 0}
+                            minutes={block.timer!.minutes ?? 0}
+                            seconds={block.timer!.seconds ?? 0}
                             onMinutes={(m) => onChange({ timer: { ...block.timer!, minutes: m } })}
                             onSeconds={(s) => onChange({ timer: { ...block.timer!, seconds: s } })}
                             label="Durata"
