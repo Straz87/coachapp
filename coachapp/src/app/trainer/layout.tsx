@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { href: "/trainer", label: "Clienti", icon: "👥" },
   { href: "/trainer/gruppi", label: "Gruppi", icon: "🏷️" },
   { href: "/trainer/calendario", label: "Calendario", icon: "📅" },
+  { href: "/trainer/sconti", label: "Sconti", icon: "🎟️" },
   { href: "/trainer/chat", label: "Messaggi", icon: "💬" },
 ];
 
