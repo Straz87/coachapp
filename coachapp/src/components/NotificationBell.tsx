@@ -10,7 +10,7 @@ type Notification = {
   client_id: string;
   client_name: string;
   workout_title: string;
-  kind: "individual" | "group" | "inattivita" | "scadenza";
+  kind: "individual" | "group" | "inattivita" | "scadenza" | "pagamento";
   date: string | null;
   group_id: string | null;
   read_at: string | null;
@@ -98,7 +98,7 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
     setOpen(false);
     // I promemoria (cliente inattivo / abbonamento in scadenza) non sono
     // legati a una giornata specifica: portano alla scheda del cliente.
-    if (n.kind === "inattivita" || n.kind === "scadenza") {
+    if (n.kind === "inattivita" || n.kind === "scadenza" || n.kind === "pagamento") {
       router.push(`/trainer/clienti/${n.client_id}`);
       return;
     }
@@ -142,9 +142,9 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
                 className="w-full text-left px-4 py-3 border-b border-gray-50 last:border-b-0 hover:bg-gray-50"
               >
                 <p className="text-xs text-gray-800">
-                  {n.kind === "inattivita" || n.kind === "scadenza" ? (
+                  {n.kind === "inattivita" || n.kind === "scadenza" || n.kind === "pagamento" ? (
                     <>
-                      <span>{n.kind === "inattivita" ? "⏰" : "💳"} </span>
+                      <span>{n.kind === "inattivita" ? "⏰" : n.kind === "scadenza" ? "💳" : "💰"} </span>
                       <span className="font-semibold">{n.client_name}</span>{" "}
                       <span className="font-medium">{n.workout_title}</span>
                     </>
