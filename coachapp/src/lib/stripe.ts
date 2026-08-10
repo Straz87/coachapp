@@ -7,5 +7,5 @@ export function getStripe() {
   if (!key) {
     throw new Error("STRIPE_SECRET_KEY non configurata");
   }
-  return new Stripe(key, { apiVersion: "2024-06-20" });
+  return new Stripe(key, { apiVersion: "2025-02-24.acacia" });
 }
