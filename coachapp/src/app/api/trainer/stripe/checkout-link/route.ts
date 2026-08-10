@@ -26,6 +26,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const clientId = body?.clientId;
   const overridePrice = body?.price ? Number(body.price) : null;
+  const trialDays = body?.trialDays ? Number(body.trialDays) : null;
+  const couponId = body?.couponId ? String(body.couponId) : null;
   if (!clientId) {
     return NextResponse.json({ error: "clientId mancante" }, { status: 400 });
   }
@@ -84,7 +86,12 @@ export async function POST(request: Request) {
       metadata: { client_id: client.id, trainer_id: profile.id },
       subscription_data: {
         metadata: { client_id: client.id, trainer_id: profile.id },
+        ...(trialDays && trialDays > 0 ? { trial_period_days: trialDays } : {}),
       },
+      // Stripe non permette di combinare "discounts" con "allow_promotion_codes"
+      // sulla stessa sessione: qui il trainer sceglie lui lo sconto da applicare,
+      // quindi non serve un campo dove il cliente digita un codice.
+      ...(couponId ? { discounts: [{ coupon: couponId }] } : {}),
       success_url: `${origin}/trainer/clienti/${client.id}?pagamento=ok`,
       cancel_url: `${origin}/trainer/clienti/${client.id}?pagamento=annullato`,
     });
