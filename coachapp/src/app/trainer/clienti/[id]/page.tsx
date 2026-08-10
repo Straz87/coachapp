@@ -52,6 +52,8 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           expiry_date: client.expiry_date,
           billing_note: client.billing_note,
           internal_note: client.internal_note,
+          payment_managed_by_stripe: client.payment_managed_by_stripe,
+          last_payment_at: client.last_payment_at,
         }}
       />
 
