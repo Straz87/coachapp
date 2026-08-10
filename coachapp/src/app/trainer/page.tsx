@@ -85,6 +85,14 @@ export default async function TrainerHome() {
     da_contattare: rows.filter((c) => c.needs_attention).length,
   };
 
+  // Gruppi del trainer, per poter collegare il link pubblico di iscrizione
+  // a un gruppo (es. "CF Training") direttamente dalla dashboard.
+  const { data: groupsData } = await supabase
+    .from("workout_groups")
+    .select("id, name")
+    .eq("trainer_id", profile.id)
+    .order("created_at", { ascending: false });
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -97,7 +105,7 @@ export default async function TrainerHome() {
         </Link>
       </div>
 
-      <PublicLinkManager trainerId={profile.id} />
+      <PublicLinkManager trainerId={profile.id} groups={groupsData || []} />
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
         <div className="card">
