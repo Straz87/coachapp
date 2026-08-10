@@ -9,10 +9,19 @@ type Coupon = {
   valid: boolean;
 };
 
-export default function PublicLinkManager({ trainerId }: { trainerId: string }) {
+type GroupOption = { id: string; name: string };
+
+export default function PublicLinkManager({
+  trainerId,
+  groups = [],
+}: {
+  trainerId: string;
+  groups?: GroupOption[];
+}) {
   const [price, setPrice] = useState("");
   const [trialDays, setTrialDays] = useState("");
   const [couponId, setCouponId] = useState("");
+  const [groupId, setGroupId] = useState("");
   const [active, setActive] = useState(false);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +42,7 @@ export default function PublicLinkManager({ trainerId }: { trainerId: string }) 
           setPrice(linkData.link.price?.toString() || "");
           setTrialDays(linkData.link.trial_days?.toString() || "");
           setCouponId(linkData.link.coupon_id || "");
+          setGroupId(linkData.link.group_id || "");
           setActive(!!linkData.link.active);
         }
         if (Array.isArray(couponData?.coupons)) {
@@ -53,6 +63,7 @@ export default function PublicLinkManager({ trainerId }: { trainerId: string }) 
           price: price ? Number(price) : null,
           trialDays: trialDays ? Number(trialDays) : 0,
           couponId: couponId || null,
+          groupId: groupId || null,
           active: nextActive,
         }),
       });
@@ -129,6 +140,23 @@ export default function PublicLinkManager({ trainerId }: { trainerId: string }) 
             </option>
           ))}
         </select>
+      </div>
+
+      <div>
+        <label className="text-xs font-medium text-gray-500">Assegna al gruppo (opzionale)</label>
+        <select className="input mt-1 text-sm" value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+          <option value="">Nessuno — resta da assegnare a mano</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-gray-400 mt-1">
+          Se scegli un gruppo, chi si iscrive da questo link ci entra subito e vede il programma senza che tu
+          debba fare nulla. Lascia su &quot;Nessuno&quot; se il tuo link è per piani personalizzati che costruisci
+          tu a mano.
+        </p>
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
