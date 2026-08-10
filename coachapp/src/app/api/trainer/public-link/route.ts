@@ -39,7 +39,7 @@ export async function GET() {
 }
 
 // POST /api/trainer/public-link
-// Body: { price, trialDays, couponId, active }
+// Body: { price, trialDays, couponId, active, groupId }
 export async function POST(request: Request) {
   const ctx = await requireTrainerContext();
   if (!ctx) {
@@ -51,6 +51,7 @@ export async function POST(request: Request) {
   const price = body?.price ? Number(body.price) : null;
   const trialDays = body?.trialDays ? Number(body.trialDays) : 0;
   const couponId = body?.couponId || null;
+  const groupId = body?.groupId || null;
   const active = !!body?.active;
 
   if (active && (!price || price <= 0)) {
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
     price,
     trial_days: trialDays,
     coupon_id: couponId,
+    group_id: groupId,
     active,
     updated_at: new Date().toISOString(),
   });
