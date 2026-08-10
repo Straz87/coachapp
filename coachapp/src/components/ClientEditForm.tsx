@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Props = {
@@ -14,6 +14,18 @@ type Props = {
     payment_managed_by_stripe?: boolean;
     last_payment_at?: string | null;
   };
+};
+
+type Coupon = {
+  id: string;
+  name: string;
+  percentOff: number | null;
+  duration: string;
+  durationInMonths: number | null;
+  maxRedemptions: number | null;
+  timesRedeemed: number;
+  redeemBy: number | null;
+  valid: boolean;
 };
 
 export default function ClientEditForm({ clientId, initial }: Props) {
@@ -31,6 +43,24 @@ export default function ClientEditForm({ clientId, initial }: Props) {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [generatingLink, setGeneratingLink] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [trialDays, setTrialDays] = useState("");
+  const [couponId, setCouponId] = useState("");
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+
+  useEffect(() => {
+    fetch("/api/trainer/stripe/coupons")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.coupons)) {
+          // Mostra solo i coupon ancora utilizzabili (validi e con utilizzi residui)
+          const usable = data.coupons.filter(
+            (c: Coupon) => c.valid && (c.maxRedemptions == null || c.timesRedeemed < c.maxRedemptions)
+          );
+          setCoupons(usable);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   async function handleGenerateLink() {
     setGeneratingLink(true);
@@ -40,7 +70,12 @@ export default function ClientEditForm({ clientId, initial }: Props) {
       const res = await fetch("/api/trainer/stripe/checkout-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, price: form.price ? Number(form.price) : null }),
+        body: JSON.stringify({
+          clientId,
+          price: form.price ? Number(form.price) : null,
+          trialDays: trialDays ? Number(trialDays) : null,
+          couponId: couponId || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -167,6 +202,45 @@ export default function ClientEditForm({ clientId, initial }: Props) {
           Genera un link di pagamento per l&apos;abbonamento mensile ({form.price ? `${form.price}€/mese` : "imposta prima il prezzo sopra"}).
           Il cliente lo apre, inserisce la carta e da quel momento il rinnovo è automatico ogni mese.
         </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-gray-500">Giorni di prova gratuita</label>
+            <input
+              type="number"
+              min={0}
+              placeholder="0"
+              className="input mt-1 text-sm"
+              value={trialDays}
+              onChange={(e) => setTrialDays(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500">Sconto (coupon)</label>
+            <select
+              className="input mt-1 text-sm"
+              value={couponId}
+              onChange={(e) => setCouponId(e.target.value)}
+            >
+              <option value="">Nessuno</option>
+              {coupons.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} — {c.percentOff}%
+                  {c.maxRedemptions ? ` (${c.timesRedeemed}/${c.maxRedemptions})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {coupons.length === 0 && (
+          <p className="text-xs text-gray-400">
+            Nessun coupon disponibile. Puoi crearne uno dalla pagina{" "}
+            <a href="/trainer/sconti" className="text-brand-dark font-medium">
+              Sconti e coupon
+            </a>
+            .
+          </p>
+        )}
 
         <button
           onClick={handleGenerateLink}
