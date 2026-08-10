@@ -11,6 +11,8 @@ type Props = {
     expiry_date: string | null;
     billing_note: string | null;
     internal_note: string | null;
+    payment_managed_by_stripe?: boolean;
+    last_payment_at?: string | null;
   };
 };
 
@@ -25,6 +27,40 @@ export default function ClientEditForm({ clientId, initial }: Props) {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [paymentLink, setPaymentLink] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function handleGenerateLink() {
+    setGeneratingLink(true);
+    setPaymentError(null);
+    setPaymentLink(null);
+    try {
+      const res = await fetch("/api/trainer/stripe/checkout-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, price: form.price ? Number(form.price) : null }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPaymentError(data.error || "Errore nella generazione del link");
+      } else {
+        setPaymentLink(data.url);
+      }
+    } catch {
+      setPaymentError("Errore di rete, riprova");
+    } finally {
+      setGeneratingLink(false);
+    }
+  }
+
+  async function handleCopyLink() {
+    if (!paymentLink) return;
+    await navigator.clipboard.writeText(paymentLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -109,6 +145,52 @@ export default function ClientEditForm({ clientId, initial }: Props) {
           {saving ? "Salvataggio…" : "Salva"}
         </button>
         {saved && <span className="text-green-600 text-sm">Salvato ✓</span>}
+      </div>
+
+      <div className="pt-4 border-t border-gray-100 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-sm">Pagamento con Stripe</h3>
+          {initial.payment_managed_by_stripe && (
+            <span className="text-xs bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-medium">
+              Gestito da Stripe ✓
+            </span>
+          )}
+        </div>
+
+        {initial.payment_managed_by_stripe && initial.last_payment_at && (
+          <p className="text-xs text-gray-400">
+            Ultimo pagamento ricevuto: {new Date(initial.last_payment_at).toLocaleDateString("it-IT")}
+          </p>
+        )}
+
+        <p className="text-xs text-gray-400">
+          Genera un link di pagamento per l&apos;abbonamento mensile ({form.price ? `${form.price}€/mese` : "imposta prima il prezzo sopra"}).
+          Il cliente lo apre, inserisce la carta e da quel momento il rinnovo è automatico ogni mese.
+        </p>
+
+        <button
+          onClick={handleGenerateLink}
+          disabled={generatingLink || !form.price}
+          className="btn-secondary text-sm"
+        >
+          {generatingLink ? "Generazione…" : "Genera link di pagamento"}
+        </button>
+
+        {paymentError && <p className="text-xs text-red-600">{paymentError}</p>}
+
+        {paymentLink && (
+          <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <input
+              readOnly
+              value={paymentLink}
+              className="flex-1 bg-transparent text-xs text-gray-600 outline-none truncate"
+              onFocus={(e) => e.target.select()}
+            />
+            <button onClick={handleCopyLink} className="text-xs text-brand-dark font-medium shrink-0">
+              {copied ? "Copiato ✓" : "Copia"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
