@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireTrainer } from "@/lib/auth";
 import ClientList, { ClientRow } from "@/components/ClientList";
+import PublicLinkManager from "@/components/PublicLinkManager";
 
 // Stesse soglie usate dal job dei promemoria automatici (/api/cron/reminders),
 // così l'indicatore "da contattare" qui coincide con quando parte l'avviso.
@@ -95,6 +96,8 @@ export default async function TrainerHome() {
           + Nuovo cliente
         </Link>
       </div>
+
+      <PublicLinkManager trainerId={profile.id} />
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
         <div className="card">
