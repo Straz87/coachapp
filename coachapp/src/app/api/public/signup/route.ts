@@ -81,6 +81,17 @@ export async function POST(request: Request) {
     );
   }
 
+  // Se il link è collegato a un gruppo (es. "CF Training"), il follower ci
+  // entra subito e vede il programma senza che il trainer debba fare nulla.
+  // Non blocchiamo l'iscrizione se questo fallisce: il trainer può sempre
+  // aggiungerlo a mano dalla pagina Gruppi.
+  if (link.group_id) {
+    await admin.from("group_members").insert({
+      group_id: link.group_id,
+      client_id: client.id,
+    });
+  }
+
   try {
     const stripe = getStripe();
     const origin = new URL(request.url).origin;
