@@ -1,12 +1,58 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
+import { sendEmail } from "@/lib/email";
 
 // Impostazioni pubbliche di un gruppo: pubblico/privato, prezzo mensile
-// (0 o vuoto = gratuito) e giorni di prova. Se il prezzo cambia e ci sono
-// già membri iscritti con carta salvata su Stripe, aggiorniamo in
-// automatico i loro abbonamenti alla nuova cifra: il trainer non deve
-// ricontattare nessuno a mano.
+// (0 o vuoto = gratuito) e giorni di prova.
+//
+// Se il prezzo SCENDE, aggiorniamo subito gli abbonamenti Stripe dei
+// membri già iscritti: non c'è nessun rischio per loro, pagano meno.
+//
+// Se il prezzo SALE, NON addebitiamo più in automatico (rischio dispute
+// e non conforme alle regole PSD2/SCA sulle carte europee): creiamo
+// invece una richiesta di conferma per ogni membro con carta salvata,
+// con 3 giorni di tempo per accettare o rifiutare. Un cron job
+// (/api/cron/prezzo-scadenza) rimuove chi non risponde in tempo.
+const CONFERMA_GIORNI = 3;
+
+const PRICE_CHANGE_EMAIL_SUBJECT = "Il prezzo del tuo gruppo sta cambiando";
+
+function priceChangeEmailHtml({
+  clientName,
+  groupName,
+  oldPrice,
+  newPrice,
+  confirmUrl,
+}: {
+  clientName: string;
+  groupName: string;
+  oldPrice: number;
+  newPrice: number;
+  confirmUrl: string;
+}) {
+  return `
+    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
+      <p>Ciao ${clientName.split(" ")[0]},</p>
+      <p>
+        il tuo trainer ha aggiornato il prezzo del gruppo <strong>${groupName}</strong>
+        da ${oldPrice}€/mese a <strong>${newPrice}€/mese</strong>.
+      </p>
+      <p>
+        Non ti verrà addebitato nulla senza la tua conferma. Hai
+        <strong>${CONFERMA_GIORNI} giorni</strong> di tempo per accettare il nuovo prezzo
+        o rifiutare: se rifiuti (o non rispondi in tempo), verrai semplicemente
+        rimosso dal gruppo, senza alcun addebito.
+      </p>
+      <p style="margin: 24px 0;">
+        <a href="${confirmUrl}" style="background:#d9f99d;color:#111;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:600;">
+          Vedi e conferma
+        </a>
+      </p>
+      <p style="color:#888; font-size: 13px;">Coach App</p>
+    </div>
+  `;
+}
 
 async function requireTrainerContext() {
   const supabase = createClient();
@@ -47,7 +93,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const couponId = body?.couponId || null;
   const isPublic = !!body?.public;
 
-  const priceChanged = Number(group.price ?? 0) !== newPrice;
+  const oldPrice = Number(group.price ?? 0);
+  const priceIncreased = newPrice > oldPrice;
+  const priceDecreased = newPrice < oldPrice;
 
   const { error } = await supabase
     .from("workout_groups")
@@ -65,8 +113,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   let updatedSubscriptions = 0;
   let failedSubscriptions = 0;
+  let pendingConfirmations = 0;
 
-  if (priceChanged) {
+  if (priceDecreased) {
+    // Il prezzo scende: nessun rischio per il cliente, aggiorniamo subito.
     const { data: members } = await supabase
       .from("group_members")
       .select("client_id, clients:client_id(id, stripe_subscription_id)")
@@ -103,7 +153,64 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         failedSubscriptions++;
       }
     }
+  } else if (priceIncreased) {
+    // Il prezzo sale: chiediamo conferma a chi ha già la carta salvata,
+    // invece di addebitare in automatico.
+    const { data: members } = await supabase
+      .from("group_members")
+      .select("client_id, clients:client_id(id, stripe_subscription_id, profile_id, profiles:profile_id(full_name, email))")
+      .eq("group_id", params.id);
+
+    const origin = new URL(request.url).origin;
+    const expiresAt = new Date(Date.now() + CONFERMA_GIORNI * 24 * 60 * 60 * 1000).toISOString();
+
+    for (const m of members || []) {
+      const client = (m as any).clients;
+      if (!client?.stripe_subscription_id) continue;
+
+      // Se c'era già una richiesta in sospeso per questo cliente su questo
+      // gruppo, la sostituiamo con quella nuova (il trainer potrebbe aver
+      // cambiato idea sul prezzo prima che il cliente rispondesse).
+      await supabase
+        .from("workout_group_price_changes")
+        .update({ status: "expired", responded_at: new Date().toISOString() })
+        .eq("group_id", params.id)
+        .eq("client_id", client.id)
+        .eq("status", "pending");
+
+      const { data: change } = await supabase
+        .from("workout_group_price_changes")
+        .insert({
+          group_id: params.id,
+          client_id: client.id,
+          trainer_id: profile.id,
+          old_price: oldPrice,
+          new_price: newPrice,
+          status: "pending",
+          expires_at: expiresAt,
+        })
+        .select()
+        .single();
+
+      pendingConfirmations++;
+
+      const clientEmail = client.profiles?.email;
+      const clientName = client.profiles?.full_name || "cliente";
+      if (change && clientEmail) {
+        await sendEmail({
+          to: clientEmail,
+          subject: PRICE_CHANGE_EMAIL_SUBJECT,
+          html: priceChangeEmailHtml({
+            clientName,
+            groupName: group.name,
+            oldPrice,
+            newPrice,
+            confirmUrl: `${origin}/cliente/prezzo/${change.id}`,
+          }),
+        });
+      }
+    }
   }
 
-  return NextResponse.json({ ok: true, updatedSubscriptions, failedSubscriptions });
+  return NextResponse.json({ ok: true, updatedSubscriptions, failedSubscriptions, pendingConfirmations });
 }
