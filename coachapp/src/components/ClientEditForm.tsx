@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 type Props = {
@@ -30,6 +31,8 @@ type Coupon = {
 
 export default function ClientEditForm({ clientId, initial }: Props) {
   const supabase = createClient();
+  const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     status: initial.status,
     price: initial.price?.toString() || "",
@@ -115,6 +118,29 @@ export default function ClientEditForm({ clientId, initial }: Props) {
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function handleDelete() {
+    if (
+      !confirm(
+        "Eliminare definitivamente questo cliente? Verranno cancellati account, schede allenamento, progressi e messaggi. L'eventuale abbonamento Stripe attivo viene disdetto. Azione irreversibile."
+      )
+    )
+      return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/trainer/clients/${clientId}`, { method: "DELETE" });
+      if (res.ok) {
+        router.push("/trainer");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Errore durante l'eliminazione");
+        setDeleting(false);
+      }
+    } catch {
+      alert("Errore di rete, riprova");
+      setDeleting(false);
+    }
   }
 
   return (
@@ -265,6 +291,16 @@ export default function ClientEditForm({ clientId, initial }: Props) {
             </button>
           </div>
         )}
+      </div>
+
+      <div className="pt-4 border-t border-gray-100">
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-sm text-red-600 hover:text-red-700 font-medium"
+        >
+          {deleting ? "Eliminazione…" : "🗑️ Elimina cliente"}
+        </button>
       </div>
     </div>
   );
