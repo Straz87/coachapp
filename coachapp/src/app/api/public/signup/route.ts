@@ -5,12 +5,15 @@ import { getStripe } from "@/lib/stripe";
 // POST /api/public/signup
 // Endpoint pubblico (nessuna sessione utente): un follower che clicca il
 // link pubblico di un trainer (es. da una storia Instagram) si registra
-// da solo. Crea account + profilo + scheda cliente, poi genera la
-// sessione di checkout Stripe con la prova gratuita/lo sconto impostati
-// dal trainer per quel link, e restituisce l'url a cui reindirizzare.
+// da solo. Il link può essere quello generico del trainer
+// (public_signup_links) oppure quello di un gruppo specifico
+// (workout_groups, con groupId nel body): in quel caso prezzo e prova
+// gratuita arrivano dal gruppo e il follower ci entra subito come membro,
+// vedendo il programma senza che il trainer debba fare nulla.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const trainerId = body?.trainerId;
+  const groupId = body?.groupId || null;
   const fullName = (body?.fullName || "").trim();
   const email = (body?.email || "").trim().toLowerCase();
   const password = body?.password || "";
@@ -24,15 +27,44 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
-  const { data: link } = await admin
-    .from("public_signup_links")
-    .select("*")
-    .eq("trainer_id", trainerId)
-    .eq("active", true)
-    .maybeSingle();
+  let price: number | null = null;
+  let trialDays = 0;
+  let couponId: string | null = null;
+  let joinGroupId: string | null = null;
+  let groupName: string | null = null;
 
-  if (!link || !link.price) {
-    return NextResponse.json({ error: "Questo link non è al momento disponibile" }, { status: 404 });
+  if (groupId) {
+    const { data: group } = await admin
+      .from("workout_groups")
+      .select("*")
+      .eq("id", groupId)
+      .eq("trainer_id", trainerId)
+      .eq("public", true)
+      .maybeSingle();
+
+    if (!group || group.price === null || group.price === undefined) {
+      return NextResponse.json({ error: "Questo link non è al momento disponibile" }, { status: 404 });
+    }
+    price = Number(group.price);
+    trialDays = group.trial_days || 0;
+    couponId = group.coupon_id || null;
+    joinGroupId = group.id;
+    groupName = group.name;
+  } else {
+    const { data: link } = await admin
+      .from("public_signup_links")
+      .select("*")
+      .eq("trainer_id", trainerId)
+      .eq("active", true)
+      .maybeSingle();
+
+    if (!link || link.price === null || link.price === undefined) {
+      return NextResponse.json({ error: "Questo link non è al momento disponibile" }, { status: 404 });
+    }
+    price = Number(link.price);
+    trialDays = link.trial_days || 0;
+    couponId = link.coupon_id || null;
+    joinGroupId = link.group_id || null;
   }
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({
@@ -67,7 +99,7 @@ export async function POST(request: Request) {
     .insert({
       profile_id: newUserId,
       trainer_id: trainerId,
-      price: link.price,
+      price,
       status: "attivo",
     })
     .select()
@@ -85,9 +117,9 @@ export async function POST(request: Request) {
   // entra subito e vede il programma senza che il trainer debba fare nulla.
   // Non blocchiamo l'iscrizione se questo fallisce: il trainer può sempre
   // aggiungerlo a mano dalla pagina Gruppi.
-  if (link.group_id) {
+  if (joinGroupId) {
     await admin.from("group_members").insert({
-      group_id: link.group_id,
+      group_id: joinGroupId,
       client_id: client.id,
     });
   }
@@ -95,6 +127,11 @@ export async function POST(request: Request) {
   try {
     const stripe = getStripe();
     const origin = new URL(request.url).origin;
+    // I gruppi gratuiti (price 0) raccolgono comunque la carta: questo
+    // permette al trainer di passare il gruppo a pagamento in futuro e far
+    // partire l'addebito in automatico, senza dover richiedere di nuovo i
+    // dati di pagamento a chi è già iscritto.
+    const basePath = groupId ? `/iscriviti/${trainerId}/${groupId}` : `/iscriviti/${trainerId}`;
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -104,22 +141,21 @@ export async function POST(request: Request) {
           quantity: 1,
           price_data: {
             currency: "eur",
-            unit_amount: Math.round(Number(link.price) * 100),
+            unit_amount: Math.round(Number(price) * 100),
             recurring: { interval: "month" },
             product_data: {
-              name: `Coaching mensile - ${fullName}`,
+              name: groupName ? `${groupName} - ${fullName}` : `Coaching mensile - ${fullName}`,
             },
           },
-        },
-      ],
-      metadata: { client_id: client.id, trainer_id: trainerId },
+        ],
+      metadata: { client_id: client.id, trainer_id: trainerId, group_id: joinGroupId || "" },
       subscription_data: {
-        metadata: { client_id: client.id, trainer_id: trainerId },
-        ...(link.trial_days && link.trial_days > 0 ? { trial_period_days: link.trial_days } : {}),
+        metadata: { client_id: client.id, trainer_id: trainerId, group_id: joinGroupId || "" },
+        ...(trialDays && trialDays > 0 ? { trial_period_days: trialDays } : {}),
       },
-      ...(link.coupon_id ? { discounts: [{ coupon: link.coupon_id }] } : {}),
-      success_url: `${origin}/iscriviti/${trainerId}?ok=1`,
-      cancel_url: `${origin}/iscriviti/${trainerId}?annullato=1`,
+      ...(couponId ? { discounts: [{ coupon: couponId }] } : {}),
+      success_url: `${origin}${basePath}?ok=1`,
+      cancel_url: `${origin}${basePath}?annullato=1`,
     });
 
     return NextResponse.json({ url: session.url });
