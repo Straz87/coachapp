@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 
-export default function PublicSignupForm({ trainerId }: { trainerId: string }) {
+export default function PublicSignupForm({
+  trainerId,
+  groupId,
+}: {
+  trainerId: string;
+  groupId?: string;
+}) {
   const [form, setForm] = useState({ fullName: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +21,7 @@ export default function PublicSignupForm({ trainerId }: { trainerId: string }) {
       const res = await fetch("/api/public/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trainerId, ...form }),
+        body: JSON.stringify({ trainerId, groupId, ...form }),
       });
       const data = await res.json();
       if (!res.ok) {
