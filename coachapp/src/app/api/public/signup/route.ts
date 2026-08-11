@@ -147,7 +147,8 @@ export async function POST(request: Request) {
               name: groupName ? `${groupName} - ${fullName}` : `Coaching mensile - ${fullName}`,
             },
           },
-        ],
+        },
+      ],
       metadata: { client_id: client.id, trainer_id: trainerId, group_id: joinGroupId || "" },
       subscription_data: {
         metadata: { client_id: client.id, trainer_id: trainerId, group_id: joinGroupId || "" },
