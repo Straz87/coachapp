@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 import { sendEmail } from "@/lib/email";
 
@@ -155,8 +156,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     }
   } else if (priceIncreased) {
     // Il prezzo sale: chiediamo conferma a chi ha già la carta salvata,
-    // invece di addebitare in automatico.
-    const { data: members } = await supabase
+    // invece di addebitare in automatico. Usiamo il client admin (service
+    // role) per leggere/scrivere su workout_group_price_changes: quella
+    // tabella ha di proposito solo policy di SELECT per trainer/cliente,
+    // nessuna policy di INSERT/UPDATE, perché le uniche scritture devono
+    // passare da qui o dalla route di accetta/rifiuta del cliente.
+    const admin = createAdminClient();
+
+    const { data: members } = await admin
       .from("group_members")
       .select("client_id, clients:client_id(id, stripe_subscription_id, profile_id, profiles:profile_id(full_name, email))")
       .eq("group_id", params.id);
@@ -171,14 +178,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       // Se c'era già una richiesta in sospeso per questo cliente su questo
       // gruppo, la sostituiamo con quella nuova (il trainer potrebbe aver
       // cambiato idea sul prezzo prima che il cliente rispondesse).
-      await supabase
+      await admin
         .from("workout_group_price_changes")
         .update({ status: "expired", responded_at: new Date().toISOString() })
         .eq("group_id", params.id)
         .eq("client_id", client.id)
         .eq("status", "pending");
 
-      const { data: change } = await supabase
+      const { data: change, error: changeError } = await admin
         .from("workout_group_price_changes")
         .insert({
           group_id: params.id,
@@ -191,6 +198,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         })
         .select()
         .single();
+
+      if (changeError || !change) {
+        console.error("Errore creazione richiesta conferma prezzo:", changeError);
+        continue;
+      }
 
       pendingConfirmations++;
 
