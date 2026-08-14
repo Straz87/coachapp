@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
+import { sendPushToProfile } from "@/lib/push";
 
 // GET /api/cron/prezzo-scadenza
 // Job schedulato (Vercel Cron, una volta al giorno) che chiude le
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
   for (const change of (expiredChanges as any[]) || []) {
     const { data: client } = await admin
       .from("clients")
-      .select("id, stripe_subscription_id, profiles:profile_id(full_name)")
+      .select("id, stripe_subscription_id, profile_id, profiles:profile_id(full_name)")
       .eq("id", change.client_id)
       .single();
 
@@ -58,6 +59,20 @@ export async function GET(request: Request) {
       workout_title: `Non ha risposto entro 3 giorni al nuovo prezzo (${change.new_price}€/mese) di "${groupName}" ed è stato rimosso`,
       kind: "prezzo_gruppo",
     });
+
+    await sendPushToProfile(change.trainer_id, {
+      title: "Cliente rimosso per mancata risposta",
+      body: `${clientName} non ha risposto al nuovo prezzo di "${groupName}" ed è stato rimosso.`,
+      url: `/trainer/clienti/${change.client_id}`,
+    });
+
+    if (client?.profile_id) {
+      await sendPushToProfile(client.profile_id, {
+        title: "Sei stato rimosso dal gruppo",
+        body: `Non hai risposto in tempo al nuovo prezzo di "${groupName}". Nessun addebito è stato effettuato.`,
+        url: "/cliente",
+      });
+    }
 
     removedCount++;
   }
