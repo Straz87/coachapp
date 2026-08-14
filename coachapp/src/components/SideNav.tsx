@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import NotificationBell from "@/components/NotificationBell";
+import PushSubscribeButton from "@/components/PushSubscribeButton";
 
 type NavItem = { href: string; label: string; icon: string };
 
@@ -88,8 +89,9 @@ export default function SideNav({
           })}
         </ul>
 
-        <div className="px-3 py-4 border-t border-gray-100">
-          <p className="px-3 text-sm text-gray-500 truncate mb-2">{fullName}</p>
+        <div className="px-3 py-4 border-t border-gray-100 space-y-2">
+          <p className="px-3 text-sm text-gray-500 truncate">{fullName}</p>
+          <PushSubscribeButton />
           <button
             onClick={handleLogout}
             className="w-full text-left px-3 py-2 text-sm text-gray-500 hover:text-gray-800"
