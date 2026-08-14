@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendPushToProfile } from "@/lib/push";
 
 // GET /api/cron/reminders
 // Job schedulato (Vercel Cron, una volta al giorno) che:
@@ -100,6 +101,11 @@ export async function GET(request: Request) {
           receiver_id: c.profile_id,
           content: `Ciao ${clientName.split(" ")[0]}! È da un po' che non ci alleniamo insieme, quando vuoi ripartiamo 💪`,
         });
+        await sendPushToProfile(c.trainer_id, {
+          title: "Cliente inattivo",
+          body: `${clientName}: ${inactivityLabel}`,
+          url: `/trainer/clienti/${c.id}`,
+        });
         inactivityCount++;
       }
     }
@@ -123,6 +129,11 @@ export async function GET(request: Request) {
             .from("clients")
             .update({ last_expiry_reminder_sent_at: now.toISOString() })
             .eq("id", c.id);
+          await sendPushToProfile(c.trainer_id, {
+            title: "Abbonamento in scadenza",
+            body: `${clientName}: abbonamento in scadenza il ${c.expiry_date}`,
+            url: `/trainer/clienti/${c.id}`,
+          });
           expiryCount++;
         }
       }
