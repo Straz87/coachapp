@@ -1,5 +1,6 @@
 import { requireClientRole } from "@/lib/auth";
 import SideNav from "@/components/SideNav";
+import ReactivatePaymentButton from "@/components/ReactivatePaymentButton";
 
 const NAV_ITEMS = [
   { href: "/cliente", label: "I miei allenamenti", icon: "🏋️" },
@@ -41,9 +42,10 @@ export default async function ClienteLayout({ children }: { children: React.Reac
             <div className="text-4xl mb-4">🔒</div>
             <h1 className="text-xl font-bold mb-2">{message}</h1>
             <p className="text-gray-500 text-sm">
-              Contatta il tuo trainer per riattivarlo. Non appena il pagamento sarà regolarizzato tornerai a vedere
-              i tuoi allenamenti, i progressi e la chat.
+              Paga ora per riattivarlo subito, oppure contatta il tuo trainer. Non appena il pagamento sarà
+              regolarizzato tornerai a vedere i tuoi allenamenti, i progressi e la chat.
             </p>
+            <ReactivatePaymentButton />
           </div>
         </main>
       </div>
