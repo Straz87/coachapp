@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 import { sendEmail } from "@/lib/email";
+import { sendPushToProfile } from "@/lib/push";
 
 // Impostazioni pubbliche di un gruppo: pubblico/privato, prezzo mensile
 // (0 o vuoto = gratuito) e giorni di prova.
@@ -219,6 +220,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
             newPrice,
             confirmUrl: `${origin}/cliente/prezzo/${change.id}`,
           }),
+        });
+      }
+
+      if (change && client.profile_id) {
+        await sendPushToProfile(client.profile_id, {
+          title: "Nuovo prezzo del gruppo",
+          body: `${group.name}: nuovo prezzo ${newPrice}€/mese. Hai ${CONFERMA_GIORNI} giorni per accettare o rifiutare.`,
+          url: `/cliente/prezzo/${change.id}`,
         });
       }
     }
