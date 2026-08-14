@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
+import { sendPushToProfile } from "@/lib/push";
 
 // POST /api/cliente/prezzo/[id]
 // Body: { action: "accept" | "decline" }
@@ -129,6 +130,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
         client_name: clientName,
         workout_title: `Ha rifiutato il nuovo prezzo (${change.new_price}€/mese) del gruppo "${group?.name || ""}" ed è stato rimosso`,
         kind: "prezzo_gruppo",
+      });
+
+      await sendPushToProfile(client.trainer_id, {
+        title: "Prezzo rifiutato",
+        body: `${clientName} ha rifiutato il nuovo prezzo (${change.new_price}€/mese) di "${group?.name || ""}" ed è stato rimosso dal gruppo.`,
+        url: `/trainer/clienti/${clientRow.id}`,
       });
     }
 
