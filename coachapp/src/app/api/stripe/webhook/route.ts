@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendPushToProfile } from "@/lib/push";
 import type Stripe from "stripe";
 
 // POST /api/stripe/webhook
@@ -68,6 +69,27 @@ async function notifyTrainer(
   });
 }
 
+// Avvisa il CLIENTE stesso (push sul telefono, se ha attivato le notifiche)
+// quando il suo abbonamento viene bloccato: prima d'ora solo il trainer
+// veniva avvisato, il cliente se ne accorgeva solo aprendo l'app e trovando
+// la schermata di blocco.
+async function notifyClient(
+  admin: ReturnType<typeof createAdminClient>,
+  subscriptionId: string,
+  title: string,
+  body: string
+) {
+  const { data: client } = await admin
+    .from("clients")
+    .select("profile_id")
+    .eq("stripe_subscription_id", subscriptionId)
+    .single();
+
+  if (!client?.profile_id) return;
+
+  await sendPushToProfile(client.profile_id, { title, body, url: "/cliente" });
+}
+
 export async function POST(request: Request) {
   const signature = request.headers.get("stripe-signature");
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -128,6 +150,12 @@ export async function POST(request: Request) {
             invoice.subscription as string,
             "Pagamento abbonamento non riuscito"
           );
+          await notifyClient(
+            admin,
+            invoice.subscription as string,
+            "Abbonamento scaduto",
+            "Il pagamento non è andato a buon fine. Apri l'app per regolarizzare e riattivare l'accesso."
+          );
         }
         break;
       }
@@ -145,6 +173,12 @@ export async function POST(request: Request) {
           .update({ status: "sospeso" })
           .eq("stripe_subscription_id", subscription.id);
         await notifyTrainer(admin, subscription.id, "Abbonamento annullato su Stripe");
+        await notifyClient(
+          admin,
+          subscription.id,
+          "Abbonamento sospeso",
+          "Il tuo abbonamento è stato annullato. Apri l'app per riattivarlo."
+        );
         break;
       }
 
