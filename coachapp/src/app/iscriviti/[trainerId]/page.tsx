@@ -1,11 +1,41 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 import PublicSignupForm from "@/components/PublicSignupForm";
+import Link from "next/link";
 
 // Pagina pubblica (nessun login richiesto): il link fisso che il trainer
 // mette in bio o nelle storie. Legge le impostazioni con il client admin
 // perché va vista da chiunque, anche senza sessione Supabase.
-export default async function IscrivitiPage({ params }: { params: { trainerId: string } }) {
+export default async function IscrivitiPage({
+  params,
+  searchParams,
+}: {
+  params: { trainerId: string };
+  searchParams: { ok?: string; annullato?: string };
+}) {
+  // Dopo il pagamento Stripe torna qui con ?ok=1: prima mostravamo di nuovo
+  // il form di iscrizione, che confondeva chi si era appena iscritto e lo
+  // portava a compilarlo una seconda volta, ottenendo un errore "account
+  // già esistente". Ora mostriamo una schermata di conferma chiara con un
+  // link diretto al login.
+  if (searchParams.ok) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
+        <div className="card max-w-sm text-center">
+          <p className="text-3xl mb-2">✅</p>
+          <h1 className="text-xl font-bold mb-2">Iscrizione completata!</h1>
+          <p className="text-gray-500 text-sm mb-4">
+            Il tuo account è pronto e il pagamento è andato a buon fine. Accedi con l&apos;email e
+            la password che hai appena creato.
+          </p>
+          <Link href="/login" className="btn-primary inline-block">
+            Vai al login
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const admin = createAdminClient();
 
   const { data: trainer } = await admin
@@ -55,6 +85,12 @@ export default async function IscrivitiPage({ params }: { params: { trainerId: s
             {percentOff ? ` (${percentOff}% di sconto)` : ""}
           </p>
         </div>
+        {searchParams.annullato && (
+          <p className="text-sm text-amber-600 text-center mb-4">
+            Pagamento annullato. Se hai già creato l&apos;account puoi accedere dal login, oppure
+            riprova qui sotto.
+          </p>
+        )}
         <PublicSignupForm trainerId={params.trainerId} />
       </div>
     </div>
