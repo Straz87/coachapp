@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import PublicSignupForm from "@/components/PublicSignupForm";
+import Link from "next/link";
 
 // Pagina pubblica del link di un singolo gruppo (es. "CF Training"):
 // chi si iscrive da qui entra subito in quel gruppo, con il prezzo e la
@@ -8,9 +9,34 @@ import PublicSignupForm from "@/components/PublicSignupForm";
 // da chiunque, anche senza sessione Supabase.
 export default async function IscrivitiGruppoPage({
   params,
+  searchParams,
 }: {
   params: { trainerId: string; groupId: string };
+  searchParams: { ok?: string; annullato?: string };
 }) {
+  // Dopo il pagamento Stripe torna qui con ?ok=1: prima mostravamo di nuovo
+  // il form di iscrizione, il che confondeva chi si era appena iscritto e
+  // lo portava a compilarlo una seconda volta, ottenendo un errore
+  // "account già esistente". Ora mostriamo una conferma chiara con un
+  // link diretto al login.
+  if (searchParams.ok) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
+        <div className="card max-w-sm text-center">
+          <p className="text-3xl mb-2">✅</p>
+          <h1 className="text-xl font-bold mb-2">Iscrizione completata!</h1>
+          <p className="text-gray-500 text-sm mb-4">
+            Il tuo account è pronto e il pagamento è andato a buon fine. Accedi con l&apos;email e
+            la password che hai appena creato.
+          </p>
+          <Link href="/login" className="btn-primary inline-block">
+            Vai al login
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const admin = createAdminClient();
 
   const { data: trainer } = await admin
@@ -55,6 +81,12 @@ export default async function IscrivitiGruppoPage({
                 }€/mese`}
           </p>
         </div>
+        {searchParams.annullato && (
+          <p className="text-sm text-amber-600 text-center mb-4">
+            Pagamento annullato. Se hai già creato l&apos;account puoi accedere dal login, oppure
+            riprova qui sotto.
+          </p>
+        )}
         <PublicSignupForm trainerId={params.trainerId} groupId={group.id} />
       </div>
     </div>
