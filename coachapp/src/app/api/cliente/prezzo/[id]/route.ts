@@ -74,6 +74,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
         const sub = await stripe.subscriptions.retrieve(client.stripe_subscription_id);
         const item = sub.items.data[0];
         if (item) {
+          // Se il prodotto Stripe collegato e stato disattivato/archiviato
+          // (es. pulizia manuale di vecchi test), va riattivato prima di
+          // creare il nuovo prezzo: Stripe rifiuta price_data su prodotti
+          // non attivi.
+          const productId = item.price.product as string;
+          const product = await stripe.products.retrieve(productId);
+          if (!product.active) {
+            await stripe.products.update(productId, { active: true });
+          }
+
           await stripe.subscriptions.update(client.stripe_subscription_id, {
             items: [
               {
@@ -82,7 +92,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
                   currency: "eur",
                   unit_amount: Math.round(Number(change.new_price) * 100),
                   recurring: { interval: "month" },
-                  product: item.price.product as string,
+                  product: productId,
                 },
               },
             ],
