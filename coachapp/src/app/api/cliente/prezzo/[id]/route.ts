@@ -74,10 +74,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
         const sub = await stripe.subscriptions.retrieve(client.stripe_subscription_id);
         const item = sub.items.data[0];
         if (item) {
-          // Come nel checkout iniziale, usiamo product_data inline invece
-          // di riferire il prodotto Stripe esistente: quel prodotto viene
-          // creato automaticamente da Stripe al momento del checkout ed e
-          // immutabile (non si puo aggiornare ne riattivare via API).
+          // A differenza del checkout (dove price_data accetta product_data
+          // inline), l'update di una subscription richiede un product id
+          // gia esistente. Per evitare di dipendere dal vecchio prodotto
+          // (che puo essere disattivato o creato automaticamente da Stripe
+          // e quindi non modificabile), ne creiamo uno nuovo ogni volta.
+          const newProduct = await stripe.products.create({
+            name: `${group?.name || "Gruppo"} - ${clientName}`,
+          });
+
           await stripe.subscriptions.update(client.stripe_subscription_id, {
             items: [
               {
@@ -86,9 +91,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
                   currency: "eur",
                   unit_amount: Math.round(Number(change.new_price) * 100),
                   recurring: { interval: "month" },
-                  product_data: {
-                    name: `${group?.name || "Gruppo"} - ${clientName}`,
-                  },
+                  product: newProduct.id,
                 },
               },
             ],
