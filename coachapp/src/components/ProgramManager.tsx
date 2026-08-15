@@ -171,6 +171,10 @@ export default function ProgramManager({
                     origin={origin}
                   />
 
+                  <div className="pt-3 border-t border-gray-100">
+                    <ProgramMembersProgress programId={program.id} lengthDays={program.lengthDays} clients={clients} />
+                  </div>
+
                   <div className="pt-3 border-t border-gray-100 space-y-1">
                     <p className="text-xs font-medium text-gray-500 mb-1">Iscritti</p>
                     {clients.length === 0 ? (
@@ -316,6 +320,111 @@ function ProgramSignupSettings({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function ProgramMembersProgress({
+  programId,
+  lengthDays,
+  clients,
+}: {
+  programId: string;
+  lengthDays: number;
+  clients: ClientOption[];
+}) {
+  const supabase = createClient();
+  const [rows, setRows] = useState<
+    | null
+    | {
+        clientId: string;
+        name: string;
+        currentDay: number;
+        completed: boolean;
+        daysSinceActivity: number | null;
+      }[]
+  >(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function load() {
+      const { data: members } = await supabase
+        .from("program_members")
+        .select("id, client_id, current_day, completed, started_at")
+        .eq("program_id", programId);
+
+      if (!members || members.length === 0) {
+        if (isMounted) setRows([]);
+        return;
+      }
+
+      const memberIds = members.map((m: any) => m.id);
+      const { data: progress } = await supabase
+        .from("program_progress")
+        .select("program_member_id, completed_at")
+        .in("program_member_id", memberIds)
+        .order("completed_at", { ascending: false });
+
+      const lastActivity = new Map<string, string>();
+      (progress || []).forEach((p: any) => {
+        if (!lastActivity.has(p.program_member_id)) {
+          lastActivity.set(p.program_member_id, p.completed_at);
+        }
+      });
+
+      const now = Date.now();
+      const result = members.map((m: any) => {
+        const clientName = clients.find((c) => c.id === m.client_id)?.name || "Cliente";
+        const lastAt = lastActivity.get(m.id) || m.started_at;
+        const daysSinceActivity = lastAt ? Math.floor((now - new Date(lastAt).getTime()) / 86400000) : null;
+        return {
+          clientId: m.client_id as string,
+          name: clientName,
+          currentDay: m.current_day as number,
+          completed: m.completed as boolean,
+          daysSinceActivity,
+        };
+      });
+
+      result.sort((a, b) => a.name.localeCompare(b.name));
+      if (isMounted) setRows(result);
+    }
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, [programId]);
+
+  if (rows === null) return <p className="text-gray-400 text-sm">Caricamento…</p>;
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-gray-500 mb-1">Progressi</p>
+      {rows.map((r) => {
+        const percent = r.completed ? 100 : Math.min(100, Math.round(((r.currentDay - 1) / lengthDays) * 100));
+        const stalled = !r.completed && r.daysSinceActivity !== null && r.daysSinceActivity >= 5;
+        return (
+          <div key={r.clientId} className={`rounded-lg px-2 py-2 ${stalled ? "bg-amber-50" : ""}`}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium">{r.name}</span>
+              {r.completed ? (
+                <span className="text-xs font-medium text-green-700">✓ Completato</span>
+              ) : stalled ? (
+                <span className="text-xs font-medium text-amber-700">Fermo da {r.daysSinceActivity} giorni</span>
+              ) : (
+                <span className="text-xs text-gray-400">giorno {r.currentDay}/{lengthDays}</span>
+              )}
+            </div>
+            <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+              <div
+                className={`h-full ${r.completed ? "bg-green-600" : stalled ? "bg-amber-500" : "bg-emerald-600"}`}
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
