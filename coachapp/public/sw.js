@@ -7,10 +7,10 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch (e) {
-    data = { title: "Coach App", body: event.data ? event.data.text() : "" };
+    data = { title: "Hybridmethod", body: event.data ? event.data.text() : "" };
   }
 
-  const title = data.title || "Coach App";
+  const title = data.title || "Hybridmethod";
   const options = {
     body: data.body || "",
     data: { url: data.url || "/" },
