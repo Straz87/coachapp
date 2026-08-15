@@ -7,7 +7,7 @@ import "./globals.css";
 // in particolare è quello che dice a Safari di aprirla come una vera app
 // (senza barra degli indirizzi) quando viene lanciata dall'icona sulla Home.
 export const metadata: Metadata = {
-  title: "Coach App",
+  title: "Hybridmethod",
   description: "La tua app di coaching personale",
   manifest: "/manifest.json",
   icons: {
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Coach App",
+    title: "Hybridmethod",
   },
 };
 
