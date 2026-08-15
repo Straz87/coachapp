@@ -183,7 +183,7 @@ function GroupSignupSettings({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const link = `${origin}/iscriviti/${trainerId}/${group.id}`;
+  const link = `${origin}/s/${group.id.slice(0, 8)}`;
 
   async function handleSave() {
     setSaving(true);
