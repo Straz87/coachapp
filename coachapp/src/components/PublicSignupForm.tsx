@@ -5,9 +5,11 @@ import { useState } from "react";
 export default function PublicSignupForm({
   trainerId,
   groupId,
+  programId,
 }: {
   trainerId: string;
   groupId?: string;
+  programId?: string;
 }) {
   const [form, setForm] = useState({ fullName: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
@@ -21,7 +23,7 @@ export default function PublicSignupForm({
       const res = await fetch("/api/public/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trainerId, groupId, ...form }),
+        body: JSON.stringify({ trainerId, groupId, programId, ...form }),
       });
       const data = await res.json();
       if (!res.ok) {
