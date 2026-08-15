@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 
     if (profile?.role === "client" && isRecentSignup) {
       await sendPushToProfile(user.id, {
-        title: "Benvenuto in Coach App! 💪",
+        title: "Benvenuto in Hybridmethod! 💪",
         body: "Il tuo account è pronto: qui trovi i tuoi allenamenti, i progressi e i messaggi del tuo coach.",
         url: "/cliente",
       });
