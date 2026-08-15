@@ -21,7 +21,7 @@ export async function sendEmail({
     return { ok: false, skipped: true };
   }
 
-  const from = process.env.RESEND_FROM_EMAIL || "Coach App <onboarding@resend.dev>";
+  const from = process.env.RESEND_FROM_EMAIL || "Hybridmethod <onboarding@resend.dev>";
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
