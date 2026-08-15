@@ -35,7 +35,7 @@ export default function LoginPage() {
       <form onSubmit={handleLogin} className="card w-full max-w-sm space-y-4">
         <div className="text-center mb-2">
           <h1 className="text-2xl font-bold">Bentornato</h1>
-          <p className="text-gray-500 text-sm">Accedi alla tua Coach App</p>
+          <p className="text-gray-500 text-sm">Accedi al tuo account Hybridmethod</p>
         </div>
 
         <div>
