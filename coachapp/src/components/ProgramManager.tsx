@@ -104,7 +104,7 @@ export default function ProgramManager({
       <div className="card flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
         <input
           className="input flex-1"
-          placeholder="Nome programma (es. Functional Bodybuilding)"
+          placeholder="Nome programma (es. Percorso 8 settimane)"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
         />
