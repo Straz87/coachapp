@@ -4,6 +4,7 @@ import SideNav from "@/components/SideNav";
 const NAV_ITEMS = [
   { href: "/trainer", label: "Clienti", icon: "👥" },
   { href: "/trainer/gruppi", label: "Gruppi", icon: "🏷️" },
+  { href: "/trainer/programmi", label: "Programmi", icon: "📋" },
   { href: "/trainer/calendario", label: "Calendario", icon: "📅" },
   { href: "/trainer/sconti", label: "Sconti", icon: "🎟️" },
   { href: "/trainer/chat", label: "Messaggi", icon: "💬" },
