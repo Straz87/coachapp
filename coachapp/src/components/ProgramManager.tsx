@@ -101,21 +101,26 @@ export default function ProgramManager({
 
   return (
     <div className="space-y-4">
-      <div className="card flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-        <input
-          className="input flex-1"
-          placeholder="Nome programma (es. Percorso 8 settimane)"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-        />
-        <input
-          type="number"
-          min={1}
-          className="input sm:w-28"
-          placeholder="Giorni"
-          value={newLength}
-          onChange={(e) => setNewLength(e.target.value)}
-        />
+      <div className="card flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
+        <div className="flex-1 flex flex-col gap-1">
+          <label className="text-xs text-gray-500">Nome programma</label>
+          <input
+            className="input"
+            placeholder="Es. Percorso 8 settimane"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1 sm:w-28">
+          <label className="text-xs text-gray-500">Giorni</label>
+          <input
+            type="number"
+            min={1}
+            className="input"
+            value={newLength}
+            onChange={(e) => setNewLength(e.target.value)}
+          />
+        </div>
         <button onClick={createProgram} disabled={creating || !newName.trim()} className="btn-primary">
           + Crea programma
         </button>
