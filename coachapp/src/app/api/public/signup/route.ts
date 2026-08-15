@@ -6,14 +6,17 @@ import { getStripe } from "@/lib/stripe";
 // Endpoint pubblico (nessuna sessione utente): un follower che clicca il
 // link pubblico di un trainer (es. da una storia Instagram) si registra
 // da solo. Il link può essere quello generico del trainer
-// (public_signup_links) oppure quello di un gruppo specifico
-// (workout_groups, con groupId nel body): in quel caso prezzo e prova
-// gratuita arrivano dal gruppo e il follower ci entra subito come membro,
-// vedendo il programma senza che il trainer debba fare nulla.
+// (public_signup_links), quello di un gruppo specifico (workout_groups,
+// con groupId nel body: stesso calendario per tutti) oppure quello di un
+// programma a durata fissa (programs, con programId nel body: chi si
+// iscrive parte sempre dal giorno 1, al proprio ritmo). In tutti i casi
+// prezzo e prova gratuita arrivano dalla sorgente giusta e il follower
+// entra subito, senza che il trainer debba fare nulla.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const trainerId = body?.trainerId;
   const groupId = body?.groupId || null;
+  const programId = body?.programId || null;
   const fullName = (body?.fullName || "").trim();
   const email = (body?.email || "").trim().toLowerCase();
   const password = body?.password || "";
@@ -32,8 +35,27 @@ export async function POST(request: Request) {
   let couponId: string | null = null;
   let joinGroupId: string | null = null;
   let groupName: string | null = null;
+  let joinProgramId: string | null = null;
+  let programName: string | null = null;
 
-  if (groupId) {
+  if (programId) {
+    const { data: program } = await admin
+      .from("programs")
+      .select("*")
+      .eq("id", programId)
+      .eq("trainer_id", trainerId)
+      .eq("public", true)
+      .maybeSingle();
+
+    if (!program || program.price === null || program.price === undefined) {
+      return NextResponse.json({ error: "Questo link non è al momento disponibile" }, { status: 404 });
+    }
+    price = Number(program.price);
+    trialDays = program.trial_days || 0;
+    couponId = program.coupon_id || null;
+    joinProgramId = program.id;
+    programName = program.name;
+  } else if (groupId) {
     const { data: group } = await admin
       .from("workout_groups")
       .select("*")
@@ -124,14 +146,34 @@ export async function POST(request: Request) {
     });
   }
 
+  // Se il link è collegato a un programma a durata fissa, il follower parte
+  // subito dal giorno 1 del suo percorso personale.
+  if (joinProgramId) {
+    await admin.from("program_members").insert({
+      program_id: joinProgramId,
+      client_id: client.id,
+      current_day: 1,
+    });
+  }
+
   try {
     const stripe = getStripe();
     const origin = new URL(request.url).origin;
-    // I gruppi gratuiti (price 0) raccolgono comunque la carta: questo
-    // permette al trainer di passare il gruppo a pagamento in futuro e far
+    // I gruppi/programmi gratuiti (price 0) raccolgono comunque la carta:
+    // questo permette al trainer di passare a pagamento in futuro e far
     // partire l'addebito in automatico, senza dover richiedere di nuovo i
     // dati di pagamento a chi è già iscritto.
-    const basePath = groupId ? `/iscriviti/${trainerId}/${groupId}` : `/iscriviti/${trainerId}`;
+    const basePath = joinProgramId
+      ? `/iscriviti-programma/${trainerId}/${joinProgramId}`
+      : groupId
+      ? `/iscriviti/${trainerId}/${groupId}`
+      : `/iscriviti/${trainerId}`;
+
+    const productName = programName
+      ? `${programName} - ${fullName}`
+      : groupName
+      ? `${groupName} - ${fullName}`
+      : `Coaching mensile - ${fullName}`;
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -144,14 +186,24 @@ export async function POST(request: Request) {
             unit_amount: Math.round(Number(price) * 100),
             recurring: { interval: "month" },
             product_data: {
-              name: groupName ? `${groupName} - ${fullName}` : `Coaching mensile - ${fullName}`,
+              name: productName,
             },
           },
         },
       ],
-      metadata: { client_id: client.id, trainer_id: trainerId, group_id: joinGroupId || "" },
+      metadata: {
+        client_id: client.id,
+        trainer_id: trainerId,
+        group_id: joinGroupId || "",
+        program_id: joinProgramId || "",
+      },
       subscription_data: {
-        metadata: { client_id: client.id, trainer_id: trainerId, group_id: joinGroupId || "" },
+        metadata: {
+          client_id: client.id,
+          trainer_id: trainerId,
+          group_id: joinGroupId || "",
+          program_id: joinProgramId || "",
+        },
         ...(trialDays && trialDays > 0 ? { trial_period_days: trialDays } : {}),
       },
       ...(couponId ? { discounts: [{ coupon: couponId }] } : {}),
