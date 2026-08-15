@@ -1,6 +1,6 @@
 {
-  "name": "Coach App",
-  "short_name": "Coach App",
+  "name": "Hybridmethod",
+  "short_name": "Hybridmethod",
   "description": "La tua app di coaching personale",
   "start_url": "/",
   "display": "standalone",
