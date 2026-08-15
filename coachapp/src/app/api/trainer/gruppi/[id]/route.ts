@@ -51,7 +51,7 @@ function priceChangeEmailHtml({
           Vedi e conferma
         </a>
       </p>
-      <p style="color:#888; font-size: 13px;">Coach App</p>
+      <p style="color:#888; font-size: 13px;">Hybridmethod</p>
     </div>
   `;
 }
