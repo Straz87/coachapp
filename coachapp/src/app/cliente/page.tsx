@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireClientRole } from "@/lib/auth";
 import ClientWeekView from "@/components/ClientWeekView";
+import ClientProgramCard from "@/components/ClientProgramCard";
 
 export default async function ClienteHome() {
   const { supabase, profile } = await requireClientRole();
@@ -43,6 +44,8 @@ export default async function ClienteHome() {
           </p>
         </Link>
       ))}
+
+      <ClientProgramCard clientId={client.id} />
 
       <ClientWeekView clientId={client.id} />
     </div>
