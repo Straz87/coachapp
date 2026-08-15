@@ -540,7 +540,7 @@ export default function GroupWeekCalendar({
                               {htmlToLines(b.description).map((line, li) => (
                                 <p
                                   key={li}
-                                  className={`text-xs ${isNote ? "text-amber-700" : "text-gray-500"}`}
+                                  className={`text-xs break-words ${isNote ? "text-amber-700" : "text-gray-500"}`}
                                 >
                                   {line}
                                 </p>
