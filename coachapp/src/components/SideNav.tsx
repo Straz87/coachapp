@@ -40,7 +40,7 @@ export default function SideNav({
         >
           ☰
         </button>
-        <span className="text-lg font-bold flex-1">💪 Coach App</span>
+        <span className="text-lg font-bold flex-1">💪 Hybridmethod</span>
         {trainerId && <NotificationBell trainerId={trainerId} />}
       </div>
 
@@ -58,7 +58,7 @@ export default function SideNav({
         }`}
       >
         <div className="px-6 py-6 flex items-center justify-between gap-2">
-          <span className="text-xl font-bold">💪 Coach App</span>
+          <span className="text-xl font-bold">💪 Hybridmethod</span>
           <div className="hidden md:block">{trainerId && <NotificationBell trainerId={trainerId} />}</div>
           <button
             onClick={() => setOpen(false)}
