@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -224,7 +223,7 @@ function ProgramSignupSettings({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const link = `${origin}/iscriviti-programma/${trainerId}/${program.id}`;
+  const link = `${origin}/s/${program.id.slice(0, 8)}`;
 
   async function handleSave() {
     setSaving(true);
