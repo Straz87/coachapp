@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireTrainer } from "@/lib/auth";
 import ClientEditForm from "@/components/ClientEditForm";
 import ProgressChart from "@/components/ProgressChart";
+import ClientMaxes from "@/components/ClientMaxes";
 
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const { supabase, profile } = await requireTrainer();
@@ -56,6 +57,8 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           last_payment_at: client.last_payment_at,
         }}
       />
+
+              <ClientMaxes clientId={client.id} />
 
       <div className="card">
         <h2 className="font-semibold mb-3">Andamento peso</h2>
