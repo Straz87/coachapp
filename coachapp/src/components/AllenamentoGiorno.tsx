@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { createElement as h, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, toISODate } from "@/lib/dates";
@@ -16,6 +16,7 @@ import {
   getTimerSets,
   totalTimerSeconds,
   formatClock,
+    htmlToLines,
 } from "@/lib/workoutTypes";
 import WorkoutTimer from "@/components/WorkoutTimer";
 
@@ -59,6 +60,7 @@ export default function AllenamentoGiorno({
   const [draftValues, setDraftValues] = useState<string[]>([""]);
   const [draftRx, setDraftRx] = useState(true);
   const [saving, setSaving] = useState(false);
+    const [maxes, setMaxes] = useState<{ exercise_name: string; value_kg: number }[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -169,6 +171,36 @@ export default function AllenamentoGiorno({
   useEffect(() => {
     load();
   }, [load]);
+
+    useEffect(() => {
+          async function loadMaxes() {
+                  const { data } = await supabase
+                    .from("client_maxes")
+                    .select("exercise_name, value_kg")
+                    .eq("client_id", clientId);
+                  setMaxes(data || []);
+          }
+          loadMaxes();
+    }, [clientId]);
+
+    function computeMaxLines(description: string) {
+          if (maxes.length === 0) return [];
+          const lines = htmlToLines(description);
+          const results: { exerciseName: string; pct: number; kg: number }[] = [];
+          for (const line of lines) {
+                  const pctMatch = line.match(/(\d+(?:[.,]\d+)?)\s*%/);
+                  if (!pctMatch) continue;
+                  const pct = Number(pctMatch[1].replace(",", "."));
+                  const lower = line.toLowerCase();
+                  const max = maxes.find((m) => lower.includes(m.exercise_name.toLowerCase()));
+                  if (!max) continue;
+                  const raw = (max.value_kg * pct) / 100;
+                  const kg = Math.round(raw * 2) / 2;
+                  results.push({ exerciseName: max.exercise_name, pct, kg });
+          }
+          return results;
+    }
+  
 
   function isBlockOpen(index: number) {
     return openBlocks[index] ?? index === 0;
@@ -445,6 +477,23 @@ export default function AllenamentoGiorno({
                           className="text-sm text-gray-600 [&_a]:text-brand-dark [&_a]:underline [&_ul]:list-disc [&_ul]:ml-5 [&_ol]:list-decimal [&_ol]:ml-5 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-semibold"
                           dangerouslySetInnerHTML={{ __html: b.description }}
                         />
+
+                        {computeMaxLines(b.description).map((m, mi) =>
+                                                  h(
+                                                                                "div",
+                                                    {
+                                                                                    key: mi,
+                                                                                    className: "flex items-center gap-2 bg-brand/10 border border-brand/30 rounded-xl px-3 py-2",
+                                                    },
+                                                                                h("span", { className: "text-brand-dark" }, "🔢"),
+                                                                                h(
+                                                                                                                "span",
+                                                                                  { className: "text-sm text-gray-700" },
+                                                                                                                m.exerciseName + " " + m.pct + "%: ",
+                                                                                                                h("span", { className: "font-semibold" }, m.kg + " kg")
+                                                                                                              )
+                                                                              )
+                                                                                    )}
 
                         {b.rpe !== null && (
                           <span className="inline-block text-xs bg-gray-100 text-gray-700 rounded-full px-2 py-1">
