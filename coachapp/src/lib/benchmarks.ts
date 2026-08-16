@@ -64,3 +64,50 @@ export function formatSecondsToTime(totalSeconds: number): string {
     }
     return `${m}:${String(s).padStart(2, "0")}`;
 }
+
+
+export type MaxRow = {
+    id: string;
+    exercise_name: string;
+    value_kg: number | null;
+    time_seconds: number | null;
+    reps: number | null;
+    recorded_at: string;
+};
+
+// Riduce un elenco di righe (che puo' contenere piu' voci nel tempo per lo
+// stesso esercizio) al valore piu' recente per ciascuno. Il confronto sul
+// nome esercizio ignora maiuscole/minuscole.
+export function latestByExercise<T extends { exercise_name: string; recorded_at: string }>(
+    rows: T[]
+    ): T[] {
+    const sorted = [...rows].sort((a, b) => (a.recorded_at < b.recorded_at ? 1 : -1));
+    const seen = new Set<string>();
+    const result: T[] = [];
+    for (const r of sorted) {
+        const key = r.exercise_name.trim().toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(r);
+    }
+    return result;
+}
+
+// Storico completo (dal piu' recente al piu' vecchio) per un dato esercizio.
+export function historyForExercise<T extends { exercise_name: string; recorded_at: string }>(
+    rows: T[],
+    exerciseName: string
+    ): T[] {
+    const key = exerciseName.trim().toLowerCase();
+    return rows
+    .filter((r) => r.exercise_name.trim().toLowerCase() === key)
+    .sort((a, b) => (a.recorded_at < b.recorded_at ? 1 : -1));
+}
+
+// Formatta il valore di una riga massimale a seconda del tipo (kg/tempo/reps).
+export function formatMaxValue(row: { value_kg: number | null; time_seconds: number | null; reps: number | null }): string {
+    if (row.time_seconds != null) return formatSecondsToTime(row.time_seconds);
+    if (row.value_kg != null) return row.value_kg + " kg";
+    if (row.reps != null) return row.reps + " reps";
+    return "-";
+}
