@@ -498,11 +498,11 @@ export default function WeekCalendar({
         <p className="text-gray-400 text-sm">Caricamento…</p>
       ) : (
         <div className="rounded-xl overflow-hidden">
-          <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-7 bg-[#E9E8E1]">
+                  <div className="hidden sm:grid sm:grid-cols-4 lg:grid-cols-7 bg-[#E9E8E1]">
             {days.map((day, i) => (
               <div
                 key={day.iso}
-                className={`px-3 py-2.5 text-sm font-semibold text-gray-800 ${
+                                    className={`px-3 py-2.5 text-sm font-semibold text-gray-800 ${
                   i < 6 ? "sm:border-r border-gray-300/60" : ""
                 }`}
               >
@@ -521,6 +521,7 @@ export default function WeekCalendar({
                     isToday ? "bg-brand/10" : ""
                   }`}
                 >
+                  <p className="font-semibold text-sm mb-2 sm:hidden">{day.label} {day.dayNumber}/{day.month}</p>
                   {a ? (
                     <div>
                       {a.activity_type && (
