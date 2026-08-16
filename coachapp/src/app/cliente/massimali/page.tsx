@@ -22,9 +22,9 @@ const onboarding = searchParams?.onboarding === "1";
 
 return h(
     "div",
-    { className: "max-w-xl" },
-    h("h1", { className: "text-2xl font-bold mb-6" }, "Massimali"),
-    h(BenchmarkForm, { clientId: client.id, onboarding }),
-    h("div", { className: "mt-6" }, h(ClientMaxes, { clientId: client.id }))
+    { className: "max-w-xl space-y-6" },
+    h("h1", { className: "text-2xl font-bold" }, "Massimali"),
+    onboarding ? h(BenchmarkForm, { clientId: client.id, onboarding: true }) : null,
+    h(ClientMaxes, { clientId: client.id })
     );
 }
