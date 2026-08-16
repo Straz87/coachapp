@@ -17,7 +17,7 @@ export const BENCHMARK_CATEGORIES: BenchmarkCategory[] = [
         key: "monostructural",
         label: "Monostructural",
         valueType: "time",
-        exercises: ["5 km Row", "5 km Run", "5 km SkiErg", "10 km Bike"],
+                    exercises: ["5 km Row", "5 km Run", "5 km SkiErg", "10 km Bike", "2 km Row", "1 Mile Run", "500m Row", "Max Cal Assault Bike (4')"],
   },
   {
         key: "strength",
@@ -35,7 +35,7 @@ export const BENCHMARK_CATEGORIES: BenchmarkCategory[] = [
         key: "gymnastics",
         label: "Gymnastics (Max Unbroken)",
         valueType: "reps",
-        exercises: ["Pull-Up", "Parallel Bar Dip", "Ring Muscle-Up"],
+                    exercises: ["Pull-Up", "Parallel Bar Dip", "Ring Muscle-Up", "Toes-to-Bar", "Chest-to-Bar Pull-Up", "Bar Muscle-Up", "Handstand Push-Up", "Rope Climb"],
   },
   ];
 
