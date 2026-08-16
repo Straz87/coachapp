@@ -177,7 +177,8 @@ export default function AllenamentoGiorno({
                   const { data } = await supabase
                     .from("client_maxes")
                     .select("exercise_name, value_kg")
-                    .eq("client_id", clientId);
+                    .eq("client_id", clientId)
+                    .not("value_kg", "is", null);
                   setMaxes(data || []);
           }
           loadMaxes();
