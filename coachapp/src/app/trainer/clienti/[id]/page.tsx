@@ -4,6 +4,7 @@ import { requireTrainer } from "@/lib/auth";
 import ClientEditForm from "@/components/ClientEditForm";
 import ProgressChart from "@/components/ProgressChart";
 import ClientMaxes from "@/components/ClientMaxes";
+import CategoryMaxes from "@/components/CategoryMaxes";
 
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const { supabase, profile } = await requireTrainer();
@@ -59,6 +60,8 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
       />
 
               <ClientMaxes clientId={client.id} />
+      <CategoryMaxes clientId={client.id} categoryKey="monostructural" label="Monostructural" valueType="time" />
+      <CategoryMaxes clientId={client.id} categoryKey="gymnastics" label="Gymnastics" valueType="reps" />
 
       <div className="card">
         <h2 className="font-semibold mb-3">Andamento peso</h2>
