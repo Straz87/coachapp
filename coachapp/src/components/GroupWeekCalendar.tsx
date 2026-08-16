@@ -494,7 +494,7 @@ export default function GroupWeekCalendar({
         <p className="text-gray-400 text-sm">Caricamento…</p>
       ) : (
         <div className="rounded-xl overflow-hidden">
-          <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-7 bg-[#E9E8E1]">
+                  <div className="hidden sm:grid sm:grid-cols-4 lg:grid-cols-7 bg-[#E9E8E1]">
             {days.map((day, i) => (
               <div
                 key={day.iso}
@@ -517,6 +517,7 @@ export default function GroupWeekCalendar({
                     isToday ? "bg-brand/10" : ""
                   }`}
                 >
+                  <p className="font-semibold text-sm mb-2 sm:hidden">{day.label} {day.dayNumber}/{day.month}</p>
                   {w ? (
                     <div>
                       {w.activity_type && (
