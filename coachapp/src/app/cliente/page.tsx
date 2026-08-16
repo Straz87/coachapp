@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireClientRole } from "@/lib/auth";
 import ClientWeekView from "@/components/ClientWeekView";
 import ClientProgramCard from "@/components/ClientProgramCard";
@@ -8,12 +9,16 @@ export default async function ClienteHome() {
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id")
+    .select("id, benchmarks_onboarded")
     .eq("profile_id", profile.id)
     .single();
 
   if (!client) {
     return <p className="text-gray-400">Il tuo trainer non ti ha ancora collegato ad un profilo.</p>;
+  }
+
+  if (!client.benchmarks_onboarded) {
+    redirect("/cliente/massimali?onboarding=1");
   }
 
   // Richieste di conferma nuovo prezzo ancora in sospeso: le mostriamo qui
