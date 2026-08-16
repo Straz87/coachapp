@@ -19,6 +19,7 @@ import {
     htmlToLines,
 } from "@/lib/workoutTypes";
 import WorkoutTimer from "@/components/WorkoutTimer";
+import { latestByExercise } from "@/lib/benchmarks";
 
 // Rappresenta la scheda del giorno indipendentemente dal fatto che sia
 // un allenamento individuale (workout_assignments) o un allenamento di
@@ -60,7 +61,7 @@ export default function AllenamentoGiorno({
   const [draftValues, setDraftValues] = useState<string[]>([""]);
   const [draftRx, setDraftRx] = useState(true);
   const [saving, setSaving] = useState(false);
-    const [maxes, setMaxes] = useState<{ exercise_name: string; value_kg: number }[]>([]);
+    const [maxes, setMaxes] = useState<{ exercise_name: string; value_kg: number; recorded_at: string }[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -176,10 +177,10 @@ export default function AllenamentoGiorno({
           async function loadMaxes() {
                   const { data } = await supabase
                     .from("client_maxes")
-                    .select("exercise_name, value_kg")
+                    .select("exercise_name, value_kg, recorded_at")
                     .eq("client_id", clientId)
                     .not("value_kg", "is", null);
-                  setMaxes(data || []);
+                  setMaxes(latestByExercise(data || []));
           }
           loadMaxes();
     }, [clientId]);
