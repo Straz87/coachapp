@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: "/cliente/progressi", label: "Progressi", icon: "📈" },
   { href: "/cliente/dieta", label: "Piano alimentare", icon: "🥗" },
   { href: "/cliente/chat", label: "Messaggi", icon: "💬" },
+  { href: "/cliente/massimali", label: "Massimali", icon: "🔢" },
 ];
 
 // Stati che bloccano l'accesso all'app: il webhook Stripe li imposta in
