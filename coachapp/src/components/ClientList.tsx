@@ -100,12 +100,12 @@ export default function ClientList({ clients }: { clients: ClientRow[] }) {
         </label>
       </div>
 
-      <div className="card p-0 overflow-hidden">
+              <div className="card p-0 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-left">
             <tr>
-              <th className="px-5 py-3 font-medium">Cliente</th>
-              <th className="px-5 py-3 font-medium">Stato</th>
+          <th className="px-5 py-3 font-medium">Cliente</th>              
+          <th className="px-5 py-3 font-medium">Stato</th>
               <th className="px-5 py-3 font-medium">Ultima attività</th>
               <th className="px-5 py-3 font-medium">Prezzo</th>
               <th className="px-5 py-3 font-medium">Scadenza</th>
