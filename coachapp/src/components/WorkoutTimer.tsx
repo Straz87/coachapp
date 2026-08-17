@@ -129,7 +129,61 @@ export default function WorkoutTimer({
     };
   }, []);
 
-  // --- Motore "classico": TABATA, FOR TIME ---
+// Su iPhone/Safari lo schermo va in stand-by durante un timer attivo se il
+  // dispositivo non rileva interazioni: usiamo la Screen Wake Lock API per
+  // tenere il display acceso mentre il timer è in esecuzione (supportata da
+  // iOS Safari 16.4+ e da tutti i browser desktop principali). Il wake lock
+  // viene rilasciato automaticamente dal sistema quando la pagina perde il
+  // focus (es. schermo bloccato manualmente), quindi lo richiediamo di nuovo
+  // al ritorno in primo piano se il timer è ancora attivo. Tenere lo schermo
+  // acceso evita anche che iOS sospenda i setInterval e l'AudioContext dei
+  // beep, che altrimenti smettono di suonare a schermo spento.
+  const wakeLockRef = useRef(null as any);
+
+  async function requestWakeLock() {
+    if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+    try {
+      wakeLockRef.current = await (navigator as any).wakeLock.request("screen");
+    } catch {
+      // permesso negato o API non supportata, ignora
+    }
+  }
+
+  function releaseWakeLock() {
+    try {
+      wakeLockRef.current?.release();
+    } catch {
+      // ignora
+    }
+    wakeLockRef.current = null;
+  }
+
+  useEffect(() => {
+    if (running) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+    return () => {
+      releaseWakeLock();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running]);
+
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (running && document.visibilityState === "visible") {
+        requestWakeLock();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running]);
+
+// --- Motore "classico": TABATA, FOR TIME ---
   const classicSeconds = Math.max(1, (timer.minutes ?? 0) * 60 + (timer.seconds ?? 0));
   const [elapsed, setElapsed] = useState(0);
   const [targetReached, setTargetReached] = useState(false);
