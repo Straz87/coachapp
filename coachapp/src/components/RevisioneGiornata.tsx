@@ -236,7 +236,7 @@ export default function RevisioneGiornata({
                   )}
                   {scoreEntry && (
                     <span className="text-xs font-bold px-2 py-1 rounded-full bg-brand/30 text-brand-dark">
-                      {scoreEntry.rx ? "RX" : "SC"} {displayScoreValue(scoreEntry, b.score?.aggregation)}
+                      {scoreEntry.rx ? "RX" : "SC"} {displayScoreValue(scoreEntry, b.score?.aggregation, b.score?.type)}
                     </span>
                   )}
                 </span>
@@ -277,7 +277,7 @@ export default function RevisioneGiornata({
                           <span className="text-sm text-gray-700">
                             Settimana scorsa:{" "}
                             <span className="font-semibold">
-                              {displayScoreValue(prevEntry, b.score?.aggregation)} {prevEntry.rx ? "RX" : "SC"}
+                              {displayScoreValue(prevEntry, b.score?.aggregation, b.score?.type)} {prevEntry.rx ? "RX" : "SC"}
                             </span>
                           </span>
                         </div>
@@ -289,7 +289,7 @@ export default function RevisioneGiornata({
                             {scoreEntry.rx ? "RX" : "SC"}
                           </span>
                           <span className="font-semibold">
-                            {displayScoreValue(scoreEntry, b.score?.aggregation)}
+                            {displayScoreValue(scoreEntry, b.score?.aggregation, b.score?.type)}
                           </span>
                         </div>
                       ) : (
