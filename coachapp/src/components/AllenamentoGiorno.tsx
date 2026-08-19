@@ -434,7 +434,7 @@ export default function AllenamentoGiorno({
                         )}
                         {scoreEntry && (
                           <span className="text-xs font-bold px-2 py-1 rounded-full bg-brand/30 text-brand-dark">
-                            {scoreEntry.rx ? "RX" : "SC"} {displayScoreValue(scoreEntry, b.score?.aggregation)}
+                            {scoreEntry.rx ? "RX" : "SC"} {displayScoreValue(scoreEntry, b.score?.aggregation, b.score?.type)}
                           </span>
                         )}
                       </span>
@@ -519,7 +519,7 @@ export default function AllenamentoGiorno({
                                   <span className="text-sm text-gray-700">
                                     Settimana scorsa:{" "}
                                     <span className="font-semibold">
-                                      {displayScoreValue(prevEntry, b.score?.aggregation)}{" "}
+                                      {displayScoreValue(prevEntry, b.score?.aggregation, b.score?.type)}{" "}
                                       {prevEntry.rx ? "RX" : "SC"}
                                     </span>
                                   </span>
@@ -628,7 +628,7 @@ export default function AllenamentoGiorno({
                                   {scoreEntry.rx ? "RX" : "SC"}
                                 </span>
                                 <span className="font-semibold flex-1">
-                                  {displayScoreValue(scoreEntry, b.score?.aggregation)}
+                                  {displayScoreValue(scoreEntry, b.score?.aggregation, b.score?.type)}
                                 </span>
                                 <button
                                   onClick={() => startEditScore(i)}
