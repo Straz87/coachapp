@@ -16,14 +16,14 @@ import {
 // questo teniamo un unico AudioContext per timer, sbloccato al primo tocco su
 // Avvia, e lo riusiamo per tutti i beep successivi (anche quelli lanciati dai
 // setInterval, che da soli non sono "gesture" valide per i browser).
-function playBeep(ctx: AudioContext | null, frequency = 880, duration = 150) {
+function playBeep(ctx: AudioContext | null, frequency = 880, duration = 150, volume = 0.25) {
   if (!ctx) return;
   try {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
     osc.frequency.value = frequency;
-    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start();
@@ -230,18 +230,22 @@ export default function WorkoutTimer({
         setPhaseElapsed(0);
         setCurrentSetIndex(0);
         setLastRoundAt(0);
-        playBeep(audioCtxRef.current, 1046, 250);
+        playBeep(audioCtxRef.current, 1046, 250, 0.4);
       }
       return;
     }
 
     if (phase === "work") {
       const workSeconds = timerSetSeconds(sets[currentSetIndex]);
+      const remainingWork = workSeconds - phaseElapsed;
+      if (remainingWork === 3 || remainingWork === 2 || remainingWork === 1) {
+        playBeep(audioCtxRef.current, 880, 120);
+      }
       if (phaseElapsed >= workSeconds) {
         if (currentSetIndex >= sets.length - 1) {
           setPhase("done");
           setRunning(false);
-          playBeep(audioCtxRef.current, 660, 700);
+          playBeep(audioCtxRef.current, 660, 700, 0.4);
           return;
         }
         const nextSet = sets[currentSetIndex + 1];
@@ -249,13 +253,13 @@ export default function WorkoutTimer({
         if (rest > 0) {
           setPhase("rest");
           setPhaseElapsed(0);
-          playBeep(audioCtxRef.current, 523, 200);
+          playBeep(audioCtxRef.current, 523, 200, 0.4);
         } else {
           setCurrentSetIndex((i) => i + 1);
           setPhase("work");
           setPhaseElapsed(0);
           setLastRoundAt(0);
-          playBeep(audioCtxRef.current, 1046, 200);
+          playBeep(audioCtxRef.current, 1046, 300, 0.45);
         }
       }
       return;
@@ -273,7 +277,7 @@ export default function WorkoutTimer({
         setPhase("work");
         setPhaseElapsed(0);
         setLastRoundAt(0);
-        playBeep(audioCtxRef.current, 1046, 250);
+        playBeep(audioCtxRef.current, 1046, 250, 0.4);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
