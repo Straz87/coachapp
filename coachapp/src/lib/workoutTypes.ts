@@ -184,12 +184,23 @@ export function normalizeEntry(raw: unknown): ClientScoreEntry | null {
 
 // Testo da mostrare per un punteggio (una o più serie), secondo la modalità
 // di aggregazione scelta dal trainer per quel blocco.
-export function displayScoreValue(entry: ClientScoreEntry, aggregation: string = "elenco"): string {
+export function displayScoreValue(entry: ClientScoreEntry, aggregation: string = "elenco", scoreType?: string): string {
   const values = entry.values.filter((v) => v.trim() !== "");
   if (values.length === 0) return "";
   if (values.length === 1) return values[0];
 
   if (aggregation === "totale" || aggregation === "media") {
+    if (scoreType === "amrap") {
+      const parsed = values.map(parseAmrapValue);
+      const totalGiri = parsed.reduce((sum, p) => sum + p.giri, 0);
+      const totalReps = parsed.reduce((sum, p) => sum + p.reps, 0);
+      if (aggregation === "totale") {
+        return `${formatAmrapValue(totalGiri, totalReps)} (tot.)`;
+      }
+      const avgGiri = Math.round((totalGiri / parsed.length) * 100) / 100;
+      const avgReps = Math.round((totalReps / parsed.length) * 100) / 100;
+      return `${formatAmrapValue(avgGiri, avgReps)} (media)`;
+    }
     const nums = values.map(parseScoreNumber);
     const validNums = nums.filter((n): n is number => n !== null);
     if (validNums.length === values.length) {
@@ -223,9 +234,16 @@ export function parseAmrapValue(raw: string): { giri: number; reps: number } {
 
 // Valore numerico rappresentativo di un punteggio (una o più serie), per
 // grafici e classifiche. Ritorna null se non c'è nulla di numerico.
-export function numericScoreValue(entry: ClientScoreEntry, aggregation: string = "elenco"): number | null {
+export function numericScoreValue(entry: ClientScoreEntry, aggregation: string = "elenco", scoreType?: string): number | null {
   const values = entry.values.filter((v) => v.trim() !== "");
   if (values.length === 0) return null;
+  if (scoreType === "amrap") {
+    const parsed = values.map(parseAmrapValue);
+    const encode = (p: { giri: number; reps: number }) => p.giri * 100000 + p.reps;
+    if (aggregation === "totale") return parsed.reduce((sum, p) => sum + encode(p), 0);
+    if (aggregation === "media") return parsed.reduce((sum, p) => sum + encode(p), 0) / parsed.length;
+    return encode(parsed[0]);
+  }
   const nums = values.map(parseScoreNumber).filter((n): n is number => n !== null);
   if (nums.length === 0) return null;
   if (aggregation === "totale") return nums.reduce((a, b) => a + b, 0);
