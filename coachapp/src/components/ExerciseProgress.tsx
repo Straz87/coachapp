@@ -43,13 +43,13 @@ export default function ExerciseProgress({ clientId }: { clientId: string }) {
         if (!name) return;
         const entry = normalizeEntry(a.client_scores?.[String(i)]);
         if (!entry) return;
-        const value = numericScoreValue(entry, b.score?.aggregation);
+        const value = numericScoreValue(entry, b.score?.aggregation, b.score?.type);
         if (value === null) return;
         if (!grouped[name]) grouped[name] = [];
         grouped[name].push({
           date: a.date,
           value,
-          raw: displayScoreValue(entry, b.score?.aggregation),
+          raw: displayScoreValue(entry, b.score?.aggregation, b.score?.type),
           rx: entry.rx,
         });
       });
