@@ -21,11 +21,11 @@ function timeAgo(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime();
   const min = Math.floor(diffMs / 60000);
   if (min < 1) return "adesso";
-  if (min < 60) return \`\${min} min fa\`;
+  if (min < 60) return `${min} min fa`;
   const hours = Math.floor(min / 60);
-  if (hours < 24) return \`\${hours} h fa\`;
+  if (hours < 24) return `${hours} h fa`;
   const days = Math.floor(hours / 24);
-  return \`\${days} g fa\`;
+  return `${days} g fa`;
 }
 
 // NotificationBell viene montato due volte per ogni apertura della dashboard
@@ -81,10 +81,10 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
     // permette due sottoscrizioni con lo stesso nome di canale.
     const instanceId = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel(\`notifications-\${trainerId}-\${instanceId}\`)
+      .channel(`notifications-${trainerId}-${instanceId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: \`trainer_id=eq.\${trainerId}\` },
+        { event: "INSERT", schema: "public", table: "notifications", filter: `trainer_id=eq.${trainerId}` },
         (payload) => {
           setItems((prev) => [payload.new as Notification, ...prev].slice(0, 20));
         }
@@ -122,7 +122,7 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
     // I promemoria (cliente inattivo / abbonamento in scadenza) non sono
     // legati a una giornata specifica: portano alla scheda del cliente.
     if (n.kind === "inattivita" || n.kind === "scadenza" || n.kind === "pagamento" || n.kind === "prezzo_gruppo") {
-      router.push(\`/trainer/clienti/\${n.client_id}\`);
+      router.push(`/trainer/clienti/${n.client_id}`);
       return;
     }
     if (!n.date) return;
@@ -131,9 +131,9 @@ export default function NotificationBell({ trainerId }: { trainerId: string }) {
     // cliente, non ritrovarsi a modificare il programma per sbaglio.
     const params =
       n.kind === "group" && n.group_id
-        ? \`cliente=\${n.client_id}&gruppo=\${n.group_id}\`
-        : \`cliente=\${n.client_id}\`;
-    router.push(\`/trainer/giornata?\${params}&data=\${n.date}\`);
+        ? `cliente=${n.client_id}&gruppo=${n.group_id}`
+        : `cliente=${n.client_id}`;
+    router.push(`/trainer/giornata?${params}&data=${n.date}`);
   }
 
   return (
