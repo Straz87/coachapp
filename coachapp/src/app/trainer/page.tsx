@@ -93,6 +93,16 @@ export default async function TrainerHome() {
     .eq("trainer_id", profile.id)
     .order("created_at", { ascending: false });
 
+  // Dati del link pubblico già letti qui lato server (stesso giro di query
+  // già in corso): evita a PublicLinkManager di doverli richiedere di nuovo
+  // via fetch client-side ad ogni apertura della dashboard, che aggiungeva
+  // un secondo o più al caricamento iniziale.
+  const { data: linkData } = await supabase
+    .from("public_signup_links")
+    .select("*")
+    .eq("trainer_id", profile.id)
+    .maybeSingle();
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -105,7 +115,7 @@ export default async function TrainerHome() {
         </Link>
       </div>
 
-      <PublicLinkManager trainerId={profile.id} groups={groupsData || []} />
+      <PublicLinkManager trainerId={profile.id} groups={groupsData || []} initialLink={linkData} />
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
         <div className="card">
