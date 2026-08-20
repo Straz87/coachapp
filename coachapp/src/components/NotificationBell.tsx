@@ -41,16 +41,19 @@ function loadNotificationsOnce(
   const existing = pendingNotificationLoads.get(trainerId);
   if (existing) return existing;
 
-  const promise = supabase
-    .from("notifications")
-    .select("id, client_id, client_name, workout_title, kind, date, group_id, read_at, created_at")
-    .eq("trainer_id", trainerId)
-    .order("created_at", { ascending: false })
-    .limit(20)
-    .then(({ data }) => (data as Notification[]) || [])
-    .finally(() => {
+  const promise = (async () => {
+    try {
+      const { data } = await supabase
+        .from("notifications")
+        .select("id, client_id, client_name, workout_title, kind, date, group_id, read_at, created_at")
+        .eq("trainer_id", trainerId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      return (data as Notification[]) || [];
+    } finally {
       pendingNotificationLoads.delete(trainerId);
-    });
+    }
+  })();
 
   pendingNotificationLoads.set(trainerId, promise);
   return promise;
