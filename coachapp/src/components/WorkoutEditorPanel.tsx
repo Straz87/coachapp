@@ -302,6 +302,7 @@ function BlockEditor({
 }) {
   const [showTimerPreview, setShowTimerPreview] = useState(false);
   const isNote = block.type === "Nota per l'atleta";
+  const isCustomType = !BLOCK_TYPES.includes(block.type);
   const summary = timerSummary(block);
 
   if (!open) {
@@ -344,8 +345,8 @@ function BlockEditor({
       <div className="flex gap-2 items-center">
         <select
           className="input"
-          value={block.type}
-          onChange={(e) => onChange({ type: e.target.value })}
+          value={isCustomType ? "Altro" : block.type}
+          onChange={(e) => onChange({ type: e.target.value === "Altro" ? "" : e.target.value })}
         >
           {BLOCK_TYPES.map((t) => (
             <option key={t} value={t}>
@@ -369,7 +370,16 @@ function BlockEditor({
         </button>
       </div>
 
-      <RichTextEditor
+      {isCustomType && (
+        <input
+          className="input"
+          placeholder="Scrivi il nome del blocco…"
+          value={block.type}
+          onChange={(e) => onChange({ type: e.target.value })}
+        />
+      )}
+
+<RichTextEditor
         value={block.description}
         onChange={(html) => onChange({ description: html })}
         placeholder="Descrivi l'esercizio, le serie/ripetizioni, e incolla eventuali link a video…"
