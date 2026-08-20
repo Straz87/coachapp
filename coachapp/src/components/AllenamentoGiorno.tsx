@@ -20,6 +20,7 @@ import {
 } from "@/lib/workoutTypes";
 import WorkoutTimer from "@/components/WorkoutTimer";
 import { latestByExercise } from "@/lib/benchmarks";
+import { unlockAudioContext } from "@/lib/audio";
 
 // Rappresenta la scheda del giorno indipendentemente dal fatto che sia
 // un allenamento individuale (workout_assignments) o un allenamento di
@@ -213,6 +214,10 @@ export default function AllenamentoGiorno({
   }
 
   function toggleTimer(index: number) {
+    // Sblocca l'AudioContext condiviso qui: questo click e' un gesture
+    // reale, e il timer che sta per aprirsi parte con autoStart (senza mai
+    // passare dal tasto "Avvia" interno, l'unico altro punto che lo sblocca).
+    unlockAudioContext();
     setOpenTimers((prev) => ({ ...prev, [index]: !prev[index] }));
   }
 
