@@ -10,28 +10,7 @@ import {
   totalTimerSeconds,
   formatClock,
 } from "@/lib/workoutTypes";
-
-// I browser mobili (soprattutto Safari/iOS) permettono di produrre audio solo
-// se l'AudioContext viene creato/riattivato dentro un tap/click reale. Per
-// questo teniamo un unico AudioContext per timer, sbloccato al primo tocco su
-// Avvia, e lo riusiamo per tutti i beep successivi (anche quelli lanciati dai
-// setInterval, che da soli non sono "gesture" valide per i browser).
-function playBeep(ctx: AudioContext | null, frequency = 880, duration = 150, volume = 0.25) {
-  if (!ctx) return;
-  try {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = frequency;
-    gain.gain.setValueAtTime(volume, ctx.currentTime);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + duration / 1000);
-  } catch {
-    // audio non disponibile, ignora
-  }
-}
+import { playBeep, unlockAudioContext } from "@/lib/audio";
 
 function CircularProgress({
   progress,
@@ -104,32 +83,7 @@ export default function WorkoutTimer({
 
   const [running, setRunning] = useState(!!autoStart);
 
-  // Un solo AudioContext per istanza di timer, creato/sbloccato al primo tap
-  // su Avvia e riutilizzato per tutti i beep successivi.
-  const audioCtxRef = useRef<AudioContext | null>(null);
-
-  function unlockAudio() {
-    if (typeof window === "undefined") return;
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioCtx();
-      }
-      if (audioCtxRef.current.state === "suspended") {
-        audioCtxRef.current.resume();
-      }
-    } catch {
-      // audio non disponibile, ignora
-    }
-  }
-
-  useEffect(() => {
-    return () => {
-      audioCtxRef.current?.close();
-    };
-  }, []);
-
-// Su iPhone/Safari lo schermo va in stand-by durante un timer attivo se il
+  // Su iPhone/Safari lo schermo va in stand-by durante un timer attivo se il
   // dispositivo non rileva interazioni: usiamo la Screen Wake Lock API per
   // tenere il display acceso mentre il timer è in esecuzione (supportata da
   // iOS Safari 16.4+ e da tutti i browser desktop principali). Il wake lock
@@ -199,7 +153,7 @@ export default function WorkoutTimer({
     if (useNewEngine) return;
     if (isCountUp && running && elapsed >= classicSeconds && !targetReached) {
       setTargetReached(true);
-      playBeep(audioCtxRef.current, 660, 400);
+      playBeep(660, 400);
     }
   }, [elapsed, isCountUp, running, classicSeconds, targetReached, useNewEngine]);
 
@@ -223,14 +177,14 @@ export default function WorkoutTimer({
     if (phase === "countdown") {
       const remaining = PRESTART_SECONDS - phaseElapsed;
       if (remaining === 3 || remaining === 2 || remaining === 1) {
-        playBeep(audioCtxRef.current, 880, 120);
+        playBeep(880, 120);
       }
       if (phaseElapsed >= PRESTART_SECONDS) {
         setPhase("work");
         setPhaseElapsed(0);
         setCurrentSetIndex(0);
         setLastRoundAt(0);
-        playBeep(audioCtxRef.current, 1046, 250, 0.4);
+        playBeep(1046, 250, 0.4);
       }
       return;
     }
@@ -239,13 +193,13 @@ export default function WorkoutTimer({
       const workSeconds = timerSetSeconds(sets[currentSetIndex]);
       const remainingWork = workSeconds - phaseElapsed;
       if (remainingWork === 3 || remainingWork === 2 || remainingWork === 1) {
-        playBeep(audioCtxRef.current, 880, 120);
+        playBeep(880, 120);
       }
       if (phaseElapsed >= workSeconds) {
         if (currentSetIndex >= sets.length - 1) {
           setPhase("done");
           setRunning(false);
-          playBeep(audioCtxRef.current, 660, 700, 0.4);
+          playBeep(660, 700, 0.4);
           return;
         }
         const nextSet = sets[currentSetIndex + 1];
@@ -253,13 +207,13 @@ export default function WorkoutTimer({
         if (rest > 0) {
           setPhase("rest");
           setPhaseElapsed(0);
-          playBeep(audioCtxRef.current, 523, 200, 0.4);
+          playBeep(523, 200, 0.4);
         } else {
           setCurrentSetIndex((i) => i + 1);
           setPhase("work");
           setPhaseElapsed(0);
           setLastRoundAt(0);
-          playBeep(audioCtxRef.current, 1046, 300, 0.45);
+          playBeep(1046, 300, 0.45);
         }
       }
       return;
@@ -270,14 +224,14 @@ export default function WorkoutTimer({
       const restTotal = timerRestSeconds(nextSet);
       const remaining = restTotal - phaseElapsed;
       if (remaining === 3 || remaining === 2 || remaining === 1) {
-        playBeep(audioCtxRef.current, 880, 120);
+        playBeep(880, 120);
       }
       if (phaseElapsed >= restTotal) {
         setCurrentSetIndex((i) => i + 1);
         setPhase("work");
         setPhaseElapsed(0);
         setLastRoundAt(0);
-        playBeep(audioCtxRef.current, 1046, 250, 0.4);
+        playBeep(1046, 250, 0.4);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -295,21 +249,21 @@ export default function WorkoutTimer({
 
   function handleLogRound() {
     if (phase !== "work" || !isAmrap) return;
-    unlockAudio();
+    unlockAudioContext();
     const split = Math.max(0, phaseElapsed - lastRoundAt);
     setLastRoundAt(phaseElapsed);
     setRoundsBySet((prev) => prev.map((arr, idx) => (idx === currentSetIndex ? [...arr, split] : arr)));
-    playBeep(audioCtxRef.current, 784, 90);
+    playBeep(784, 90);
   }
 
   function handleStopEarly() {
     setRunning(false);
     setPhase("done");
-    playBeep(audioCtxRef.current, 660, 500);
+    playBeep(660, 500);
   }
 
   function handleStartPause() {
-    unlockAudio();
+    unlockAudioContext();
     if (useNewEngine && phase === "idle" && !running) {
       setPhase("countdown");
       setPhaseElapsed(0);
