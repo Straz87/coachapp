@@ -11,13 +11,49 @@ const EXPIRY_DAYS = 5;
 export default async function TrainerHome() {
   const { supabase, profile } = await requireTrainer();
 
-  const { data: clients } = await supabase
-    .from("clients")
-    .select(
-      "id, status, price, expiry_date, start_date, created_at, profiles:profile_id(full_name, email)"
-    )
-    .eq("trainer_id", profile.id)
-    .order("created_at", { ascending: false });
+  // Le query che seguono sono tutte indipendenti tra loro (dipendono solo da
+  // profile.id, non l'una dall'altra): eseguendole in sequenza con await si
+  // sommavano i tempi di rete di ognuna, aggiungendo secondi al caricamento
+  // della dashboard. Lanciandole in parallelo con Promise.all si paga solo il
+  // tempo della più lenta, non la somma di tutte.
+  const [
+    { data: clients },
+    { data: individualDone },
+    { data: groupsData },
+    { data: linkData },
+  ] = await Promise.all([
+    supabase
+      .from("clients")
+      .select(
+        "id, status, price, expiry_date, start_date, created_at, profiles:profile_id(full_name, email)"
+      )
+      .eq("trainer_id", profile.id)
+      .order("created_at", { ascending: false }),
+    // Ultima attività per cliente: come nel job dei promemoria, il massimo tra
+    // allenamento individuale e di gruppo completato.
+    supabase
+      .from("workout_assignments")
+      .select("client_id, completed_at")
+      .eq("trainer_id", profile.id)
+      .eq("completed", true)
+      .not("completed_at", "is", null),
+    // Gruppi del trainer, per poter collegare il link pubblico di iscrizione
+    // a un gruppo (es. "CF Training") direttamente dalla dashboard.
+    supabase
+      .from("workout_groups")
+      .select("id, name")
+      .eq("trainer_id", profile.id)
+      .order("created_at", { ascending: false }),
+    // Dati del link pubblico già letti qui lato server (stesso giro di query
+    // già in corso): evita a PublicLinkManager di doverli richiedere di nuovo
+    // via fetch client-side ad ogni apertura della dashboard, che aggiungeva
+    // un secondo o più al caricamento iniziale.
+    supabase
+      .from("public_signup_links")
+      .select("*")
+      .eq("trainer_id", profile.id)
+      .maybeSingle(),
+  ]);
 
   const baseRows = (clients || []) as unknown as (ClientRow & {
     start_date: string | null;
@@ -26,15 +62,8 @@ export default async function TrainerHome() {
 
   const clientIds = baseRows.map((c) => c.id);
 
-  // Ultima attività per cliente: come nel job dei promemoria, il massimo tra
-  // allenamento individuale e di gruppo completato.
-  const { data: individualDone } = await supabase
-    .from("workout_assignments")
-    .select("client_id, completed_at")
-    .eq("trainer_id", profile.id)
-    .eq("completed", true)
-    .not("completed_at", "is", null);
-
+  // Questa dipende dagli id dei clienti appena caricati, quindi resta
+  // necessariamente dopo il Promise.all qui sopra.
   const { data: groupDone } =
     clientIds.length > 0
       ? await supabase
@@ -84,24 +113,6 @@ export default async function TrainerHome() {
     scaduti: rows.filter((c) => c.status === "scaduto").length,
     da_contattare: rows.filter((c) => c.needs_attention).length,
   };
-
-  // Gruppi del trainer, per poter collegare il link pubblico di iscrizione
-  // a un gruppo (es. "CF Training") direttamente dalla dashboard.
-  const { data: groupsData } = await supabase
-    .from("workout_groups")
-    .select("id, name")
-    .eq("trainer_id", profile.id)
-    .order("created_at", { ascending: false });
-
-  // Dati del link pubblico già letti qui lato server (stesso giro di query
-  // già in corso): evita a PublicLinkManager di doverli richiedere di nuovo
-  // via fetch client-side ad ogni apertura della dashboard, che aggiungeva
-  // un secondo o più al caricamento iniziale.
-  const { data: linkData } = await supabase
-    .from("public_signup_links")
-    .select("*")
-    .eq("trainer_id", profile.id)
-    .maybeSingle();
 
   return (
     <div>
