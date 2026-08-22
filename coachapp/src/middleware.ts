@@ -47,5 +47,12 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // manifest.json e sw.js sono letti dal sistema operativo del telefono ad
+  // ogni apertura dell'app installata sulla home: non devono passare da
+  // Supabase per un controllo di autenticazione che non serve a nulla (sono
+  // file pubblici) e che aggiungeva un giro di rete inutile proprio nel
+  // momento piu delicato, l'avvio dell'app.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
