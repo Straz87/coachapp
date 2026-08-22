@@ -11,17 +11,21 @@ export default async function CalendarioPage({
 }) {
   const { supabase, profile } = await requireTrainer();
 
-  const { data: clients } = await supabase
-    .from("clients")
-    .select("id, profiles:profile_id(full_name)")
-    .eq("trainer_id", profile.id)
-    .order("created_at", { ascending: false });
-
-  const { data: groups } = await supabase
-    .from("workout_groups")
-    .select("id, name")
-    .eq("trainer_id", profile.id)
-    .order("created_at", { ascending: false });
+  // clients e groups sono indipendenti tra loro: in parallelo invece che in
+  // sequenza si dimezza il tempo di attesa della rete prima di poter
+  // disegnare la pagina.
+  const [{ data: clients }, { data: groups }] = await Promise.all([
+    supabase
+      .from("clients")
+      .select("id, profiles:profile_id(full_name)")
+      .eq("trainer_id", profile.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("workout_groups")
+      .select("id, name")
+      .eq("trainer_id", profile.id)
+      .order("created_at", { ascending: false }),
+  ]);
 
   const clientOptions = (clients || []).map((c: any) => ({
     id: c.id,
