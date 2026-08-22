@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -23,6 +23,26 @@ export default function SideNav({
   const supabase = createClient();
   const [open, setOpen] = useState(false);
 
+  // NotificationBell veniva sempre montato due volte (barra mobile + sidebar
+  // desktop), con solo il CSS a nascondere quella di troppo: due alberi React
+  // attivi, due sottoscrizioni realtime aperte in parallelo verso Supabase e
+  // il doppio del lavoro di hydration ad ogni apertura, pesante soprattutto
+  // sui telefoni. Ora, dopo il primo render (identico a prima per non
+  // rompere l'hydration), ne resta montata una sola in base allo schermo
+  // reale del dispositivo.
+  const [mounted, setMounted] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    setIsDesktop(mq.matches);
+    setMounted(true);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  const showMobileBell = !mounted || !isDesktop;
+  const showDesktopBell = mounted && isDesktop;
+
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push("/login");
@@ -41,7 +61,7 @@ export default function SideNav({
           ☰
         </button>
         <span className="text-lg font-bold flex-1">💪 Hybridmethod</span>
-        {trainerId && <NotificationBell trainerId={trainerId} />}
+        {trainerId && showMobileBell && <NotificationBell trainerId={trainerId} />}
       </div>
 
       {/* Sfondo scuro dietro al menu quando è aperto su mobile */}
@@ -59,7 +79,7 @@ export default function SideNav({
       >
         <div className="px-6 py-6 flex items-center justify-between gap-2">
           <span className="text-xl font-bold">💪 Hybridmethod</span>
-          <div className="hidden md:block">{trainerId && <NotificationBell trainerId={trainerId} />}</div>
+          <div className="hidden md:block">{trainerId && showDesktopBell && <NotificationBell trainerId={trainerId} />}</div>
           <button
             onClick={() => setOpen(false)}
             aria-label="Torna indietro"
