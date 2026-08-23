@@ -58,13 +58,13 @@ export default function SideNav({
           aria-label="Apri menu"
           className="text-xl leading-none p-1 -ml-1"
         >
-          ☰
+          â°
         </button>
-        <span className="text-lg font-bold flex-1">💪 Hybridmethod</span>
+        <span className="text-lg font-bold flex-1">ðª Hybridmethod</span>
         {trainerId && showMobileBell && <NotificationBell trainerId={trainerId} />}
       </div>
 
-      {/* Sfondo scuro dietro al menu quando è aperto su mobile */}
+      {/* Sfondo scuro dietro al menu quando Ã¨ aperto su mobile */}
       {open && (
         <div
           className="md:hidden fixed inset-0 bg-black/30 z-40"
@@ -78,14 +78,14 @@ export default function SideNav({
         }`}
       >
         <div className="px-6 py-6 flex items-center justify-between gap-2">
-          <span className="text-xl font-bold">💪 Hybridmethod</span>
+          <span className="text-xl font-bold">ðª Hybridmethod</span>
           <div className="hidden md:block">{trainerId && showDesktopBell && <NotificationBell trainerId={trainerId} />}</div>
           <button
             onClick={() => setOpen(false)}
             aria-label="Torna indietro"
             className="md:hidden text-xl leading-none p-1"
           >
-            ←
+            â
           </button>
         </div>
 
@@ -96,6 +96,7 @@ export default function SideNav({
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  prefetch={false}
                   onClick={() => setOpen(false)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
                     active ? "bg-brand text-brand-dark" : "text-gray-600 hover:bg-gray-100"
