@@ -13,6 +13,7 @@ export default function NuovoClientePage() {
     price: "",
     trialDays: "",
     billing_note: "",
+    free: false,
   });
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -25,6 +26,7 @@ export default function NuovoClientePage() {
     price: "",
     billing_note: "",
     expiry_date: "",
+    free: false,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +41,8 @@ export default function NuovoClientePage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        price: inviteForm.price ? Number(inviteForm.price) : null,
+        isFree: inviteForm.free,
+        price: inviteForm.free ? 0 : inviteForm.price ? Number(inviteForm.price) : null,
         trialDays: inviteForm.trialDays ? Number(inviteForm.trialDays) : null,
         billingNote: inviteForm.billing_note || null,
       }),
@@ -66,7 +69,7 @@ export default function NuovoClientePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
-        price: form.price ? Number(form.price) : null,
+        price: form.free ? null : form.price ? Number(form.price) : null,
       }),
     });
 
@@ -115,9 +118,9 @@ export default function NuovoClientePage() {
         <h1 className="text-2xl font-bold mb-4">Link generato ✅</h1>
         <div className="card space-y-3">
           <p className="text-sm text-gray-600">
-            Manda questo link al cliente: aprirà una pagina dove inserisce nome, email e password
-            e procede al pagamento. L&apos;account viene creato in automatico al termine, senza
-            che tu debba fare nient&apos;altro.
+            {inviteForm.free
+              ? "Manda questo link al cliente: aprirà una pagina dove inserisce nome, email e password e l'account viene creato subito, gratis, senza alcun pagamento."
+              : "Manda questo link al cliente: aprirà una pagina dove inserisce nome, email e password e procede al pagamento. L'account viene creato in automatico al termine, senza che tu debba fare nient'altro."}
           </p>
           <p className="font-mono text-sm break-all bg-gray-50 p-3 rounded">{inviteUrl}</p>
           <div className="flex flex-wrap gap-2">
@@ -179,22 +182,35 @@ export default function NuovoClientePage() {
             Imposti solo il prezzo, il cliente inserisce lui nome, email e password aprendo il
             link che gli mandi. Niente email da digitare per te.
           </p>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={inviteForm.free}
+              onChange={(e) => setInviteForm({ ...inviteForm, free: e.target.checked })}
+            />
+            <span className="text-sm font-medium">Gratis</span>
+          </label>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium">Prezzo (€/mese)</label>
-              <input
-                type="number"
-                required
-                className="input mt-1"
-                value={inviteForm.price}
-                onChange={(e) => setInviteForm({ ...inviteForm, price: e.target.value })}
-              />
+              {inviteForm.free ? (
+                <div className="input mt-1 bg-green-50 text-green-700 font-medium">Free</div>
+              ) : (
+                <input
+                  type="number"
+                  required
+                  className="input mt-1"
+                  value={inviteForm.price}
+                  onChange={(e) => setInviteForm({ ...inviteForm, price: e.target.value })}
+                />
+              )}
             </div>
             <div>
               <label className="text-sm font-medium">Giorni di prova (facoltativo)</label>
               <input
                 type="number"
-                className="input mt-1"
+                disabled={inviteForm.free}
+                className="input mt-1 disabled:opacity-50"
                 value={inviteForm.trialDays}
                 onChange={(e) => setInviteForm({ ...inviteForm, trialDays: e.target.value })}
               />
@@ -237,15 +253,27 @@ export default function NuovoClientePage() {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={form.free}
+              onChange={(e) => setForm({ ...form, free: e.target.checked })}
+            />
+            <span className="text-sm font-medium">Gratis</span>
+          </label>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium">Prezzo (€/mese)</label>
-              <input
-                type="number"
-                className="input mt-1"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
-              />
+              {form.free ? (
+                <div className="input mt-1 bg-green-50 text-green-700 font-medium">Free</div>
+              ) : (
+                <input
+                  type="number"
+                  className="input mt-1"
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                />
+              )}
             </div>
             <div>
               <label className="text-sm font-medium">Scadenza abbonamento</label>
