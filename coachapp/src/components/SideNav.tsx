@@ -23,13 +23,6 @@ export default function SideNav({
   const supabase = createClient();
   const [open, setOpen] = useState(false);
 
-  // NotificationBell veniva sempre montato due volte (barra mobile + sidebar
-  // desktop), con solo il CSS a nascondere quella di troppo: due alberi React
-  // attivi, due sottoscrizioni realtime aperte in parallelo verso Supabase e
-  // il doppio del lavoro di hydration ad ogni apertura, pesante soprattutto
-  // sui telefoni. Ora, dopo il primo render (identico a prima per non
-  // rompere l'hydration), ne resta montata una sola in base allo schermo
-  // reale del dispositivo.
   const [mounted, setMounted] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   useEffect(() => {
@@ -58,13 +51,13 @@ export default function SideNav({
           aria-label="Apri menu"
           className="text-xl leading-none p-1 -ml-1"
         >
-          â°
+          ☰
         </button>
-        <span className="text-lg font-bold flex-1">ðª Hybridmethod</span>
+        <span className="text-lg font-bold flex-1">💪 Hybridmethod</span>
         {trainerId && showMobileBell && <NotificationBell trainerId={trainerId} />}
       </div>
 
-      {/* Sfondo scuro dietro al menu quando Ã¨ aperto su mobile */}
+      {/* Sfondo scuro dietro al menu quando è aperto su mobile */}
       {open && (
         <div
           className="md:hidden fixed inset-0 bg-black/30 z-40"
@@ -78,14 +71,14 @@ export default function SideNav({
         }`}
       >
         <div className="px-6 py-6 flex items-center justify-between gap-2">
-          <span className="text-xl font-bold">ðª Hybridmethod</span>
+          <span className="text-xl font-bold">💪 Hybridmethod</span>
           <div className="hidden md:block">{trainerId && showDesktopBell && <NotificationBell trainerId={trainerId} />}</div>
           <button
             onClick={() => setOpen(false)}
             aria-label="Torna indietro"
             className="md:hidden text-xl leading-none p-1"
           >
-            â
+            ←
           </button>
         </div>
 
