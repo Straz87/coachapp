@@ -9,6 +9,8 @@ import { getStripe } from "@/lib/stripe";
 // fisso /api/public/signup, qui prezzo e prova gratuita sono già decisi
 // dal trainer per QUESTO cliente specifico; il cliente inserisce solo
 // nome, email e password.
+// Se il trainer ha impostato l'invito come gratuito (price a 0) si
+// salta del tutto Stripe: l'account è già attivo, si va dritti al login.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const token = body?.token;
@@ -90,9 +92,15 @@ export async function POST(request: Request) {
     .update({ used_at: new Date().toISOString(), client_id: client.id })
     .eq("token", token);
 
+  const origin = new URL(request.url).origin;
+
+  // Invito gratuito: l'account è già attivo, niente Stripe.
+  if (!invite.price || Number(invite.price) <= 0) {
+    return NextResponse.json({ url: `${origin}/login?iscrizione=ok` });
+  }
+
   try {
     const stripe = getStripe();
-    const origin = new URL(request.url).origin;
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
