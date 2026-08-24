@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import RichTextEditor from "@/components/RichTextEditor";
 import WorkoutTimer from "@/components/WorkoutTimer";
 import { WEEKDAY_LABELS } from "@/lib/dates";
@@ -168,6 +168,68 @@ export default function WorkoutEditorPanel({
     new Set(initial.blocks.length > 0 ? [] : [0])
   );
 
+  const [templates, setTemplates] = useState<
+    { id: string; name: string; activity_type: string | null; blocks: Block[] }[]
+  >([]);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateMsg, setTemplateMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/templates")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.templates)) setTemplates(data.templates);
+      })
+      .catch(() => {});
+  }, []);
+
+  function handleLoadTemplate(id: string) {
+    const tpl = templates.find((t) => t.id === id);
+    if (!tpl) return;
+    const hasContent = blocks.some((b) => b.description.trim() !== "");
+    if (hasContent && !confirm(`Questo sostituirà i blocchi già compilati con il template "${tpl.name}". Continuare?`)) {
+      return;
+    }
+    setBlocks(tpl.blocks.length > 0 ? tpl.blocks : [emptyBlock()]);
+    setOpenBlocks(new Set());
+    if (tpl.activity_type) setActivityType(tpl.activity_type);
+    setTemplateMsg(`Caricato "${tpl.name}"`);
+    setTimeout(() => setTemplateMsg(null), 2500);
+  }
+
+  async function handleSaveAsTemplate() {
+    const cleaned = blocks.filter((b) => b.description.trim() !== "");
+    if (cleaned.length === 0) {
+      alert("Compila almeno un blocco prima di salvarlo come template.");
+      return;
+    }
+    const name = window.prompt('Nome del template (es. "Push A"):', title || "");
+    if (!name || !name.trim()) return;
+    setSavingTemplate(true);
+    try {
+      const res = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), blocks: cleaned, activityType }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Errore nel salvataggio del template");
+        return;
+      }
+      setTemplates((t) => [
+        { id: data.template.id, name: data.template.name, activity_type: activityType, blocks: cleaned },
+        ...t,
+      ]);
+      setTemplateMsg(`Salvato come "${data.template.name}"`);
+      setTimeout(() => setTemplateMsg(null), 2500);
+    } catch {
+      alert("Errore di rete, riprova");
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+
   function updateBlock(index: number, patch: Partial<Block>) {
     setBlocks((b) => b.map((blk, i) => (i === index ? { ...blk, ...patch } : blk)));
   }
@@ -258,13 +320,38 @@ export default function WorkoutEditorPanel({
           ))}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => addBlock()} className="btn-secondary text-sm">
             + Aggiungi blocco
           </button>
           <button onClick={() => addBlock("Nota per l'atleta")} className="btn-secondary text-sm">
             + Nota per l&apos;atleta
           </button>
+          {templates.length > 0 && (
+            <select
+              className="input text-sm w-auto"
+              value=""
+              onChange={(e) => {
+                if (e.target.value) handleLoadTemplate(e.target.value);
+              }}
+            >
+              <option value="">Carica da template…</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={handleSaveAsTemplate}
+            disabled={savingTemplate}
+            className="btn-secondary text-sm"
+          >
+            {savingTemplate ? "Salvataggio…" : "Salva come template"}
+          </button>
+          {templateMsg && <span className="text-xs text-green-600">{templateMsg}</span>}
         </div>
 
         <div className="flex items-center justify-between pt-3 border-t border-gray-100">
