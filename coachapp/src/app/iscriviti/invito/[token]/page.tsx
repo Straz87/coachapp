@@ -46,6 +46,7 @@ export default async function InvitoPage({
   }
 
   const trainerName = (invite as any).profiles?.full_name || "il tuo trainer";
+  const isFree = !invite.price || Number(invite.price) <= 0;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
@@ -54,8 +55,9 @@ export default async function InvitoPage({
           <p className="text-3xl mb-1">💪</p>
           <h1 className="text-xl font-bold">{trainerName}</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {invite.trial_days > 0 ? `${invite.trial_days} giorni di prova gratuita, poi ` : ""}
-            {invite.price}€/mese
+            {isFree
+              ? "Gratis"
+              : `${invite.trial_days > 0 ? `${invite.trial_days} giorni di prova gratuita, poi ` : ""}${invite.price}€/mese`}
           </p>
         </div>
         {searchParams.annullato && (
@@ -63,7 +65,7 @@ export default async function InvitoPage({
             Pagamento annullato. Puoi riprovare quando vuoi.
           </p>
         )}
-        <InviteSignupForm token={params.token} />
+        <InviteSignupForm token={params.token} isFree={isFree} />
       </div>
     </div>
   );
