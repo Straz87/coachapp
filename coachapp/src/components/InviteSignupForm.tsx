@@ -5,7 +5,13 @@ import { useState } from "react";
 // Form usato nella pagina pubblica /iscriviti/invito/[token]: il cliente
 // inserisce nome, email e password. Prezzo e prova gratuita arrivano già
 // decisi dal trainer (client_invites), il cliente non li vede modificabili.
-export default function InviteSignupForm({ token }: { token: string }) {
+export default function InviteSignupForm({
+  token,
+  isFree = false,
+}: {
+  token: string;
+  isFree?: boolean;
+}) {
   const [form, setForm] = useState({ fullName: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,11 +78,13 @@ export default function InviteSignupForm({ token }: { token: string }) {
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       <button type="submit" disabled={loading} className="btn-primary w-full">
-        {loading ? "Attendi…" : "Continua al pagamento"}
+        {loading ? "Attendi…" : isFree ? "Crea account" : "Continua al pagamento"}
       </button>
-      <p className="text-xs text-gray-400 text-center">
-        Nel passaggio successivo inserisci i dati della carta, in modo sicuro tramite Stripe.
-      </p>
+      {!isFree && (
+        <p className="text-xs text-gray-400 text-center">
+          Nel passaggio successivo inserisci i dati della carta, in modo sicuro tramite Stripe.
+        </p>
+      )}
     </form>
   );
 }
