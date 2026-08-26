@@ -286,26 +286,14 @@ export default function AllenamentoGiorno({
   // Chiamata quando il timer AMRAP finisce (o viene fermato): somma i giri
   // registrati con il tasto "+" durante ogni set e apre l'editor del
   // punteggio già precompilato, così l'atleta deve solo controllare/correggere.
-  function applyTimerResult(index: number, roundsBySet: number[][]) {
+    // Scrive il punteggio sul database (individuale o di gruppo). Usata sia
+  // dal salvataggio manuale dell'atleta sia dal salvataggio automatico a
+  // fine AMRAP, cosi la logica di scrittura resta in un solo posto.
+  async function persistScore(index: number, values: string[], rx: boolean) {
     if (!vm) return;
-    const block = vm.blocks[index];
-    if (!block.score || block.score.type !== "amrap") return;
-    const totalGiri = roundsBySet.reduce((sum, arr) => sum + arr.length, 0);
-    if (totalGiri === 0) return;
-    startEditScore(index);
-    setDraftValues((prev) => {
-      const next = [...prev];
-      next[0] = formatAmrapValue(totalGiri, 0);
-      return next;
-    });
-  }
-
-  async function saveScore(index: number) {
-    if (!vm || draftValues.some((v) => v.trim() === "")) return;
-    setSaving(true);
     const nextScores: ClientScores = {
       ...vm.clientScores,
-      [String(index)]: { values: draftValues.map((v) => v.trim()), rx: draftRx },
+      [String(index)]: { values: values.map((v) => v.trim()), rx },
     };
     setVm({ ...vm, clientScores: nextScores });
 
@@ -325,6 +313,34 @@ export default function AllenamentoGiorno({
         { onConflict: "group_workout_id,client_id" }
       );
     }
+  }
+
+  // Chiamata quando il timer AMRAP finisce (o viene fermato): somma i giri
+  // registrati con il tasto "+" durante ogni set e precompila l'editor del
+  // punteggio. Salva subito i giri sul database (non solo in bozza): se
+  // l'atleta non tocca "Salva" pensando che il numero gia' visibile sia
+  // sufficiente, il punteggio non va comunque perso.
+  function applyTimerResult(index: number, roundsBySet: number[][]) {
+    if (!vm) return;
+    const block = vm.blocks[index];
+    if (!block.score || block.score.type !== "amrap") return;
+    const totalGiri = roundsBySet.reduce((sum, arr) => sum + arr.length, 0);
+    if (totalGiri === 0) return;
+    const sets = Math.max(1, block.score.sets ?? 1);
+    const existing = normalizeEntry(vm.clientScores?.[String(index)]);
+    const values = Array.from({ length: sets }, (_, i) => existing?.values[i] || "");
+    values[0] = formatAmrapValue(totalGiri, 0);
+    const rx = existing?.rx ?? true;
+    startEditScore(index);
+    setDraftValues(values);
+    setDraftRx(rx);
+    persistScore(index, values, rx);
+  }
+
+  async function saveScore(index: number) {
+    if (!vm || draftValues.some((v) => v.trim() === "")) return;
+    setSaving(true);
+    await persistScore(index, draftValues, draftRx);
     setSaving(false);
     setEditingIndex(null);
   }
