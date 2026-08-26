@@ -82,6 +82,8 @@ export default function GroupWeekCalendar({
     blocks: Block[];
     activityType: string | null;
   } | null>(null);
+    const [showTemplatePrompt, setShowTemplatePrompt] = useState(false);
+    const [templateNameDraft, setTemplateNameDraft] = useState("");
 
   const days = getWeekDays(weekStart);
   const todayIso = toISODate(new Date());
@@ -250,8 +252,20 @@ export default function GroupWeekCalendar({
   }
 
   // Salva la settimana visualizzata come modello riutilizzabile.
-  async function saveWeekAsTemplate() {
-    const name = window.prompt('Nome del modello (es. "Settimana forza 5x5")');
+    // Apre il modale per il nome del modello, dopo aver controllato che ci
+  // sia almeno un giorno compilato da salvare.
+  function openSaveAsTemplate() {
+    const hasContent = days.some((d) => !!workouts[d.iso]);
+    if (!hasContent) {
+      alert("Questa settimana non ha allenamenti da salvare come modello.");
+      return;
+    }
+    setTemplateNameDraft("");
+    setShowTemplatePrompt(true);
+  }
+
+  // Salva la settimana visualizzata come modello riutilizzabile.
+  async function saveWeekAsTemplate(name: string) {
     if (!name || !name.trim()) return;
 
     const entries: TemplateDay[] = days
@@ -453,7 +467,7 @@ export default function GroupWeekCalendar({
                     </button>
                   ))}
                   <button
-                    onClick={saveWeekAsTemplate}
+                    onClick={openSaveAsTemplate}
                     className="w-full text-left px-4 py-2.5 text-xs text-brand-dark bg-brand/10 hover:bg-brand/20 font-medium"
                   >
                     + Salva questa settimana come modello
@@ -622,6 +636,44 @@ export default function GroupWeekCalendar({
           onDelete={workouts[editingDate] ? handleDelete : undefined}
           saving={saving}
         />
+      )}
+
+      {showTemplatePrompt && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
+            <p className="text-sm font-semibold text-gray-900">Nome del modello</p>
+            <input
+              autoFocus
+              className="input w-full"
+              placeholder='es. "Settimana forza 5x5"'
+              value={templateNameDraft}
+              onChange={(e) => setTemplateNameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const name = templateNameDraft;
+                  setShowTemplatePrompt(false);
+                  saveWeekAsTemplate(name);
+                }
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowTemplatePrompt(false)} className="btn-secondary text-sm">
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const name = templateNameDraft;
+                  setShowTemplatePrompt(false);
+                  saveWeekAsTemplate(name);
+                }}
+                className="btn-primary text-sm"
+              >
+                Salva
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
