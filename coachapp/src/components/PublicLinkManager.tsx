@@ -17,6 +17,8 @@ type PublicLink = {
   coupon_id: string | null;
   group_id: string | null;
   active: boolean;
+  title: string | null;
+  description: string | null;
 } | null;
 
 export default function PublicLinkManager({
@@ -35,6 +37,8 @@ export default function PublicLinkManager({
   const [couponId, setCouponId] = useState(initialLink?.coupon_id || "");
   const [groupId, setGroupId] = useState(initialLink?.group_id || "");
   const [active, setActive] = useState(!!initialLink?.active);
+  const [title, setTitle] = useState(initialLink?.title || "");
+  const [description, setDescription] = useState(initialLink?.description || "");
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [couponsLoading, setCouponsLoading] = useState(false);
   const [couponsLoaded, setCouponsLoaded] = useState(false);
@@ -42,6 +46,7 @@ export default function PublicLinkManager({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedShowcase, setCopiedShowcase] = useState(false);
   const [origin, setOrigin] = useState("");
 
   useEffect(() => {
@@ -85,6 +90,8 @@ export default function PublicLinkManager({
           coupon_id: couponId || null,
           group_id: groupId || null,
           active: nextActive,
+          title: title || null,
+          description: description || null,
         }),
       });
       if (!res.ok) {
@@ -102,12 +109,23 @@ export default function PublicLinkManager({
   }
 
   const link = `${origin}/iscriviti/${trainerId}`;
+  const showcaseLink = `${origin}/vetrina/${trainerId}`;
 
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleCopyShowcase() {
+    try {
+      await navigator.clipboard.writeText(showcaseLink);
+      setCopiedShowcase(true);
+      setTimeout(() => setCopiedShowcase(false), 2000);
     } catch {
       // ignore
     }
@@ -121,6 +139,32 @@ export default function PublicLinkManager({
           Condividi questo link per far iscrivere nuovi clienti direttamente,
           con pagamento incluso.
         </p>
+      </div>
+
+      <div>
+        <label className="text-xs font-medium text-gray-500">
+          Titolo (mostrato nella pagina vetrina)
+        </label>
+        <input
+          className="input mt-1 text-sm"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Es. Coaching individuale"
+        />
+      </div>
+
+      <div>
+        <label className="text-xs font-medium text-gray-500">
+          Mini bio (mostrata nella pagina vetrina)
+        </label>
+        <textarea
+          className="input mt-1 text-sm w-full"
+          rows={2}
+          maxLength={200}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Es. Programma su misura, seguito passo passo, per i tuoi obiettivi."
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -228,6 +272,27 @@ export default function PublicLinkManager({
           </button>
         </div>
       )}
+
+      <div className="pt-3 mt-1 border-t border-gray-100">
+        <p className="text-xs font-medium text-gray-500 mb-1">Link vetrina (per la bio Instagram)</p>
+        <p className="text-xs text-gray-400 mb-2">
+          Una pagina dove chi ti scopre può scegliere tra i tuoi percorsi pubblici (individuale, gruppi,
+          programmi) prima di iscriversi.
+        </p>
+        <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+          <input
+            readOnly
+            className="flex-1 bg-transparent text-xs text-gray-600 outline-none"
+            value={showcaseLink}
+          />
+          <button
+            className="text-xs font-medium text-brand-600 hover:underline"
+            onClick={handleCopyShowcase}
+          >
+            {copiedShowcase ? "Copiato ✓" : "Copia"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
