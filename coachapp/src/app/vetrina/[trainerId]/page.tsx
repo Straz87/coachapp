@@ -37,67 +37,32 @@ export default async function VetrinaPage({
     );
   }
 
-  const [linkRes, groupsRes, programsRes] = await Promise.all([
-    admin
-      .from("public_signup_links")
-      .select("title, description")
-      .eq("trainer_id", params.trainerId)
-      .eq("active", true)
-      .eq("show_in_vetrina", true)
-      .maybeSingle(),
-    admin
-      .from("workout_groups")
-      .select("id, name, description")
-      .eq("trainer_id", params.trainerId)
-      .eq("public", true)
-      .eq("show_in_vetrina", true)
-      .order("created_at", { ascending: false }),
-    admin
-      .from("programs")
-      .select("id, name, description, length_days")
-      .eq("trainer_id", params.trainerId)
-      .eq("public", true)
-      .eq("show_in_vetrina", true)
-      .order("created_at", { ascending: false }),
-  ]);
+  // Query sequenziali (non Promise.all): una combinazione di piu' .eq()
+  // dentro Promise.all su questo client sembrava non restituire righe
+  // pur essendo la query corretta, quindi le eseguiamo una per una.
+  const linkRes = await admin
+    .from("public_signup_links")
+    .select("title, description")
+    .eq("trainer_id", params.trainerId)
+    .eq("active", true)
+    .eq("show_in_vetrina", true)
+    .maybeSingle();
 
-  // Raw fetch diagnostico: stessa query di linkRes ma fatta a mano, per
-  // capire se il problema e' nel client supabase-js o in PostgREST stesso.
-  const rawUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL +
-    "/rest/v1/public_signup_links?select=title,description&trainer_id=eq." +
-    params.trainerId +
-    "&active=eq.true&show_in_vetrina=eq.true";
-  let rawFetchInfo: unknown = null;
-  try {
-    const rawRes = await fetch(rawUrl, {
-      headers: {
-        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
-        Authorization: "Bearer " + (process.env.SUPABASE_SERVICE_ROLE_KEY || ""),
-        Accept: "application/vnd.pgrst.object+json",
-      },
-      cache: "no-store",
-    });
-    const rawText = await rawRes.text();
-    rawFetchInfo = { status: rawRes.status, body: rawText };
-  } catch (e) {
-    rawFetchInfo = { error: String(e) };
-  }
+  const groupsRes = await admin
+    .from("workout_groups")
+    .select("id, name, description")
+    .eq("trainer_id", params.trainerId)
+    .eq("public", true)
+    .eq("show_in_vetrina", true)
+    .order("created_at", { ascending: false });
 
-  let rawFetchArrayInfo: unknown = null;
-  try {
-    const rawRes2 = await fetch(rawUrl, {
-      headers: {
-        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
-        Authorization: "Bearer " + (process.env.SUPABASE_SERVICE_ROLE_KEY || ""),
-      },
-      cache: "no-store",
-    });
-    const rawText2 = await rawRes2.text();
-    rawFetchArrayInfo = { status: rawRes2.status, body: rawText2 };
-  } catch (e) {
-    rawFetchArrayInfo = { error: String(e) };
-  }
+  const programsRes = await admin
+    .from("programs")
+    .select("id, name, description, length_days")
+    .eq("trainer_id", params.trainerId)
+    .eq("public", true)
+    .eq("show_in_vetrina", true)
+    .order("created_at", { ascending: false });
 
   const link = linkRes.data;
   const groups = groupsRes.data;
@@ -107,9 +72,6 @@ export default async function VetrinaPage({
     link, linkError: linkRes.error,
     groups, groupsError: groupsRes.error,
     programs, programsError: programsRes.error,
-    rawUrl,
-    rawFetchInfo,
-    rawFetchArrayInfo,
   }, null, 2);
 
   type Card = { key: string; title: string; description: string | null; extra?: string; href: string; };
