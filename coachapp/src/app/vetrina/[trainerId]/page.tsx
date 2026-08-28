@@ -23,7 +23,7 @@ export default async function VetrinaPage({
 
   const { data: trainer } = await admin
     .from("profiles")
-    .select("full_name")
+    .select("full_name, vetrina_bio, vetrina_photo_url")
     .eq("id", params.trainerId)
     .eq("role", "trainer")
     .maybeSingle();
@@ -101,12 +101,16 @@ export default async function VetrinaPage({
   }
 
   const firstName = trainer.full_name.split(" ")[0];
+    const photoSrc = trainer.vetrina_photo_url || heroImageDataUri;
+    const bioText =
+          trainer.vetrina_bio ||
+          "Ciao, sono " + firstName + ". Ti alleno con lo stesso impegno che ci metto ogni giorno in palestra: programmi su misura, niente scuse, risultati concreti. Scegli qui sotto il percorso più adatto a te.";
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="relative w-full h-72 sm:h-80 overflow-hidden">
         <img
-          src={heroImageDataUri}
+          src={photoSrc}
           alt={trainer.full_name}
           className="w-full h-full object-cover"
         />
@@ -119,9 +123,7 @@ export default async function VetrinaPage({
 
       <div className="max-w-lg mx-auto p-6">
         <p className="text-gray-600 text-sm text-center mb-6">
-          Ciao, sono {firstName}. Ti alleno con lo stesso impegno che ci metto ogni
-          giorno in palestra: programmi su misura, niente scuse, risultati concreti.
-          Scegli qui sotto il percorso più adatto a te.
+          {bioText}
         </p>
 
         {cards.length === 0 ? (
