@@ -37,7 +37,7 @@ export default async function VetrinaPage({
     );
   }
 
-  const [linkRes, groupsRes, programsRes, bothFiltersRes, titleSelectRes] = await Promise.all([
+  const [linkRes, groupsRes, programsRes] = await Promise.all([
     admin
       .from("public_signup_links")
       .select("title, description")
@@ -59,18 +59,46 @@ export default async function VetrinaPage({
       .eq("public", true)
       .eq("show_in_vetrina", true)
       .order("created_at", { ascending: false }),
-    admin
-      .from("public_signup_links")
-      .select("*")
-      .eq("trainer_id", params.trainerId)
-      .eq("active", true)
-      .eq("show_in_vetrina", true),
-    admin
-      .from("public_signup_links")
-      .select("title, description")
-      .eq("trainer_id", params.trainerId)
-      .maybeSingle(),
   ]);
+
+  // Raw fetch diagnostico: stessa query di linkRes ma fatta a mano, per
+  // capire se il problema e' nel client supabase-js o in PostgREST stesso.
+  const rawUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL +
+    "/rest/v1/public_signup_links?select=title,description&trainer_id=eq." +
+    params.trainerId +
+    "&active=eq.true&show_in_vetrina=eq.true";
+  let rawFetchInfo: unknown = null;
+  try {
+    const rawRes = await fetch(rawUrl, {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+        Authorization: "Bearer " + (process.env.SUPABASE_SERVICE_ROLE_KEY || ""),
+        Accept: "application/vnd.pgrst.object+json",
+      },
+      cache: "no-store",
+    });
+    const rawText = await rawRes.text();
+    rawFetchInfo = { status: rawRes.status, body: rawText };
+  } catch (e) {
+    rawFetchInfo = { error: String(e) };
+  }
+
+  let rawFetchArrayInfo: unknown = null;
+  try {
+    const rawRes2 = await fetch(rawUrl, {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+        Authorization: "Bearer " + (process.env.SUPABASE_SERVICE_ROLE_KEY || ""),
+      },
+      cache: "no-store",
+    });
+    const rawText2 = await rawRes2.text();
+    rawFetchArrayInfo = { status: rawRes2.status, body: rawText2 };
+  } catch (e) {
+    rawFetchArrayInfo = { error: String(e) };
+  }
+
   const link = linkRes.data;
   const groups = groupsRes.data;
   const programs = programsRes.data;
@@ -79,8 +107,9 @@ export default async function VetrinaPage({
     link, linkError: linkRes.error,
     groups, groupsError: groupsRes.error,
     programs, programsError: programsRes.error,
-    bothFiltersRes: bothFiltersRes.data, bothFiltersError: bothFiltersRes.error,
-    titleSelectRes: titleSelectRes.data, titleSelectError: titleSelectRes.error,
+    rawUrl,
+    rawFetchInfo,
+    rawFetchArrayInfo,
   }, null, 2);
 
   type Card = { key: string; title: string; description: string | null; extra?: string; href: string; };
