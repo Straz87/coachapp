@@ -53,6 +53,8 @@ export async function POST(request: Request) {
   const couponId = body?.couponId || null;
   const groupId = body?.groupId || null;
   const active = !!body?.active;
+    const title = typeof body?.title === "string" ? body.title.trim() || null : null;
+    const description = typeof body?.description === "string" ? body.description.trim() || null : null;
 
   if (active && (!price || price <= 0)) {
     return NextResponse.json({ error: "Imposta un prezzo prima di attivare il link" }, { status: 400 });
@@ -65,6 +67,8 @@ export async function POST(request: Request) {
     coupon_id: couponId,
     group_id: groupId,
     active,
+        title,
+        description,
     updated_at: new Date().toISOString(),
   });
 
