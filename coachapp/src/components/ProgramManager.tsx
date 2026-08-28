@@ -218,24 +218,26 @@ function ProgramSignupSettings({
   const [isPublic, setIsPublic] = useState(program.public);
   const [price, setPrice] = useState(program.price != null ? program.price.toString() : "");
   const [trialDays, setTrialDays] = useState(program.trialDays ? program.trialDays.toString() : "");
+  const [lengthDays, setLengthDays] = useState(program.lengthDays ? program.lengthDays.toString() : "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const link = `${origin}/s/${program.id.slice(0, 8)}`;
+  const link = \`\${origin}/s/\${program.id.slice(0, 8)}\`;
 
   async function handleSave() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/trainer/programmi/${program.id}`, {
+      const res = await fetch(\`/api/trainer/programmi/\${program.id}\`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           public: isPublic,
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
+          lengthDays: lengthDays ? Number(lengthDays) : undefined,
         }),
       });
       const data = await res.json();
@@ -246,6 +248,7 @@ function ProgramSignupSettings({
           public: isPublic,
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
+          lengthDays: lengthDays ? Number(lengthDays) : program.lengthDays,
         });
         setSaved(true);
         setTimeout(() => setSaved(false), 2500);
@@ -272,7 +275,18 @@ function ProgramSignupSettings({
         Pubblico (chi ha il link può iscriversi da solo, partendo dal giorno 1)
       </label>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="text-xs font-medium text-gray-500">Durata (giorni)</label>
+          <input
+            type="number"
+            min={1}
+            placeholder="28"
+            className="input mt-1 text-sm"
+            value={lengthDays}
+            onChange={(e) => setLengthDays(e.target.value)}
+          />
+        </div>
         <div>
           <label className="text-xs font-medium text-gray-500">Prezzo (€/mese, 0 = gratis)</label>
           <input
