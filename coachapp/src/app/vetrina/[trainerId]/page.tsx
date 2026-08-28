@@ -37,7 +37,7 @@ export default async function VetrinaPage({
     );
   }
 
-  const [linkRes, groupsRes, programsRes] = await Promise.all([
+  const [linkRes, groupsRes, programsRes, rawLinkRes] = await Promise.all([
     admin
       .from("public_signup_links")
       .select("title, description")
@@ -59,54 +59,34 @@ export default async function VetrinaPage({
       .eq("public", true)
       .eq("show_in_vetrina", true)
       .order("created_at", { ascending: false }),
+    admin
+      .from("public_signup_links")
+      .select("*")
+      .eq("trainer_id", params.trainerId),
   ]);
   const link = linkRes.data;
   const groups = groupsRes.data;
   const programs = programsRes.data;
+  const keyInfo = {
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    keyLen: (process.env.SUPABASE_SERVICE_ROLE_KEY || "").length,
+    keyPrefix: (process.env.SUPABASE_SERVICE_ROLE_KEY || "").slice(0, 8),
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  };
   const debugInfo = JSON.stringify({
     trainerId: params.trainerId,
     link, linkError: linkRes.error,
     groups, groupsError: groupsRes.error,
     programs, programsError: programsRes.error,
+    rawLinkRes: rawLinkRes.data, rawLinkError: rawLinkRes.error,
+    keyInfo,
   }, null, 2);
 
-  type Card = {
-    key: string;
-    title: string;
-    description: string | null;
-    extra?: string;
-    href: string;
-  };
-
+  type Card = { key: string; title: string; description: string | null; extra?: string; href: string; };
   const cards: Card[] = [];
-
-  if (link) {
-    cards.push({
-      key: "individuale",
-      title: link.title || "Coaching individuale",
-      description: link.description,
-      href: "/iscriviti/" + params.trainerId,
-    });
-  }
-
-  for (const group of groups || []) {
-    cards.push({
-      key: "gruppo-" + group.id,
-      title: group.name,
-      description: group.description,
-      href: "/iscriviti/" + params.trainerId + "/" + group.id,
-    });
-  }
-
-  for (const program of programs || []) {
-    cards.push({
-      key: "programma-" + program.id,
-      title: program.name,
-      description: program.description,
-      extra: "Programma di " + program.length_days + " giorni",
-      href: "/iscriviti-programma/" + params.trainerId + "/" + program.id,
-    });
-  }
+  if (link) { cards.push({ key: "individuale", title: link.title || "Coaching individuale", description: link.description, href: "/iscriviti/" + params.trainerId }); }
+  for (const group of groups || []) { cards.push({ key: "gruppo-" + group.id, title: group.name, description: group.description, href: "/iscriviti/" + params.trainerId + "/" + group.id }); }
+  for (const program of programs || []) { cards.push({ key: "programma-" + program.id, title: program.name, description: program.description, extra: "Programma di " + program.length_days + " giorni", href: "/iscriviti-programma/" + params.trainerId + "/" + program.id }); }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -116,7 +96,6 @@ export default async function VetrinaPage({
           <h1 className="text-xl font-bold">{trainer.full_name}</h1>
           <p className="text-gray-500 text-sm mt-1">Scegli il percorso più adatto a te</p>
         </div>
-
         {cards.length === 0 ? (
           <div className="card text-center">
             <p className="text-gray-500 text-sm">Nessun percorso disponibile al momento.</p>
