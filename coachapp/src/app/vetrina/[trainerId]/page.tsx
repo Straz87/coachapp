@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { heroImageDataUri } from "@/lib/heroImage";
 import Link from "next/link";
 
 // Pagina pubblica "vetrina": il trainer la mette nella bio Instagram al
@@ -99,14 +100,29 @@ export default async function VetrinaPage({
     });
   }
 
+  const firstName = trainer.full_name.split(" ")[0];
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-lg mx-auto">
-        <div className="text-center mb-8 mt-4">
-          <p className="text-3xl mb-1">💪</p>
-          <h1 className="text-xl font-bold">{trainer.full_name}</h1>
-          <p className="text-gray-500 text-sm mt-1">Scegli il percorso più adatto a te</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="relative w-full h-72 sm:h-80 overflow-hidden">
+        <img
+          src={heroImageDataUri}
+          alt={trainer.full_name}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 p-6">
+          <h1 className="text-2xl font-bold text-white">{trainer.full_name}</h1>
+          <p className="text-white/90 text-sm mt-1">Personal Coach</p>
         </div>
+      </div>
+
+      <div className="max-w-lg mx-auto p-6">
+        <p className="text-gray-600 text-sm text-center mb-6">
+          Ciao, sono {firstName}. Ti alleno con lo stesso impegno che ci metto ogni
+          giorno in palestra: programmi su misura, niente scuse, risultati concreti.
+          Scegli qui sotto il percorso più adatto a te.
+        </p>
 
         {cards.length === 0 ? (
           <div className="card text-center">
