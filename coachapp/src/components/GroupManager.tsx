@@ -7,6 +7,7 @@ type ClientOption = { id: string; name: string };
 type Group = {
   id: string;
   name: string;
+  description: string | null;
   memberIds: string[];
   public: boolean;
   price: number | null;
@@ -44,7 +45,7 @@ export default function GroupManager({
       .single();
     if (data) {
       setGroups((g) => [
-        { id: data.id, name: data.name, memberIds: [], public: false, price: null, trialDays: 0 },
+        { id: data.id, name: data.name, description: data.description, memberIds: [], public: false, price: null, trialDays: 0 },
         ...g,
       ]);
       setOpenGroup(data.id);
@@ -178,6 +179,7 @@ function GroupSignupSettings({
   const [isPublic, setIsPublic] = useState(group.public);
   const [price, setPrice] = useState(group.price != null ? group.price.toString() : "");
   const [trialDays, setTrialDays] = useState(group.trialDays ? group.trialDays.toString() : "");
+  const [description, setDescription] = useState(group.description || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +198,7 @@ function GroupSignupSettings({
           public: isPublic,
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
+          description,
         }),
       });
       const data = await res.json();
@@ -206,6 +209,7 @@ function GroupSignupSettings({
           public: isPublic,
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
+          description,
         });
         setSaved(true);
         setTimeout(() => setSaved(false), 2500);
@@ -231,6 +235,18 @@ function GroupSignupSettings({
         <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
         Pubblico (chi ha il link può iscriversi da solo)
       </label>
+
+      <div>
+        <label className="text-xs font-medium text-gray-500">Mini bio (mostrata nella pagina vetrina)</label>
+        <textarea
+          className="input mt-1 text-sm w-full"
+          rows={2}
+          maxLength={200}
+          placeholder="Es. Allenamenti di gruppo in stile CrossFit, 3 volte a settimana."
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
