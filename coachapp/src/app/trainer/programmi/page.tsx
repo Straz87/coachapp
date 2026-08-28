@@ -24,6 +24,7 @@ export default async function ProgrammiPage() {
     id: p.id,
     name: p.name,
     description: p.description,
+    showInVetrina: p.show_in_vetrina,
     lengthDays: p.length_days,
     public: p.public,
     price: p.price,
