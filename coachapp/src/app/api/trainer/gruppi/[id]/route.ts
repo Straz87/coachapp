@@ -94,6 +94,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const trialDays = body?.trialDays ? Number(body.trialDays) : 0;
   const couponId = body?.couponId || null;
   const isPublic = !!body?.public;
+    const description =
+          typeof body?.description === "string" ? body.description.trim() || null : (group.description ?? null);
 
   const oldPrice = Number(group.price ?? 0);
   const priceIncreased = newPrice > oldPrice;
@@ -106,6 +108,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       price: newPrice,
       trial_days: trialDays,
       coupon_id: couponId,
+              description,
     })
     .eq("id", params.id);
 
