@@ -11,6 +11,8 @@ import Link from "next/link";
 // per un singolo cliente con un prezzo su misura, che non deve comparire
 // come offerta generale). Letta con il client admin perche va vista da
 // chiunque, anche senza sessione Supabase.
+export const dynamic = "force-dynamic";
+
 export default async function VetrinaPage({
   params,
 }: {
