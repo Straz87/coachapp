@@ -23,7 +23,7 @@ async function requireTrainerContext() {
 }
 
 // PATCH /api/trainer/programmi/[id]
-// Body: { public, price, trialDays, couponId, lengthDays }
+// Body: { public, price, trialDays, couponId, lengthDays, description, showInVetrina }
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const ctx = await requireTrainerContext();
   if (!ctx) {
@@ -51,6 +51,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   const update: Record<string, unknown> = {
     public: isPublic,
+    show_in_vetrina: !!body?.showInVetrina,
     price,
     trial_days: trialDays,
     coupon_id: couponId,
@@ -63,12 +64,12 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     update.length_days = lengthDays;
   }
 
-    // description e' opzionale: la mini bio mostrata nella pagina
-    // vetrina pubblica del trainer.
-    if (body?.description !== undefined) {
-          const description = typeof body.description === "string" ? body.description.trim() || null : null;
-          update.description = description;
-    }
+  // description e' opzionale: la mini bio mostrata nella pagina
+  // vetrina pubblica del trainer.
+  if (body?.description !== undefined) {
+    const description = typeof body.description === "string" ? body.description.trim() || null : null;
+    update.description = description;
+  }
 
   const { error } = await supabase
     .from("programs")
