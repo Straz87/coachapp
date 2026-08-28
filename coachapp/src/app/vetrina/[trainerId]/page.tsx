@@ -37,54 +37,67 @@ export default async function VetrinaPage({
     );
   }
 
-  // Costruiamo la query builder SENZA await, cosi possiamo leggere l'URL
-  // esatto che supabase-js sta per chiamare prima di eseguirla.
-  const linkBuilder = admin
-    .from("public_signup_links")
-    .select("title, description")
-    .eq("trainer_id", params.trainerId)
-    .eq("active", true)
-    .eq("show_in_vetrina", true);
-  // @ts-expect-error accesso a proprieta' interna per debug
-  const builtUrl = linkBuilder.url ? linkBuilder.url.toString() : "NO_URL_PROP";
-  // @ts-expect-error accesso a proprieta' interna per debug
-  const builtHeaders = linkBuilder.headers ? JSON.stringify(linkBuilder.headers) : "NO_HEADERS_PROP";
+  const [{ data: link }, { data: groups }, { data: programs }] = await Promise.all([
+    admin
+      .from("public_signup_links")
+      .select("title, description")
+      .eq("trainer_id", params.trainerId)
+      .eq("active", true)
+      .eq("show_in_vetrina", true)
+      .maybeSingle(),
+    admin
+      .from("workout_groups")
+      .select("id, name, description")
+      .eq("trainer_id", params.trainerId)
+      .eq("public", true)
+      .eq("show_in_vetrina", true)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("programs")
+      .select("id, name, description, length_days")
+      .eq("trainer_id", params.trainerId)
+      .eq("public", true)
+      .eq("show_in_vetrina", true)
+      .order("created_at", { ascending: false }),
+  ]);
 
-  const linkRes = await linkBuilder.maybeSingle();
+  type Card = {
+    key: string;
+    title: string;
+    description: string | null;
+    extra?: string;
+    href: string;
+  };
 
-  const groupsRes = await admin
-    .from("workout_groups")
-    .select("id, name, description")
-    .eq("trainer_id", params.trainerId)
-    .eq("public", true)
-    .eq("show_in_vetrina", true)
-    .order("created_at", { ascending: false });
-
-  const programsRes = await admin
-    .from("programs")
-    .select("id, name, description, length_days")
-    .eq("trainer_id", params.trainerId)
-    .eq("public", true)
-    .eq("show_in_vetrina", true)
-    .order("created_at", { ascending: false });
-
-  const link = linkRes.data;
-  const groups = groupsRes.data;
-  const programs = programsRes.data;
-  const debugInfo = JSON.stringify({
-    trainerId: params.trainerId,
-    builtUrl,
-    builtHeaders,
-    link, linkError: linkRes.error, linkStatus: linkRes.status, linkStatusText: linkRes.statusText,
-    groups, groupsError: groupsRes.error,
-    programs, programsError: programsRes.error,
-  }, null, 2);
-
-  type Card = { key: string; title: string; description: string | null; extra?: string; href: string; };
   const cards: Card[] = [];
-  if (link) { cards.push({ key: "individuale", title: link.title || "Coaching individuale", description: link.description, href: "/iscriviti/" + params.trainerId }); }
-  for (const group of groups || []) { cards.push({ key: "gruppo-" + group.id, title: group.name, description: group.description, href: "/iscriviti/" + params.trainerId + "/" + group.id }); }
-  for (const program of programs || []) { cards.push({ key: "programma-" + program.id, title: program.name, description: program.description, extra: "Programma di " + program.length_days + " giorni", href: "/iscriviti-programma/" + params.trainerId + "/" + program.id }); }
+
+  if (link) {
+    cards.push({
+      key: "individuale",
+      title: link.title || "Coaching individuale",
+      description: link.description,
+      href: "/iscriviti/" + params.trainerId,
+    });
+  }
+
+  for (const group of groups || []) {
+    cards.push({
+      key: "gruppo-" + group.id,
+      title: group.name,
+      description: group.description,
+      href: "/iscriviti/" + params.trainerId + "/" + group.id,
+    });
+  }
+
+  for (const program of programs || []) {
+    cards.push({
+      key: "programma-" + program.id,
+      title: program.name,
+      description: program.description,
+      extra: "Programma di " + program.length_days + " giorni",
+      href: "/iscriviti-programma/" + params.trainerId + "/" + program.id,
+    });
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -94,10 +107,10 @@ export default async function VetrinaPage({
           <h1 className="text-xl font-bold">{trainer.full_name}</h1>
           <p className="text-gray-500 text-sm mt-1">Scegli il percorso più adatto a te</p>
         </div>
+
         {cards.length === 0 ? (
           <div className="card text-center">
             <p className="text-gray-500 text-sm">Nessun percorso disponibile al momento.</p>
-            <pre style={{textAlign:'left', fontSize: 10, whiteSpace: 'pre-wrap', marginTop: 12}}>{debugInfo}</pre>
           </div>
         ) : (
           <div className="space-y-4">
