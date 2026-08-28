@@ -8,6 +8,7 @@ type Group = {
   id: string;
   name: string;
   description: string | null;
+  showInVetrina: boolean;
   memberIds: string[];
   public: boolean;
   price: number | null;
@@ -45,7 +46,16 @@ export default function GroupManager({
       .single();
     if (data) {
       setGroups((g) => [
-        { id: data.id, name: data.name, description: data.description, memberIds: [], public: false, price: null, trialDays: 0 },
+        {
+          id: data.id,
+          name: data.name,
+          description: data.description,
+          showInVetrina: data.show_in_vetrina ?? false,
+          memberIds: [],
+          public: false,
+          price: null,
+          trialDays: 0,
+        },
         ...g,
       ]);
       setOpenGroup(data.id);
@@ -115,6 +125,11 @@ export default function GroupManager({
                       Link attivo
                     </span>
                   )}
+                  {group.showInVetrina && (
+                    <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 font-medium">
+                      In vetrina
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => deleteGroup(group.id)}
@@ -177,6 +192,7 @@ function GroupSignupSettings({
   origin: string;
 }) {
   const [isPublic, setIsPublic] = useState(group.public);
+  const [showInVetrina, setShowInVetrina] = useState(group.showInVetrina);
   const [price, setPrice] = useState(group.price != null ? group.price.toString() : "");
   const [trialDays, setTrialDays] = useState(group.trialDays ? group.trialDays.toString() : "");
   const [description, setDescription] = useState(group.description || "");
@@ -196,6 +212,7 @@ function GroupSignupSettings({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           public: isPublic,
+          showInVetrina,
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
           description,
@@ -207,6 +224,7 @@ function GroupSignupSettings({
       } else {
         onSaved({
           public: isPublic,
+          showInVetrina,
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
           description,
@@ -234,6 +252,15 @@ function GroupSignupSettings({
       <label className="flex items-center gap-2 text-sm cursor-pointer">
         <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
         Pubblico (chi ha il link può iscriversi da solo)
+      </label>
+
+      <label className="flex items-center gap-2 text-sm cursor-pointer">
+        <input
+          type="checkbox"
+          checked={showInVetrina}
+          onChange={(e) => setShowInVetrina(e.target.checked)}
+        />
+        Mostra nella pagina vetrina pubblica
       </label>
 
       <div>
