@@ -39,7 +39,7 @@ export async function GET() {
 }
 
 // POST /api/trainer/public-link
-// Body: { price, trialDays, couponId, active, groupId }
+// Body: { price, trialDays, couponId, active, groupId, title, description, show_in_vetrina }
 export async function POST(request: Request) {
   const ctx = await requireTrainerContext();
   if (!ctx) {
@@ -53,8 +53,9 @@ export async function POST(request: Request) {
   const couponId = body?.couponId || null;
   const groupId = body?.groupId || null;
   const active = !!body?.active;
-    const title = typeof body?.title === "string" ? body.title.trim() || null : null;
-    const description = typeof body?.description === "string" ? body.description.trim() || null : null;
+  const title = typeof body?.title === "string" ? body.title.trim() || null : null;
+  const description = typeof body?.description === "string" ? body.description.trim() || null : null;
+  const showInVetrina = !!body?.show_in_vetrina;
 
   if (active && (!price || price <= 0)) {
     return NextResponse.json({ error: "Imposta un prezzo prima di attivare il link" }, { status: 400 });
@@ -67,8 +68,9 @@ export async function POST(request: Request) {
     coupon_id: couponId,
     group_id: groupId,
     active,
-        title,
-        description,
+    title,
+    description,
+    show_in_vetrina: showInVetrina,
     updated_at: new Date().toISOString(),
   });
 
