@@ -37,7 +37,7 @@ export default async function VetrinaPage({
     );
   }
 
-  const [linkRes, groupsRes, programsRes, rawLinkRes] = await Promise.all([
+  const [linkRes, groupsRes, programsRes, rawLinkRes, activeOnlyRes, vetrinaOnlyRes] = await Promise.all([
     admin
       .from("public_signup_links")
       .select("title, description")
@@ -63,6 +63,16 @@ export default async function VetrinaPage({
       .from("public_signup_links")
       .select("*")
       .eq("trainer_id", params.trainerId),
+    admin
+      .from("public_signup_links")
+      .select("*")
+      .eq("trainer_id", params.trainerId)
+      .eq("active", true),
+    admin
+      .from("public_signup_links")
+      .select("*")
+      .eq("trainer_id", params.trainerId)
+      .eq("show_in_vetrina", true),
   ]);
   const link = linkRes.data;
   const groups = groupsRes.data;
@@ -79,6 +89,8 @@ export default async function VetrinaPage({
     groups, groupsError: groupsRes.error,
     programs, programsError: programsRes.error,
     rawLinkRes: rawLinkRes.data, rawLinkError: rawLinkRes.error,
+    activeOnlyRes: activeOnlyRes.data, activeOnlyError: activeOnlyRes.error,
+    vetrinaOnlyRes: vetrinaOnlyRes.data, vetrinaOnlyError: vetrinaOnlyRes.error,
     keyInfo,
   }, null, 2);
 
