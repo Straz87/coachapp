@@ -224,13 +224,13 @@ function ProgramSignupSettings({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const link = \`\${origin}/s/\${program.id.slice(0, 8)}\`;
+  const link = `${origin}/s/${program.id.slice(0, 8)}`;
 
   async function handleSave() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(\`/api/trainer/programmi/\${program.id}\`, {
+      const res = await fetch(`/api/trainer/programmi/${program.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
