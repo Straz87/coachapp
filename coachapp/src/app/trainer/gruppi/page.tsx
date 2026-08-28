@@ -6,7 +6,7 @@ export default async function GruppiPage() {
 
   const { data: groups } = await supabase
     .from("workout_groups")
-    .select("id, name, description, created_at, public, price, trial_days, group_members(client_id)")
+    .select("id, name, description, show_in_vetrina, created_at, public, price, trial_days, group_members(client_id)")
     .eq("trainer_id", profile.id)
     .order("created_at", { ascending: false });
 
@@ -25,6 +25,7 @@ export default async function GruppiPage() {
     id: g.id,
     name: g.name,
     description: g.description,
+    showInVetrina: g.show_in_vetrina,
     memberIds: (g.group_members || []).map((m: any) => m.client_id),
     public: !!g.public,
     price: g.price,
