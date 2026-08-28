@@ -37,7 +37,7 @@ export default async function VetrinaPage({
     );
   }
 
-  const [linkRes, groupsRes, programsRes, rawLinkRes, activeOnlyRes, vetrinaOnlyRes] = await Promise.all([
+  const [linkRes, groupsRes, programsRes, bothFiltersRes, titleSelectRes] = await Promise.all([
     admin
       .from("public_signup_links")
       .select("title, description")
@@ -62,36 +62,25 @@ export default async function VetrinaPage({
     admin
       .from("public_signup_links")
       .select("*")
-      .eq("trainer_id", params.trainerId),
-    admin
-      .from("public_signup_links")
-      .select("*")
       .eq("trainer_id", params.trainerId)
-      .eq("active", true),
-    admin
-      .from("public_signup_links")
-      .select("*")
-      .eq("trainer_id", params.trainerId)
+      .eq("active", true)
       .eq("show_in_vetrina", true),
+    admin
+      .from("public_signup_links")
+      .select("title, description")
+      .eq("trainer_id", params.trainerId)
+      .maybeSingle(),
   ]);
   const link = linkRes.data;
   const groups = groupsRes.data;
   const programs = programsRes.data;
-  const keyInfo = {
-    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    keyLen: (process.env.SUPABASE_SERVICE_ROLE_KEY || "").length,
-    keyPrefix: (process.env.SUPABASE_SERVICE_ROLE_KEY || "").slice(0, 8),
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
-  };
   const debugInfo = JSON.stringify({
     trainerId: params.trainerId,
     link, linkError: linkRes.error,
     groups, groupsError: groupsRes.error,
     programs, programsError: programsRes.error,
-    rawLinkRes: rawLinkRes.data, rawLinkError: rawLinkRes.error,
-    activeOnlyRes: activeOnlyRes.data, activeOnlyError: activeOnlyRes.error,
-    vetrinaOnlyRes: vetrinaOnlyRes.data, vetrinaOnlyError: vetrinaOnlyRes.error,
-    keyInfo,
+    bothFiltersRes: bothFiltersRes.data, bothFiltersError: bothFiltersRes.error,
+    titleSelectRes: titleSelectRes.data, titleSelectError: titleSelectRes.error,
   }, null, 2);
 
   type Card = { key: string; title: string; description: string | null; extra?: string; href: string; };
