@@ -69,7 +69,7 @@ async function requireTrainerContext() {
 }
 
 // PATCH /api/trainer/gruppi/[id]
-// Body: { public, price, trialDays, couponId }
+// Body: { public, price, trialDays, couponId, description, showInVetrina }
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const ctx = await requireTrainerContext();
   if (!ctx) {
@@ -94,8 +94,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const trialDays = body?.trialDays ? Number(body.trialDays) : 0;
   const couponId = body?.couponId || null;
   const isPublic = !!body?.public;
-    const description =
-          typeof body?.description === "string" ? body.description.trim() || null : (group.description ?? null);
+  const showInVetrina = !!body?.showInVetrina;
+  const description =
+    typeof body?.description === "string" ? body.description.trim() || null : (group.description ?? null);
 
   const oldPrice = Number(group.price ?? 0);
   const priceIncreased = newPrice > oldPrice;
@@ -105,10 +106,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     .from("workout_groups")
     .update({
       public: isPublic,
+      show_in_vetrina: showInVetrina,
       price: newPrice,
       trial_days: trialDays,
       coupon_id: couponId,
-              description,
+      description,
     })
     .eq("id", params.id);
 
