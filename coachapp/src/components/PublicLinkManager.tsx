@@ -19,6 +19,7 @@ type PublicLink = {
   active: boolean;
   title: string | null;
   description: string | null;
+  show_in_vetrina: boolean;
 } | null;
 
 export default function PublicLinkManager({
@@ -39,6 +40,7 @@ export default function PublicLinkManager({
   const [active, setActive] = useState(!!initialLink?.active);
   const [title, setTitle] = useState(initialLink?.title || "");
   const [description, setDescription] = useState(initialLink?.description || "");
+  const [showInVetrina, setShowInVetrina] = useState(!!initialLink?.show_in_vetrina);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [couponsLoading, setCouponsLoading] = useState(false);
   const [couponsLoaded, setCouponsLoaded] = useState(false);
@@ -92,6 +94,7 @@ export default function PublicLinkManager({
           active: nextActive,
           title: title || null,
           description: description || null,
+          show_in_vetrina: showInVetrina,
         }),
       });
       if (!res.ok) {
@@ -166,6 +169,15 @@ export default function PublicLinkManager({
           placeholder="Es. Programma su misura, seguito passo passo, per i tuoi obiettivi."
         />
       </div>
+
+      <label className="flex items-center gap-2 text-sm cursor-pointer">
+        <input
+          type="checkbox"
+          checked={showInVetrina}
+          onChange={(e) => setShowInVetrina(e.target.checked)}
+        />
+        Mostra nella pagina vetrina pubblica
+      </label>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
