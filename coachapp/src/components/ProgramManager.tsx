@@ -8,6 +8,7 @@ type Program = {
   id: string;
   name: string;
   description: string | null;
+  showInVetrina: boolean;
   lengthDays: number;
   memberIds: string[];
   public: boolean;
@@ -52,6 +53,7 @@ export default function ProgramManager({
           id: data.id,
           name: data.name,
           description: data.description,
+          showInVetrina: data.show_in_vetrina ?? false,
           lengthDays: data.length_days,
           memberIds: [],
           public: false,
@@ -147,6 +149,11 @@ export default function ProgramManager({
                       Link attivo
                     </span>
                   )}
+                  {program.showInVetrina && (
+                    <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 font-medium shrink-0">
+                      In vetrina
+                    </span>
+                  )}
                 </button>
                 <Link href={`/trainer/programmi/${program.id}`} className="btn-secondary text-sm shrink-0">
                   Apri
@@ -216,6 +223,7 @@ function ProgramSignupSettings({
   origin: string;
 }) {
   const [isPublic, setIsPublic] = useState(program.public);
+  const [showInVetrina, setShowInVetrina] = useState(program.showInVetrina);
   const [price, setPrice] = useState(program.price != null ? program.price.toString() : "");
   const [trialDays, setTrialDays] = useState(program.trialDays ? program.trialDays.toString() : "");
   const [lengthDays, setLengthDays] = useState(program.lengthDays ? program.lengthDays.toString() : "");
@@ -236,6 +244,7 @@ function ProgramSignupSettings({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           public: isPublic,
+          showInVetrina,
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
           lengthDays: lengthDays ? Number(lengthDays) : undefined,
@@ -248,6 +257,7 @@ function ProgramSignupSettings({
       } else {
         onSaved({
           public: isPublic,
+          showInVetrina,
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
           lengthDays: lengthDays ? Number(lengthDays) : program.lengthDays,
@@ -276,6 +286,15 @@ function ProgramSignupSettings({
       <label className="flex items-center gap-2 text-sm cursor-pointer">
         <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
         Pubblico (chi ha il link può iscriversi da solo, partendo dal giorno 1)
+      </label>
+
+      <label className="flex items-center gap-2 text-sm cursor-pointer">
+        <input
+          type="checkbox"
+          checked={showInVetrina}
+          onChange={(e) => setShowInVetrina(e.target.checked)}
+        />
+        Mostra nella pagina vetrina pubblica
       </label>
 
       <div>
