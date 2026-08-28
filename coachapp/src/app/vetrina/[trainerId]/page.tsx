@@ -37,16 +37,20 @@ export default async function VetrinaPage({
     );
   }
 
-  // Query sequenziali (non Promise.all): una combinazione di piu' .eq()
-  // dentro Promise.all su questo client sembrava non restituire righe
-  // pur essendo la query corretta, quindi le eseguiamo una per una.
-  const linkRes = await admin
+  // Costruiamo la query builder SENZA await, cosi possiamo leggere l'URL
+  // esatto che supabase-js sta per chiamare prima di eseguirla.
+  const linkBuilder = admin
     .from("public_signup_links")
     .select("title, description")
     .eq("trainer_id", params.trainerId)
     .eq("active", true)
-    .eq("show_in_vetrina", true)
-    .maybeSingle();
+    .eq("show_in_vetrina", true);
+  // @ts-expect-error accesso a proprieta' interna per debug
+  const builtUrl = linkBuilder.url ? linkBuilder.url.toString() : "NO_URL_PROP";
+  // @ts-expect-error accesso a proprieta' interna per debug
+  const builtHeaders = linkBuilder.headers ? JSON.stringify(linkBuilder.headers) : "NO_HEADERS_PROP";
+
+  const linkRes = await linkBuilder.maybeSingle();
 
   const groupsRes = await admin
     .from("workout_groups")
@@ -69,7 +73,9 @@ export default async function VetrinaPage({
   const programs = programsRes.data;
   const debugInfo = JSON.stringify({
     trainerId: params.trainerId,
-    link, linkError: linkRes.error,
+    builtUrl,
+    builtHeaders,
+    link, linkError: linkRes.error, linkStatus: linkRes.status, linkStatusText: linkRes.statusText,
     groups, groupsError: groupsRes.error,
     programs, programsError: programsRes.error,
   }, null, 2);
