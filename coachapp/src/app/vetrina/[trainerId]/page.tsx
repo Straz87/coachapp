@@ -5,8 +5,12 @@ import Link from "next/link";
 // posto del link fisso di iscrizione, cosi chi la trova puo scegliere il
 // percorso giusto per lui (coaching individuale, un gruppo o un programma
 // a durata fissa) prima di iscriversi, invece di essere forzato su una
-// sola opzione. Letta con il client admin perche va vista da chiunque,
-// anche senza sessione Supabase.
+// sola opzione. Compaiono qui SOLO le offerte per cui il trainer ha
+// acceso "mostra in vetrina": il flag "pubblico/attivo" da solo serve
+// solo a far funzionare il link diretto (es. un gruppo creato apposta
+// per un singolo cliente con un prezzo su misura, che non deve comparire
+// come offerta generale). Letta con il client admin perche va vista da
+// chiunque, anche senza sessione Supabase.
 export default async function VetrinaPage({
   params,
 }: {
@@ -34,21 +38,24 @@ export default async function VetrinaPage({
   const [{ data: link }, { data: groups }, { data: programs }] = await Promise.all([
     admin
       .from("public_signup_links")
-      .select("price, trial_days, title, description")
+      .select("title, description")
       .eq("trainer_id", params.trainerId)
       .eq("active", true)
+      .eq("show_in_vetrina", true)
       .maybeSingle(),
     admin
       .from("workout_groups")
-      .select("id, name, description, price, trial_days")
+      .select("id, name, description")
       .eq("trainer_id", params.trainerId)
       .eq("public", true)
+      .eq("show_in_vetrina", true)
       .order("created_at", { ascending: false }),
     admin
       .from("programs")
-      .select("id, name, description, length_days, price, trial_days")
+      .select("id, name, description, length_days")
       .eq("trainer_id", params.trainerId)
       .eq("public", true)
+      .eq("show_in_vetrina", true)
       .order("created_at", { ascending: false }),
   ]);
 
@@ -56,48 +63,35 @@ export default async function VetrinaPage({
     key: string;
     title: string;
     description: string | null;
-    priceLabel: string;
     extra?: string;
     href: string;
   };
 
-  function priceLabel(price: number, trialDays: number) {
-    const isFree = Number(price) <= 0;
-    if (isFree) return "Gratuito";
-    const trial = trialDays > 0 ? trialDays + " giorni di prova, poi " : "";
-    return trial + price + "€/mese";
-  }
-
   const cards: Card[] = [];
 
-  if (link && link.price !== null && link.price !== undefined) {
+  if (link) {
     cards.push({
       key: "individuale",
       title: link.title || "Coaching individuale",
       description: link.description,
-      priceLabel: priceLabel(link.price, link.trial_days || 0),
       href: "/iscriviti/" + params.trainerId,
     });
   }
 
   for (const group of groups || []) {
-    if (group.price === null || group.price === undefined) continue;
     cards.push({
       key: "gruppo-" + group.id,
       title: group.name,
       description: group.description,
-      priceLabel: priceLabel(group.price, group.trial_days || 0),
       href: "/iscriviti/" + params.trainerId + "/" + group.id,
     });
   }
 
   for (const program of programs || []) {
-    if (program.price === null || program.price === undefined) continue;
     cards.push({
       key: "programma-" + program.id,
       title: program.name,
       description: program.description,
-      priceLabel: priceLabel(program.price, program.trial_days || 0),
       extra: "Programma di " + program.length_days + " giorni",
       href: "/iscriviti-programma/" + params.trainerId + "/" + program.id,
     });
@@ -120,16 +114,9 @@ export default async function VetrinaPage({
           <div className="space-y-4">
             {cards.map((c) => (
               <Link key={c.key} href={c.href} className="card block hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="font-semibold">{c.title}</h2>
-                    {c.description && <p className="text-gray-500 text-sm mt-1">{c.description}</p>}
-                    {c.extra && <p className="text-gray-400 text-xs mt-1">{c.extra}</p>}
-                  </div>
-                  <span className="text-brand-600 text-sm font-medium whitespace-nowrap">
-                    {c.priceLabel}
-                  </span>
-                </div>
+                <h2 className="font-semibold">{c.title}</h2>
+                {c.description && <p className="text-gray-500 text-sm mt-1">{c.description}</p>}
+                {c.extra && <p className="text-gray-400 text-xs mt-1">{c.extra}</p>}
               </Link>
             ))}
           </div>
