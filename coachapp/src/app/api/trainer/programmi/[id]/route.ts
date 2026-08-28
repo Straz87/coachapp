@@ -63,6 +63,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     update.length_days = lengthDays;
   }
 
+    // description e' opzionale: la mini bio mostrata nella pagina
+    // vetrina pubblica del trainer.
+    if (body?.description !== undefined) {
+          const description = typeof body.description === "string" ? body.description.trim() || null : null;
+          update.description = description;
+    }
+
   const { error } = await supabase
     .from("programs")
     .update(update)
