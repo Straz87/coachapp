@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 // Impostazioni pubbliche di un programma: pubblico/privato e prezzo
-// mensile (0 o vuoto = gratuito) e giorni di prova.
+// mensile (0 o vuoto = gratuito) e giorni di prova, oltre alla durata
+// (length_days) del programma stesso.
 //
 // A differenza della route equivalente dei Gruppi, qui NON sincronizziamo
 // automaticamente il prezzo sugli abbonamenti Stripe degli iscritti già
@@ -22,7 +23,7 @@ async function requireTrainerContext() {
 }
 
 // PATCH /api/trainer/programmi/[id]
-// Body: { public, price, trialDays, couponId }
+// Body: { public, price, trialDays, couponId, lengthDays }
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const ctx = await requireTrainerContext();
   if (!ctx) {
@@ -48,14 +49,23 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const couponId = body?.couponId || null;
   const isPublic = !!body?.public;
 
+  const update: Record<string, unknown> = {
+    public: isPublic,
+    price,
+    trial_days: trialDays,
+    coupon_id: couponId,
+  };
+
+  // lengthDays è opzionale: viene inviato solo quando l'allenatore modifica
+  // la durata del programma dal pannello di gestione.
+  if (body?.lengthDays !== undefined && body?.lengthDays !== null && body?.lengthDays !== "") {
+    const lengthDays = Math.max(1, Number(body.lengthDays) || 1);
+    update.length_days = lengthDays;
+  }
+
   const { error } = await supabase
     .from("programs")
-    .update({
-      public: isPublic,
-      price,
-      trial_days: trialDays,
-      coupon_id: couponId,
-    })
+    .update(update)
     .eq("id", params.id);
 
   if (error) {
