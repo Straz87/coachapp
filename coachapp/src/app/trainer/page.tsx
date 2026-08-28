@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireTrainer } from "@/lib/auth";
 import ClientList, { ClientRow } from "@/components/ClientList";
 import PublicLinkManager from "@/components/PublicLinkManager";
+import VetrinaProfileManager from "@/components/VetrinaProfileManager";
 
 // Stesse soglie usate dal job dei promemoria automatici (/api/cron/reminders),
 // così l'indicatore "da contattare" qui coincide con quando parte l'avviso.
@@ -127,6 +128,7 @@ export default async function TrainerHome() {
       </div>
 
       <PublicLinkManager trainerId={profile.id} groups={groupsData || []} initialLink={linkData} />
+      <VetrinaProfileManager trainerId={profile.id} initialBio={profile.vetrina_bio} initialPhotoUrl={profile.vetrina_photo_url} />
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
         <div className="card">
