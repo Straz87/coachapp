@@ -6,6 +6,7 @@ const NAV_ITEMS = [
 { href: "/trainer/gruppi", label: "Gruppi", icon: "🏷️" },
 { href: "/trainer/programmi", label: "Programmi", icon: "📋" },
 { href: "/trainer/calendario", label: "Calendario", icon: "📅" },
+  { href: "/trainer/vetrina", label: "Vetrina", icon: "🏪" },
 { href: "/trainer/sconti", label: "Sconti", icon: "🎟️" },
 { href: "/trainer/chat", label: "Messaggi", icon: "💬" },
 ];
