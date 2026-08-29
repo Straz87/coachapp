@@ -120,7 +120,7 @@ className="text-xl leading-none p-1 -ml-1"
 >
 ☰
 </button>
-<span className="text-lg font-bold flex-1">💪 Hybridmethod</span>
+<span className="text-lg font-bold flex-1 flex items-center gap-2"><img src="/logo-mark.svg" alt="" className="w-5 h-5 shrink-0" />Hybridmethod</span>
 {trainerId && showMobileBell && <NotificationBell trainerId={trainerId} />}
 </div>
 
@@ -138,7 +138,7 @@ open ? "translate-x-0" : "-translate-x-full"
 }`}
 >
 <div className="px-6 py-6 flex items-center justify-between gap-2">
-<span className="text-xl font-bold">💪 Hybridmethod</span>
+<span className="text-xl font-bold flex items-center gap-2"><img src="/logo-mark.svg" alt="" className="w-[22px] h-[22px] shrink-0" />Hybridmethod</span>
 <div className="hidden md:block">{trainerId && showDesktopBell && <NotificationBell trainerId={trainerId} />}</div>
 <button
 onClick={() => setOpen(false)}
