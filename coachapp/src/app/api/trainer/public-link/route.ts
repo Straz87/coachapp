@@ -53,8 +53,14 @@ export async function POST(request: Request) {
   const couponId = body?.couponId || null;
   const groupId = body?.groupId || null;
   const active = !!body?.active;
-  const title = typeof body?.title === "string" ? body.title.trim() || null : null;
-  const description = typeof body?.description === "string" ? body.description.trim() || null : null;
+  const { data: existingLink } = await supabase
+      .from("public_signup_links")
+      .select("title, description")
+      .eq("trainer_id", profile.id)
+      .maybeSingle();
+  
+  const title = typeof body?.title === "string" ? body.title.trim() || null : existingLink?.title ?? null;
+  const description = typeof body?.description === "string" ? body.description.trim() || null : existingLink?.description ?? null;
   const showInVetrina = !!body?.show_in_vetrina;
 
   if (active && (!price || price <= 0)) {
