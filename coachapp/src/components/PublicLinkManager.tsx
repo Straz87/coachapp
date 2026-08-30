@@ -38,9 +38,7 @@ export default function PublicLinkManager({
   const [couponId, setCouponId] = useState(initialLink?.coupon_id || "");
   const [groupId, setGroupId] = useState(initialLink?.group_id || "");
   const [active, setActive] = useState(!!initialLink?.active);
-  const [title, setTitle] = useState(initialLink?.title || "");
-  const [description, setDescription] = useState(initialLink?.description || "");
-  const [showInVetrina, setShowInVetrina] = useState(!!initialLink?.show_in_vetrina);
+    const [showInVetrina, setShowInVetrina] = useState(!!initialLink?.show_in_vetrina);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [couponsLoading, setCouponsLoading] = useState(false);
   const [couponsLoaded, setCouponsLoaded] = useState(false);
@@ -92,8 +90,6 @@ export default function PublicLinkManager({
           coupon_id: couponId || null,
           group_id: groupId || null,
           active: nextActive,
-          title: title || null,
-          description: description || null,
           show_in_vetrina: showInVetrina,
         }),
       });
@@ -144,33 +140,7 @@ export default function PublicLinkManager({
         </p>
       </div>
 
-      <div>
-        <label className="text-xs font-medium text-gray-500">
-          Titolo (mostrato nella pagina vetrina)
-        </label>
-        <input
-          className="input mt-1 text-sm"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Es. Coaching individuale"
-        />
-      </div>
-
-      <div>
-        <label className="text-xs font-medium text-gray-500">
-          Mini bio (mostrata nella pagina vetrina)
-        </label>
-        <textarea
-          className="input mt-1 text-sm w-full"
-          rows={2}
-          maxLength={200}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Es. Programma su misura, seguito passo passo, per i tuoi obiettivi."
-        />
-      </div>
-
-      <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
         <input
           type="checkbox"
           checked={showInVetrina}
