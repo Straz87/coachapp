@@ -29,6 +29,17 @@ type Coupon = {
   valid: boolean;
 };
 
+type Payment = {
+    id: string;
+    amount: number;
+    currency: string;
+    created: number;
+    paid: boolean;
+    refunded: boolean;
+    amountRefunded: number;
+    description: string | null;
+};
+
 export default function ClientEditForm({ clientId, initial }: Props) {
   const supabase = createClient();
   const router = useRouter();
@@ -49,6 +60,10 @@ export default function ClientEditForm({ clientId, initial }: Props) {
   const [trialDays, setTrialDays] = useState("");
   const [couponId, setCouponId] = useState("");
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(true);
+  const [refundingId, setRefundingId] = useState<string | null>(null);
+  const [refundError, setRefundError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/trainer/stripe/coupons")
@@ -64,6 +79,46 @@ export default function ClientEditForm({ clientId, initial }: Props) {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    loadPayments();
+  }, []);
+
+  function loadPayments() {
+    setLoadingPayments(true);
+    fetch(`/api/trainer/clients/${clientId}/payments`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (Array.isArray(data.payments)) {
+        setPayments(data.payments);
+      }
+    })
+    .catch(() => {})
+    .finally(() => setLoadingPayments(false));
+  }
+
+  async function handleRefund(chargeId: string) {
+    if (!confirm("Rimborsare questo pagamento? L'importo torna sulla carta del cliente.")) return;
+    setRefundingId(chargeId);
+    setRefundError(null);
+    try {
+      const res = await fetch(`/api/trainer/clients/${clientId}/payments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chargeId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRefundError(data.error || "Errore nel rimborso");
+      } else {
+        loadPayments();
+      }
+    } catch {
+      setRefundError("Errore di rete, riprova");
+    } finally {
+      setRefundingId(null);
+    }
+  }
 
   async function handleGenerateLink() {
     setGeneratingLink(true);
@@ -293,6 +348,35 @@ export default function ClientEditForm({ clientId, initial }: Props) {
         )}
       </div>
 
+<div className="pt-4 border-t border-gray-100 space-y-2">
+<h3 className="font-semibold text-sm">Ultimi pagamenti</h3>
+<p className="text-xs text-gray-400">
+Storno diretto dall&apos;app: niente piu dashboard Stripe da aprire per un rimborso.
+</p>
+
+  {loadingPayments ? (
+  <p className="text-xs text-gray-400">Caricamento...</p>
+  ) : payments.length === 0 ? (
+  <p className="text-xs text-gray-400">Nessun pagamento trovato.</p>
+  ) : (
+  <ul className="divide-y divide-gray-100">
+    {payments.map((p) => (
+    <li key={p.id} className="py-2 flex items-center justify-between text-sm">
+    <span>
+      {new Date(p.created).toLocaleDateString("it-IT")} - {p.amount.toFixed(2)} {p.currency.toUpperCase()}
+      {p.refunded && " (rimborsato)"}
+      {!p.paid && " (non riuscito)"}
+    </span>
+      {p.paid && !p.refunded && (
+      <button onClick={() => handleRefund(p.id)} disabled={refundingId === p.id} className="text-xs text-red-600 hover:text-red-700 font-medium shrink-0">{refundingId === p.id ? "Rimborso..." : "Rimborsa"}</button>
+    )}
+    </li>
+    ))}
+  </ul>
+)}
+
+  {refundError && <p className="text-xs text-red-600">{refundError}</p>}
+</div>
       <div className="pt-4 border-t border-gray-100">
         <button
           onClick={handleDelete}
