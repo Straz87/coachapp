@@ -227,7 +227,6 @@ function ProgramSignupSettings({
   const [price, setPrice] = useState(program.price != null ? program.price.toString() : "");
   const [trialDays, setTrialDays] = useState(program.trialDays ? program.trialDays.toString() : "");
   const [lengthDays, setLengthDays] = useState(program.lengthDays ? program.lengthDays.toString() : "");
-  const [description, setDescription] = useState(program.description || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -248,7 +247,6 @@ function ProgramSignupSettings({
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
           lengthDays: lengthDays ? Number(lengthDays) : undefined,
-          description,
         }),
       });
       const data = await res.json();
@@ -261,8 +259,7 @@ function ProgramSignupSettings({
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
           lengthDays: lengthDays ? Number(lengthDays) : program.lengthDays,
-          description,
-        });
+          });
         setSaved(true);
         setTimeout(() => setSaved(false), 2500);
       }
@@ -297,19 +294,7 @@ function ProgramSignupSettings({
         Mostra nella pagina vetrina pubblica
       </label>
 
-      <div>
-        <label className="text-xs font-medium text-gray-500">Mini bio (mostrata nella pagina vetrina)</label>
-        <textarea
-          className="input mt-1 text-sm w-full"
-          rows={2}
-          maxLength={200}
-          placeholder="Es. Percorso di 12 settimane per costruire forza e massa in modo funzionale."
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="text-xs font-medium text-gray-500">Durata (giorni)</label>
           <input
