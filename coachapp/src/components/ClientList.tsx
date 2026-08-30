@@ -5,7 +5,7 @@ import Link from "next/link";
 
 export type ClientRow = {
   id: string;
-  status: "attivo" | "in_scadenza" | "scaduto" | "sospeso";
+  status: "attivo" | "in_scadenza" | "scaduto" | "sospeso" | "in_attesa_pagamento";
   price: number | null;
   expiry_date: string | null;
   profiles: { full_name: string; email: string } | null;
@@ -21,6 +21,7 @@ const STATUS_LABEL: Record<string, string> = {
   in_scadenza: "In scadenza",
   scaduto: "Scaduto",
   sospeso: "Sospeso",
+  in_attesa_pagamento: "In attesa di pagamento",
 };
 
 function activityLabel(daysInactive: number | null | undefined, hasHistory: boolean) {
@@ -89,6 +90,7 @@ export default function ClientList({ clients }: { clients: ClientRow[] }) {
           <option value="in_scadenza">In scadenza</option>
           <option value="scaduto">Scaduto</option>
           <option value="sospeso">Sospeso</option>
+                    <option value="in_attesa_pagamento">In attesa di pagamento</option>
         </select>
         <label className="flex items-center gap-2 text-sm text-gray-500 sm:ml-auto">
           <input
