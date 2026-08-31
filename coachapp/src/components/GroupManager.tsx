@@ -195,6 +195,7 @@ function GroupSignupSettings({
   const [showInVetrina, setShowInVetrina] = useState(group.showInVetrina);
   const [price, setPrice] = useState(group.price != null ? group.price.toString() : "");
   const [trialDays, setTrialDays] = useState(group.trialDays ? group.trialDays.toString() : "");
+  const [description, setDescription] = useState(group.description || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -214,6 +215,7 @@ function GroupSignupSettings({
           showInVetrina,
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
+          description,
           }),
       });
       const data = await res.json();
@@ -225,6 +227,7 @@ function GroupSignupSettings({
           showInVetrina,
           price: price === "" ? 0 : Number(price),
           trialDays: trialDays ? Number(trialDays) : 0,
+          description,
           });
         setSaved(true);
         setTimeout(() => setSaved(false), 2500);
@@ -260,8 +263,19 @@ function GroupSignupSettings({
         Mostra nella pagina vetrina pubblica
       </label>
 
-        <div className="grid grid-cols-2 gap-3">
         <div>
+        <label className="text-xs font-medium text-gray-500">Mini bio (mostrata nella pagina vetrina)</label>
+          <textarea
+              className="input mt-1 text-sm w-full"
+              rows={2}
+              maxLength={200}
+              placeholder="Es. Allenamenti di gruppo in stile CrossFit, 3 volte a settimana."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+        </div>
+      <div className="grid grid-cols-2 gap-3">
+          <div>
           <label className="text-xs font-medium text-gray-500">Prezzo (€/mese, 0 = gratis)</label>
           <input
             type="number"
