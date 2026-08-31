@@ -142,15 +142,16 @@ export default function PublicLinkManager({
           Condividi questo link per far iscrivere nuovi clienti direttamente,
           con pagamento incluso.
         </p>
+      </div>
       <div>
       <label className="text-xs font-medium text-gray-500">Titolo (mostrato nella pagina vetrina)</label>
-      </div>
-        <input
+      <input
             className="input mt-1 text-sm"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Es. Coaching individuale"
           />
+      </div>
 <div>
 <label className="text-xs font-medium text-gray-500">Mini bio (mostrata nella pagina vetrina)</label>
 <textarea
