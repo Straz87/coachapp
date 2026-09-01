@@ -37,9 +37,8 @@ export async function POST(request: Request) {
 
   // Un prezzo di 0€ è un piano gratuito valido (es. un programma pubblico
   // impostato come gratis dal trainer): va comunque fatto passare da
-  // Stripe Checkout per raccogliere la carta, esattamente come fa
-  // l'iscrizione pubblica. Blocchiamo solo il caso in cui il prezzo non è
-  // stato affatto configurato (null/undefined), non quando è zero.
+  // Stripe Checkout, non bloccato. Blocchiamo solo il caso in cui il
+  // prezzo non è stato affatto configurato (null/undefined).
   const price = client.price;
   if (price === null || price === undefined || Number(price) < 0) {
     return NextResponse.json(
@@ -76,6 +75,9 @@ export async function POST(request: Request) {
         metadata: { client_id: client.id, trainer_id: client.trainer_id },
       },
       allow_promotion_codes: true,
+      // Se il prezzo è 0€ o un codice sconto inserito qui azzera il
+      // totale, Stripe salta anche la richiesta della carta.
+      payment_method_collection: "if_required",
       success_url: `${origin}/cliente?pagamento=ok`,
       cancel_url: `${origin}/cliente?pagamento=annullato`,
     });
