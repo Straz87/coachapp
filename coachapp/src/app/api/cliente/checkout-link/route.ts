@@ -75,9 +75,10 @@ export async function POST(request: Request) {
         metadata: { client_id: client.id, trainer_id: client.trainer_id },
       },
       allow_promotion_codes: true,
-      // Se il prezzo è 0€ o un codice sconto inserito qui azzera il
-      // totale, Stripe salta anche la richiesta della carta.
-      payment_method_collection: "if_required",
+      // Chiediamo sempre la carta anche qui: se un codice sconto azzera il
+      // totale di oggi ma poi scade, o il trainer sposta il cliente su un
+      // piano a pagamento, deve poter addebitare senza dover richiedere di
+      // nuovo i dati della carta. Vedi la stessa nota in api/public/signup.
       success_url: `${origin}/cliente?pagamento=ok`,
       cancel_url: `${origin}/cliente?pagamento=annullato`,
     });
