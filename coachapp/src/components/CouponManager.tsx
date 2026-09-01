@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 type Coupon = {
   id: string;
   name: string;
+  code: string | null;
   percentOff: number | null;
   duration: "once" | "repeating" | "forever";
   durationInMonths: number | null;
@@ -117,7 +118,7 @@ export default function CouponManager() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-medium text-gray-500">Nome</label>
+            <label className="text-xs font-medium text-gray-500">Nome (diventa anche il codice)</label>
             <input
               className="input mt-1 text-sm"
               placeholder="es. PRIMI5"
@@ -132,7 +133,7 @@ export default function CouponManager() {
               min={1}
               max={100}
               className="input mt-1 text-sm"
-              placeholder="es. 50"
+              placeholder="es. 50 (100 = gratis)"
               value={percentOff}
               onChange={(e) => setPercentOff(e.target.value)}
             />
@@ -198,7 +199,11 @@ export default function CouponManager() {
       </div>
 
       <div>
-        <h3 className="font-semibold text-sm mb-2">Coupon esistenti</h3>
+        <h3 className="font-semibold text-sm mb-1">Coupon esistenti</h3>
+        <p className="text-xs text-gray-400 mb-2">
+          Ogni coupon ha un codice: chi si iscrive dal link pubblico può digitarlo da solo nella pagina di
+          pagamento, senza che tu debba preparare un link apposta.
+        </p>
         {loading ? (
           <p className="text-gray-400 text-sm">Caricamento…</p>
         ) : error ? (
@@ -214,8 +219,13 @@ export default function CouponManager() {
               return (
                 <div key={c.id} className="card flex items-center justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-sm">{c.name}</span>
+                      {c.code && (
+                        <span className="text-xs font-mono font-semibold bg-brand/10 text-brand-dark rounded-full px-2 py-0.5">
+                          Codice: {c.code}
+                        </span>
+                      )}
                       <span className="text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">
                         {c.percentOff}% — {DURATION_LABELS[c.duration] || c.duration}
                         {c.duration === "repeating" && c.durationInMonths ? ` (${c.durationInMonths} mesi)` : ""}
