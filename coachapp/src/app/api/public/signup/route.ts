@@ -238,11 +238,13 @@ export async function POST(request: Request) {
       ...(couponId
         ? { discounts: [{ coupon: couponId }] }
         : { allow_promotion_codes: true }),
-      // Se un coupon (pre-impostato o inserito dal follower) azzera del
-      // tutto quanto dovuto oggi, Stripe salta anche la richiesta della
-      // carta: utile per iscrizioni realmente gratuite/comp senza dover
-      // comunque chiedere i dati di pagamento.
-      payment_method_collection: "if_required",
+      // Qui chiediamo SEMPRE la carta, anche se un coupon azzera il
+      // totale dovuto oggi: se in futuro lo sconto scade o il trainer
+      // sposta il cliente su un piano a pagamento, deve poter addebitare
+      // subito senza dover rincorrere il cliente per i dati della carta.
+      // Il salto della richiesta carta resta riservato solo ai link
+      // one-to-one generati a mano dal trainer per i clienti che decide
+      // lui di comprare di persona (vedi trainer/stripe/checkout-link).
       success_url: `${origin}${basePath}?ok=1`,
       cancel_url: `${origin}${basePath}?annullato=1`,
     });
