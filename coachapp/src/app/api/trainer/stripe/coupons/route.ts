@@ -3,9 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
 
 // Coupon Stripe riutilizzabili: il trainer li crea quando vuole (sconto %,
-// durata, numero massimo di utilizzi, scadenza opzionale) e poi li applica
-// dal form di generazione link di un cliente. Nessuna promozione fissa nel
-// codice: tutto è gestito qui, on demand.
+// durata, numero massimo di utilizzi, scadenza opzionale). Ogni coupon ha
+// anche un codice promozionale collegato (stesso testo del nome, es.
+// PRIMI5): il trainer può applicarlo lui a mano da un link cliente, oppure
+// darlo a chi si iscrive da solo dal link pubblico, che lo digita nella
+// pagina di pagamento Stripe (allow_promotion_codes nel checkout).
 
 async function requireTrainerProfile() {
   const supabase = createClient();
@@ -19,7 +21,19 @@ async function requireTrainerProfile() {
   return profile;
 }
 
-// GET /api/trainer/stripe/coupons — elenca i coupon esistenti sull'account Stripe
+// Un codice promozionale Stripe accetta solo lettere, numeri, underscore e
+// trattini. Partiamo dal nome che il trainer ha scelto (es. "Primi 5") e lo
+// trasformiamo in qualcosa che il cliente può digitare (es. "PRIMI5").
+function codeFromName(name: string) {
+  const cleaned = name
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]/g, "")
+    .slice(0, 40);
+  return cleaned || `PROMO${Date.now().toString().slice(-6)}`;
+}
+
+// GET /api/trainer/stripe/coupons — elenca i coupon esistenti sull'account
+// Stripe, con il relativo codice promozionale da comunicare al cliente.
 export async function GET() {
   const profile = await requireTrainerProfile();
   if (!profile) {
@@ -28,11 +42,24 @@ export async function GET() {
 
   const stripe = getStripe();
   try {
-    const coupons = await stripe.coupons.list({ limit: 100 });
+    const [coupons, promoCodes] = await Promise.all([
+      stripe.coupons.list({ limit: 100 }),
+      stripe.promotionCodes.list({ limit: 100 }),
+    ]);
+
+    const codeByCoupon = new Map<string, string>();
+    for (const pc of promoCodes.data) {
+      const couponId = typeof pc.coupon === "string" ? pc.coupon : pc.coupon?.id;
+      if (couponId && pc.active && !codeByCoupon.has(couponId)) {
+        codeByCoupon.set(couponId, pc.code);
+      }
+    }
+
     const list = coupons.data
       .map((c) => ({
         id: c.id,
         name: c.name || c.id,
+        code: codeByCoupon.get(c.id) || null,
         percentOff: c.percent_off,
         duration: c.duration,
         durationInMonths: c.duration_in_months,
@@ -92,15 +119,39 @@ export async function POST(request: Request) {
       ...(maxRedemptions ? { max_redemptions: maxRedemptions } : {}),
       ...(redeemBy ? { redeem_by: redeemBy } : {}),
     });
-    return NextResponse.json({ coupon });
+
+    // Crea anche il codice che il cliente digiterà da solo in fase di
+    // pagamento. Se il codice è già in uso (nome duplicato) ci riproviamo
+    // aggiungendo un suffisso, così il coupon non resta senza codice.
+    let code = codeFromName(name);
+    let promotionCode;
+    try {
+      promotionCode = await stripe.promotionCodes.create({
+        coupon: coupon.id,
+        code,
+        ...(maxRedemptions ? { max_redemptions: maxRedemptions } : {}),
+        ...(redeemBy ? { expires_at: redeemBy } : {}),
+      });
+    } catch {
+      code = `${code}${coupon.id.slice(-4).toUpperCase()}`;
+      promotionCode = await stripe.promotionCodes.create({
+        coupon: coupon.id,
+        code,
+        ...(maxRedemptions ? { max_redemptions: maxRedemptions } : {}),
+        ...(redeemBy ? { expires_at: redeemBy } : {}),
+      });
+    }
+
+    return NextResponse.json({ coupon: { ...coupon, code: promotionCode.code } });
   } catch (err: any) {
     console.error("Errore creazione coupon Stripe:", err);
     return NextResponse.json({ error: "Errore Stripe: " + (err?.message || "sconosciuto") }, { status: 500 });
   }
 }
 
-// DELETE /api/trainer/stripe/coupons?id=xxxx — disattiva un coupon (non
-// tocca gli abbonamenti che lo usano già, impedisce solo nuovi utilizzi)
+// DELETE /api/trainer/stripe/coupons?id=xxxx — disattiva il codice
+// promozionale collegato e cancella il coupon (non tocca gli abbonamenti
+// che lo usano già, impedisce solo nuovi utilizzi).
 export async function DELETE(request: Request) {
   const profile = await requireTrainerProfile();
   if (!profile) {
@@ -115,6 +166,12 @@ export async function DELETE(request: Request) {
 
   const stripe = getStripe();
   try {
+    const promoCodes = await stripe.promotionCodes.list({ coupon: id, limit: 100 });
+    await Promise.all(
+      promoCodes.data
+        .filter((pc) => pc.active)
+        .map((pc) => stripe.promotionCodes.update(pc.id, { active: false }))
+    );
     await stripe.coupons.del(id);
     return NextResponse.json({ ok: true });
   } catch (err: any) {
