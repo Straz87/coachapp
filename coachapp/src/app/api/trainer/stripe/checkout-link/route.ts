@@ -92,6 +92,11 @@ export async function POST(request: Request) {
       // sulla stessa sessione: qui il trainer sceglie lui lo sconto da applicare,
       // quindi non serve un campo dove il cliente digita un codice.
       ...(couponId ? { discounts: [{ coupon: couponId }] } : {}),
+      // Se lo sconto (o la prova gratuita) azzera del tutto quanto dovuto
+      // oggi, Stripe salta anche la richiesta della carta: utile per i
+      // clienti one-to-one a cui il trainer vuole dare accesso gratuito
+      // senza chiedere dati di pagamento.
+      payment_method_collection: "if_required",
       success_url: `${origin}/trainer/clienti/${client.id}?pagamento=ok`,
       cancel_url: `${origin}/trainer/clienti/${client.id}?pagamento=annullato`,
     });
