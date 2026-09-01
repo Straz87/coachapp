@@ -9,7 +9,9 @@ import {
   ClientScores,
   TIMER_LABELS,
   scoreLabel,
-  normalizeEntry,
+  readClientScoreEntry,
+  clientScoreKey,
+  getBlockScores,
   displayScoreValue,
   formatAmrapValue,
   parseAmrapValue,
@@ -58,7 +60,7 @@ export default function AllenamentoGiorno({
   const [loading, setLoading] = useState(true);
   const [openBlocks, setOpenBlocks] = useState<Record<number, boolean>>({});
   const [openTimers, setOpenTimers] = useState<Record<number, boolean>>({});
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editing, setEditing] = useState<{ block: number; score: number } | null>(null);
   const [draftValues, setDraftValues] = useState<string[]>([""]);
   const [draftRx, setDraftRx] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -203,7 +205,7 @@ export default function AllenamentoGiorno({
           }
           return results;
     }
-  
+
 
   function isBlockOpen(index: number) {
     return openBlocks[index] ?? index === 0;
@@ -269,31 +271,29 @@ export default function AllenamentoGiorno({
     }
   }
 
-  function startEditScore(index: number) {
-    const sets = Math.max(1, vm?.blocks[index]?.score?.sets ?? 1);
-    const existing = normalizeEntry(vm?.clientScores?.[String(index)]);
+  function startEditScore(blockIndex: number, scoreIndex: number) {
+    const score = getBlockScores(vm?.blocks[blockIndex] as Block)[scoreIndex];
+    const sets = Math.max(1, score?.sets ?? 1);
+    const existing = readClientScoreEntry(vm?.clientScores, blockIndex, scoreIndex);
     const values = Array.from({ length: sets }, (_, i) => existing?.values[i] || "");
     setDraftValues(values);
     setDraftRx(existing?.rx ?? true);
-    setEditingIndex(index);
-    setOpenBlocks((prev) => ({ ...prev, [index]: true }));
+    setEditing({ block: blockIndex, score: scoreIndex });
+    setOpenBlocks((prev) => ({ ...prev, [blockIndex]: true }));
   }
 
   function updateDraftValue(setIndex: number, value: string) {
     setDraftValues((prev) => prev.map((v, i) => (i === setIndex ? value : v)));
   }
 
-  // Chiamata quando il timer AMRAP finisce (o viene fermato): somma i giri
-  // registrati con il tasto "+" durante ogni set e apre l'editor del
-  // punteggio già precompilato, così l'atleta deve solo controllare/correggere.
-    // Scrive il punteggio sul database (individuale o di gruppo). Usata sia
+  // Scrive il punteggio sul database (individuale o di gruppo). Usata sia
   // dal salvataggio manuale dell'atleta sia dal salvataggio automatico a
   // fine AMRAP, cosi la logica di scrittura resta in un solo posto.
-  async function persistScore(index: number, values: string[], rx: boolean) {
+  async function persistScore(blockIndex: number, scoreIndex: number, values: string[], rx: boolean) {
     if (!vm) return;
     const nextScores: ClientScores = {
       ...vm.clientScores,
-      [String(index)]: { values: values.map((v) => v.trim()), rx },
+      [clientScoreKey(blockIndex, scoreIndex)]: { values: values.map((v) => v.trim()), rx },
     };
     setVm({ ...vm, clientScores: nextScores });
 
@@ -317,32 +317,35 @@ export default function AllenamentoGiorno({
 
   // Chiamata quando il timer AMRAP finisce (o viene fermato): somma i giri
   // registrati con il tasto "+" durante ogni set e precompila l'editor del
-  // punteggio. Salva subito i giri sul database (non solo in bozza): se
-  // l'atleta non tocca "Salva" pensando che il numero gia' visibile sia
-  // sufficiente, il punteggio non va comunque perso.
-  function applyTimerResult(index: number, roundsBySet: number[][]) {
+  // punteggio (il primo punteggio "amrap" del blocco). Salva subito i giri
+  // sul database (non solo in bozza): se l'atleta non tocca "Salva" pensando
+  // che il numero gia' visibile sia sufficiente, il punteggio non va
+  // comunque perso.
+  function applyTimerResult(blockIndex: number, roundsBySet: number[][]) {
     if (!vm) return;
-    const block = vm.blocks[index];
-    if (!block.score || block.score.type !== "amrap") return;
+    const block = vm.blocks[blockIndex];
+    const scores = getBlockScores(block);
+    const scoreIndex = scores.findIndex((s) => s.type === "amrap");
+    if (scoreIndex === -1) return;
     const totalGiri = roundsBySet.reduce((sum, arr) => sum + arr.length, 0);
     if (totalGiri === 0) return;
-    const sets = Math.max(1, block.score.sets ?? 1);
-    const existing = normalizeEntry(vm.clientScores?.[String(index)]);
+    const sets = Math.max(1, scores[scoreIndex].sets ?? 1);
+    const existing = readClientScoreEntry(vm.clientScores, blockIndex, scoreIndex);
     const values = Array.from({ length: sets }, (_, i) => existing?.values[i] || "");
     values[0] = formatAmrapValue(totalGiri, 0);
     const rx = existing?.rx ?? true;
-    startEditScore(index);
+    startEditScore(blockIndex, scoreIndex);
     setDraftValues(values);
     setDraftRx(rx);
-    persistScore(index, values, rx);
+    persistScore(blockIndex, scoreIndex, values, rx);
   }
 
-  async function saveScore(index: number) {
+  async function saveScore(blockIndex: number, scoreIndex: number) {
     if (!vm || draftValues.some((v) => v.trim() === "")) return;
     setSaving(true);
-    await persistScore(index, draftValues, draftRx);
+    await persistScore(blockIndex, scoreIndex, draftValues, draftRx);
     setSaving(false);
-    setEditingIndex(null);
+    setEditing(null);
   }
 
   if (loading) {
@@ -436,10 +439,9 @@ export default function AllenamentoGiorno({
 
             <div className="space-y-3">
               {vm.blocks.map((b, i) => {
-                const scoreEntry = normalizeEntry(vm.clientScores?.[String(i)]);
-                const isEditing = editingIndex === i;
+                const scores = getBlockScores(b);
+                const headerEntry = readClientScoreEntry(vm.clientScores, i, 0);
                 const open = isBlockOpen(i);
-                const sets = Math.max(1, b.score?.sets ?? 1);
                 return (
                   <div key={i} className="card">
                     <button
@@ -453,9 +455,11 @@ export default function AllenamentoGiorno({
                         {b.exerciseName && (
                           <span className="text-sm font-semibold text-gray-700">{b.exerciseName}</span>
                         )}
-                        {scoreEntry && (
+                        {headerEntry && scores[0] && (
                           <span className="text-xs font-bold px-2 py-1 rounded-full bg-brand/30 text-brand-dark">
-                            {scoreEntry.rx ? "RX" : "SC"} {displayScoreValue(scoreEntry, b.score?.aggregation, b.score?.type)}
+                            {headerEntry.rx ? "RX" : "SC"}{" "}
+                            {displayScoreValue(headerEntry, scores[0].aggregation, scores[0].type)}
+                            {scores.length > 1 ? " +" : ""}
                           </span>
                         )}
                       </span>
@@ -524,151 +528,153 @@ export default function AllenamentoGiorno({
                           </span>
                         )}
 
-                        {b.score && (
-                          <div className="pt-2 border-t border-gray-100">
-                            <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
-                              <span>Punteggio</span>
-                              <span>{scoreLabel(b.score.type)}</span>
-                            </div>
+                        {scores.map((score, si) => {
+                          const scoreEntry = readClientScoreEntry(vm.clientScores, i, si);
+                          const isEditingThis = editing?.block === i && editing?.score === si;
+                          const sets = Math.max(1, score.sets ?? 1);
+                          const prevEntry = readClientScoreEntry(prevScores, i, si);
+                          return (
+                            <div key={si} className="pt-2 border-t border-gray-100">
+                              <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
+                                <span>Punteggio{scores.length > 1 ? ` ${si + 1}` : ""}</span>
+                                <span>{scoreLabel(score.type)}</span>
+                              </div>
 
-                            {(() => {
-                              const prevEntry = normalizeEntry(prevScores?.[String(i)]);
-                              if (!prevEntry) return null;
-                              return (
+                              {prevEntry && (
                                 <div className="flex items-center gap-2 bg-brand/10 border border-brand/30 rounded-xl px-3 py-2 mb-2">
                                   <span className="text-brand-dark">🕐</span>
                                   <span className="text-sm text-gray-700">
                                     Settimana scorsa:{" "}
                                     <span className="font-semibold">
-                                      {displayScoreValue(prevEntry, b.score?.aggregation, b.score?.type)}{" "}
+                                      {displayScoreValue(prevEntry, score.aggregation, score.type)}{" "}
                                       {prevEntry.rx ? "RX" : "SC"}
                                     </span>
                                   </span>
                                 </div>
-                              );
-                            })()}
+                              )}
 
-                            {isEditing ? (
-                              <div className="space-y-2">
-                                {Array.from({ length: sets }).map((_, setIdx) => {
-                                  if (b.score!.type === "amrap") {
-                                    const { giri, reps } = parseAmrapValue(draftValues[setIdx] || "");
-                                    return (
-                                      <div key={setIdx} className="space-y-1">
-                                        {sets > 1 && (
-                                          <p className="text-xs text-gray-400">Serie {setIdx + 1}</p>
-                                        )}
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <div>
-                                            <label className="text-xs text-gray-500">Giri</label>
-                                            <input
-                                              type="number"
-                                              inputMode="numeric"
-                                              min={0}
-                                              className="input"
-                                              value={giri || ""}
-                                              onChange={(e) =>
-                                                updateDraftValue(
-                                                  setIdx,
-                                                  formatAmrapValue(Number(e.target.value) || 0, reps)
-                                                )
-                                              }
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="text-xs text-gray-500">Reps supplementari</label>
-                                            <input
-                                              type="number"
-                                              inputMode="numeric"
-                                              min={0}
-                                              className="input"
-                                              value={reps || ""}
-                                              onChange={(e) =>
-                                                updateDraftValue(
-                                                  setIdx,
-                                                  formatAmrapValue(giri, Number(e.target.value) || 0)
-                                                )
-                                              }
-                                            />
+                              {isEditingThis ? (
+                                <div className="space-y-2">
+                                  {Array.from({ length: sets }).map((_, setIdx) => {
+                                    if (score.type === "amrap") {
+                                      const { giri, reps } = parseAmrapValue(draftValues[setIdx] || "");
+                                      return (
+                                        <div key={setIdx} className="space-y-1">
+                                          {sets > 1 && (
+                                            <p className="text-xs text-gray-400">Serie {setIdx + 1}</p>
+                                          )}
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                              <label className="text-xs text-gray-500">Giri</label>
+                                              <input
+                                                type="number"
+                                                inputMode="numeric"
+                                                min={0}
+                                                className="input"
+                                                value={giri || ""}
+                                                onChange={(e) =>
+                                                  updateDraftValue(
+                                                    setIdx,
+                                                    formatAmrapValue(Number(e.target.value) || 0, reps)
+                                                  )
+                                                }
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="text-xs text-gray-500">Reps supplementari</label>
+                                              <input
+                                                type="number"
+                                                inputMode="numeric"
+                                                min={0}
+                                                className="input"
+                                                value={reps || ""}
+                                                onChange={(e) =>
+                                                  updateDraftValue(
+                                                    setIdx,
+                                                    formatAmrapValue(giri, Number(e.target.value) || 0)
+                                                  )
+                                                }
+                                              />
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
+                                      );
+                                    }
+                                    return (
+                                      <input
+                                        key={setIdx}
+                                        className="input"
+                                        placeholder={
+                                          sets > 1
+                                            ? `Serie ${setIdx + 1}`
+                                            : "es. 100 kg, 5 giri + 12 rep…"
+                                        }
+                                        value={draftValues[setIdx] || ""}
+                                        onChange={(e) => updateDraftValue(setIdx, e.target.value)}
+                                      />
                                     );
-                                  }
-                                  return (
-                                    <input
-                                      key={setIdx}
-                                      className="input"
-                                      placeholder={
-                                        sets > 1
-                                          ? `Serie ${setIdx + 1}`
-                                          : "es. 100 kg, 5 giri + 12 rep…"
-                                      }
-                                      value={draftValues[setIdx] || ""}
-                                      onChange={(e) => updateDraftValue(setIdx, e.target.value)}
-                                    />
-                                  );
-                                })}
-                                <div className="flex items-center gap-3 text-sm">
-                                  <label className="flex items-center gap-1">
-                                    <input
-                                      type="radio"
-                                      checked={draftRx}
-                                      onChange={() => setDraftRx(true)}
-                                    />
-                                    RX
-                                  </label>
-                                  <label className="flex items-center gap-1">
-                                    <input
-                                      type="radio"
-                                      checked={!draftRx}
-                                      onChange={() => setDraftRx(false)}
-                                    />
-                                    Scalato
-                                  </label>
+                                  })}
+                                  <div className="flex items-center gap-3 text-sm">
+                                    <label className="flex items-center gap-1">
+                                      <input
+                                        type="radio"
+                                        checked={draftRx}
+                                        onChange={() => setDraftRx(true)}
+                                      />
+                                      RX
+                                    </label>
+                                    <label className="flex items-center gap-1">
+                                      <input
+                                        type="radio"
+                                        checked={!draftRx}
+                                        onChange={() => setDraftRx(false)}
+                                      />
+                                      Scalato
+                                    </label>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => saveScore(i, si)}
+                                      disabled={saving}
+                                      className="btn-primary text-sm"
+                                    >
+                                      Salva
+                                    </button>
+                                    <button
+                                      onClick={() => setEditing(null)}
+                                      className="btn-secondary text-sm"
+                                    >
+                                      Annulla
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="flex gap-2">
+                              ) : scoreEntry ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                                    {scoreEntry.rx ? "RX" : "SC"}
+                                  </span>
+                                  <span className="font-semibold flex-1">
+                                    {displayScoreValue(scoreEntry, score.aggregation, score.type)}
+                                  </span>
                                   <button
-                                    onClick={() => saveScore(i)}
-                                    disabled={saving}
-                                    className="btn-primary text-sm"
-                                  >
-                                    Salva
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingIndex(null)}
+                                    onClick={() => startEditScore(i, si)}
                                     className="btn-secondary text-sm"
                                   >
-                                    Annulla
+                                    Modificare il mio punteggio
                                   </button>
                                 </div>
-                              </div>
-                            ) : scoreEntry ? (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                                  {scoreEntry.rx ? "RX" : "SC"}
-                                </span>
-                                <span className="font-semibold flex-1">
-                                  {displayScoreValue(scoreEntry, b.score?.aggregation, b.score?.type)}
-                                </span>
+                              ) : (
                                 <button
-                                  onClick={() => startEditScore(i)}
-                                  className="btn-secondary text-sm"
+                                  onClick={() => startEditScore(i, si)}
+                                  className="w-full text-sm font-semibold px-4 py-3 rounded-full flex items-center justify-center gap-2"
+                                  style={{ background: "#d4f547", color: "#0c1210" }}
                                 >
-                                  Modificare il mio punteggio
+                                  🏆 Inserire il mio punteggio
                                 </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => startEditScore(i)}
-                                className="w-full text-sm font-semibold px-4 py-3 rounded-full flex items-center justify-center gap-2"
-                                style={{ background: "#d4f547", color: "#0c1210" }}
-                              >
-                                🏆 Inserire il mio punteggio
-                              </button>
-                            )}
-                          </div>
-                        )}
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
