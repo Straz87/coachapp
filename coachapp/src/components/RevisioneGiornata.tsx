@@ -9,7 +9,8 @@ import {
   ClientScores,
   TIMER_LABELS,
   scoreLabel,
-  normalizeEntry,
+  getBlockScores,
+  readClientScoreEntry,
   displayScoreValue,
   getTimerSets,
   totalTimerSeconds,
@@ -218,8 +219,8 @@ export default function RevisioneGiornata({
 
       <div className="space-y-3">
         {vm.blocks.map((b, i) => {
-          const scoreEntry = normalizeEntry(vm.clientScores?.[String(i)]);
-          const prevEntry = normalizeEntry(prevScores?.[String(i)]);
+          const scores = getBlockScores(b);
+          const headerEntry = readClientScoreEntry(vm.clientScores, i, 0);
           const open = isBlockOpen(i);
           return (
             <div key={i} className="card">
@@ -234,9 +235,11 @@ export default function RevisioneGiornata({
                   {b.exerciseName && (
                     <span className="text-sm font-semibold text-gray-700">{b.exerciseName}</span>
                   )}
-                  {scoreEntry && (
+                  {headerEntry && scores[0] && (
                     <span className="text-xs font-bold px-2 py-1 rounded-full bg-brand/30 text-brand-dark">
-                      {scoreEntry.rx ? "RX" : "SC"} {displayScoreValue(scoreEntry, b.score?.aggregation, b.score?.type)}
+                      {headerEntry.rx ? "RX" : "SC"}{" "}
+                      {displayScoreValue(headerEntry, scores[0].aggregation, scores[0].type)}
+                      {scores.length > 1 ? " +" : ""}
                     </span>
                   )}
                 </span>
@@ -264,39 +267,43 @@ export default function RevisioneGiornata({
                     </span>
                   )}
 
-                  {b.score && (
-                    <div className="pt-2 border-t border-gray-100 space-y-2">
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <span>Punteggio</span>
-                        <span>{scoreLabel(b.score.type)}</span>
-                      </div>
+                  {scores.map((score, si) => {
+                    const scoreEntry = readClientScoreEntry(vm.clientScores, i, si);
+                    const prevEntry = readClientScoreEntry(prevScores, i, si);
+                    return (
+                      <div key={si} className="pt-2 border-t border-gray-100 space-y-2">
+                        <div className="flex items-center justify-between text-sm text-gray-500">
+                          <span>Punteggio{scores.length > 1 ? ` ${si + 1}` : ""}</span>
+                          <span>{scoreLabel(score.type)}</span>
+                        </div>
 
-                      {prevEntry && (
-                        <div className="flex items-center gap-2 bg-brand/10 border border-brand/30 rounded-xl px-3 py-2">
-                          <span className="text-brand-dark">🕐</span>
-                          <span className="text-sm text-gray-700">
-                            Settimana scorsa:{" "}
-                            <span className="font-semibold">
-                              {displayScoreValue(prevEntry, b.score?.aggregation, b.score?.type)} {prevEntry.rx ? "RX" : "SC"}
+                        {prevEntry && (
+                          <div className="flex items-center gap-2 bg-brand/10 border border-brand/30 rounded-xl px-3 py-2">
+                            <span className="text-brand-dark">🕐</span>
+                            <span className="text-sm text-gray-700">
+                              Settimana scorsa:{" "}
+                              <span className="font-semibold">
+                                {displayScoreValue(prevEntry, score.aggregation, score.type)} {prevEntry.rx ? "RX" : "SC"}
+                              </span>
                             </span>
-                          </span>
-                        </div>
-                      )}
+                          </div>
+                        )}
 
-                      {scoreEntry ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                            {scoreEntry.rx ? "RX" : "SC"}
-                          </span>
-                          <span className="font-semibold">
-                            {displayScoreValue(scoreEntry, b.score?.aggregation, b.score?.type)}
-                          </span>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-400">Nessun punteggio inserito.</p>
-                      )}
-                    </div>
-                  )}
+                        {scoreEntry ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                              {scoreEntry.rx ? "RX" : "SC"}
+                            </span>
+                            <span className="font-semibold">
+                              {displayScoreValue(scoreEntry, score.aggregation, score.type)}
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400">Nessun punteggio inserito.</p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
