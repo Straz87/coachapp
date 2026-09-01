@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import {
   Block,
   ClientScores,
-  normalizeEntry,
+  getBlockScores,
+  readClientScoreEntry,
   numericScoreValue,
   displayScoreValue,
 } from "@/lib/workoutTypes";
@@ -23,6 +24,8 @@ type Point = { date: string; value: number; raw: string; rx: boolean };
 // settimanali (es. "Back Squat 100kg" -> "105kg" la settimana dopo).
 // Non è e non sostituisce un eventuale massimale/1RM: è solo l'andamento
 // dei carichi realmente usati negli allenamenti assegnati.
+// Se un blocco ha più punteggi (es. peso e ripetizioni separati), qui entra
+// solo il primo: è quello pensato per il grafico di progressione.
 export default function ExerciseProgress({ clientId }: { clientId: string }) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
@@ -41,15 +44,16 @@ export default function ExerciseProgress({ clientId }: { clientId: string }) {
       (a.blocks || []).forEach((b, i) => {
         const name = b.exerciseName?.trim();
         if (!name) return;
-        const entry = normalizeEntry(a.client_scores?.[String(i)]);
+        const primaryScore = getBlockScores(b)[0];
+        const entry = readClientScoreEntry(a.client_scores, i, 0);
         if (!entry) return;
-        const value = numericScoreValue(entry, b.score?.aggregation, b.score?.type);
+        const value = numericScoreValue(entry, primaryScore?.aggregation, primaryScore?.type);
         if (value === null) return;
         if (!grouped[name]) grouped[name] = [];
         grouped[name].push({
           date: a.date,
           value,
-          raw: displayScoreValue(entry, b.score?.aggregation, b.score?.type),
+          raw: displayScoreValue(entry, primaryScore?.aggregation, primaryScore?.type),
           rx: entry.rx,
         });
       });
