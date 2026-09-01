@@ -233,7 +233,15 @@ export async function POST(request: Request) {
         },
         ...(trialDays && trialDays > 0 ? { trial_period_days: trialDays } : {}),
       },
-      ...(couponId ? { discounts: [{ coupon: couponId }] } : {}),
+      // Se il trainer ha già scelto lui uno sconto specifico per questo
+      // link (coupon_id salvato su link/gruppo/programma), lo applichiamo
+      // in automatico e non mostriamo il campo codice (Stripe non
+      // permette di combinare le due cose sulla stessa sessione).
+      // Altrimenti lasciamo che sia chi si iscrive a inserire da solo un
+      // eventuale codice tra quelli creati in "Sconti e coupon".
+      ...(couponId
+        ? { discounts: [{ coupon: couponId }] }
+        : { allow_promotion_codes: true }),
       success_url: `${origin}${basePath}?ok=1`,
       cancel_url: `${origin}${basePath}?annullato=1`,
     });
