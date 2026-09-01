@@ -6,9 +6,10 @@ import { getStripe } from "@/lib/stripe";
 // Nessun body: il cliente autenticato genera un link di pagamento per SE
 // STESSO (non per un cliente a scelta, a differenza della route equivalente
 // del trainer). Serve per il pulsante "Paga ora e riattiva" che compare
-// nella schermata di blocco quando l'abbonamento è scaduto o sospeso, così
-// il cliente può pagare direttamente dal telefono senza dover aspettare che
-// il trainer gli generi e gli mandi un link a mano.
+// nella schermata di blocco quando l'abbonamento è scaduto, sospeso o mai
+// stato completato (in_attesa_pagamento), così il cliente può pagare
+// direttamente dal telefono senza dover aspettare che il trainer gli
+// generi e gli mandi un link a mano.
 export async function POST(request: Request) {
   const supabase = createClient();
   const {
@@ -34,8 +35,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Cliente non trovato" }, { status: 404 });
   }
 
+  // Un prezzo di 0€ è un piano gratuito valido (es. un programma pubblico
+  // impostato come gratis dal trainer): va comunque fatto passare da
+  // Stripe Checkout per raccogliere la carta, esattamente come fa
+  // l'iscrizione pubblica. Blocchiamo solo il caso in cui il prezzo non è
+  // stato affatto configurato (null/undefined), non quando è zero.
   const price = client.price;
-  if (!price || Number(price) <= 0) {
+  if (price === null || price === undefined || Number(price) < 0) {
     return NextResponse.json(
       { error: "Il tuo trainer non ha ancora impostato un prezzo. Contattalo per riattivare l'abbonamento." },
       { status: 400 }
@@ -69,6 +75,7 @@ export async function POST(request: Request) {
       subscription_data: {
         metadata: { client_id: client.id, trainer_id: client.trainer_id },
       },
+      allow_promotion_codes: true,
       success_url: `${origin}/cliente?pagamento=ok`,
       cancel_url: `${origin}/cliente?pagamento=annullato`,
     });
