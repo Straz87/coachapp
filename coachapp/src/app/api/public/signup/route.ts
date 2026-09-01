@@ -186,10 +186,6 @@ export async function POST(request: Request) {
   try {
     const stripe = getStripe();
     const origin = new URL(request.url).origin;
-    // I gruppi/programmi gratuiti (price 0) raccolgono comunque la carta:
-    // questo permette al trainer di passare a pagamento in futuro e far
-    // partire l'addebito in automatico, senza dover richiedere di nuovo i
-    // dati di pagamento a chi è già iscritto.
     const basePath = joinProgramId
       ? `/iscriviti-programma/${trainerId}/${joinProgramId}`
       : groupId
@@ -242,6 +238,11 @@ export async function POST(request: Request) {
       ...(couponId
         ? { discounts: [{ coupon: couponId }] }
         : { allow_promotion_codes: true }),
+      // Se un coupon (pre-impostato o inserito dal follower) azzera del
+      // tutto quanto dovuto oggi, Stripe salta anche la richiesta della
+      // carta: utile per iscrizioni realmente gratuite/comp senza dover
+      // comunque chiedere i dati di pagamento.
+      payment_method_collection: "if_required",
       success_url: `${origin}${basePath}?ok=1`,
       cancel_url: `${origin}${basePath}?annullato=1`,
     });
