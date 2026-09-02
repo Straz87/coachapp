@@ -1,24 +1,20 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requireClientRole } from "@/lib/auth";
 import ClientWeekView from "@/components/ClientWeekView";
 import ClientProgramCard from "@/components/ClientProgramCard";
+import MaxesOnboardingPopup from "@/components/MaxesOnboardingPopup";
 
 export default async function ClienteHome() {
   const { supabase, profile } = await requireClientRole();
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id, benchmarks_onboarded")
+    .select("id")
     .eq("profile_id", profile.id)
     .single();
 
   if (!client) {
     return <p className="text-gray-400">Il tuo trainer non ti ha ancora collegato ad un profilo.</p>;
-  }
-
-  if (!client.benchmarks_onboarded) {
-    redirect("/cliente/massimali?onboarding=1");
   }
 
   // Richieste di conferma nuovo prezzo ancora in sospeso: le mostriamo qui
@@ -34,6 +30,8 @@ export default async function ClienteHome() {
 
   return (
     <div className="max-w-2xl">
+      <MaxesOnboardingPopup clientId={client.id} />
+
       <h1 className="text-2xl font-bold mb-1">Ciao {profile.full_name.split(" ")[0]} 👋</h1>
       <p className="text-gray-500 text-sm mb-6">Ecco i tuoi allenamenti della settimana.</p>
 
