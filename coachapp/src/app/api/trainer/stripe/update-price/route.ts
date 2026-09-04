@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
+import { sendPushToProfile } from "@/lib/push";
 
 async function requireTrainerContext() {
   const supabase = createClient();
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id, stripe_subscription_id")
+    .select("id, stripe_subscription_id, profile_id")
     .eq("id", clientId)
     .eq("trainer_id", profile.id)
     .maybeSingle();
