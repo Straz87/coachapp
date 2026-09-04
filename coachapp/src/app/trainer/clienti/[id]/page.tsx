@@ -56,6 +56,12 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           internal_note: client.internal_note,
           payment_managed_by_stripe: client.payment_managed_by_stripe,
           last_payment_at: client.last_payment_at,
+          induction_onboarded: client.induction_onboarded,
+          induction_goal: client.induction_goal,
+          induction_experience: client.induction_experience,
+          induction_days_per_week: client.induction_days_per_week,
+          induction_limitations: client.induction_limitations,
+          induction_notes: client.induction_notes,
         }}
       />
 
