@@ -14,6 +14,12 @@ type Props = {
     internal_note: string | null;
     payment_managed_by_stripe?: boolean;
     last_payment_at?: string | null;
+    induction_onboarded?: boolean;
+    induction_goal?: string | null;
+    induction_experience?: string | null;
+    induction_days_per_week?: number | null;
+    induction_limitations?: string | null;
+    induction_notes?: string | null;
   };
 };
 
@@ -287,6 +293,24 @@ async function handleUpdateSubscriptionPrice() {
           {saving ? "Salvataggio…" : "Salva"}
         </button>
         {saved && <span className="text-green-600 text-sm">Salvato ✓</span>}
+      </div>
+
+      <div className="pt-4 border-t border-gray-100 space-y-2">
+        <h3 className="font-semibold text-sm">Cosa vuole dal programma</h3>
+        {initial.induction_onboarded ? (
+          <div className="text-xs text-gray-600 space-y-1">
+            {initial.induction_goal && <p><span className="text-gray-400">Obiettivo:</span> {initial.induction_goal}</p>}
+            {initial.induction_experience && <p><span className="text-gray-400">Esperienza:</span> {initial.induction_experience}</p>}
+            {initial.induction_days_per_week && <p><span className="text-gray-400">Giorni disponibili:</span> {initial.induction_days_per_week}</p>}
+            {initial.induction_limitations && <p><span className="text-gray-400">Limitazioni:</span> {initial.induction_limitations}</p>}
+            {initial.induction_notes && <p><span className="text-gray-400">Note:</span> {initial.induction_notes}</p>}
+            {!initial.induction_goal && !initial.induction_experience && !initial.induction_limitations && !initial.induction_notes && (
+              <p className="text-gray-400">Ha saltato il questionario.</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">Non ha ancora risposto al questionario di benvenuto.</p>
+        )}
       </div>
 
       <div className="pt-4 border-t border-gray-100 space-y-3">
