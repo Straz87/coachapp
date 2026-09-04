@@ -64,6 +64,8 @@ export default function ClientEditForm({ clientId, initial }: Props) {
   const [loadingPayments, setLoadingPayments] = useState(true);
   const [refundingId, setRefundingId] = useState<string | null>(null);
   const [refundError, setRefundError] = useState<string | null>(null);
+  const [updatingPrice, setUpdatingPrice] = useState(false);
+  const [priceUpdateMsg, setPriceUpdateMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/trainer/stripe/coupons")
@@ -147,6 +149,30 @@ export default function ClientEditForm({ clientId, initial }: Props) {
       setGeneratingLink(false);
     }
   }
+
+async function handleUpdateSubscriptionPrice() {
+  if (!form.price) return;
+  if (!confirm(`Aggiornare l'abbonamento a ${form.price}€/mese dal prossimo rinnovo? Il cliente non deve fare nulla.`)) return;
+  setUpdatingPrice(true);
+  setPriceUpdateMsg(null);
+  try {
+    const res = await fetch("/api/trainer/stripe/update-price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId, price: Number(form.price) }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setPriceUpdateMsg(data.error || "Errore nell'aggiornamento");
+    } else {
+      setPriceUpdateMsg("Prezzo aggiornato ✓ (in vigore dal prossimo rinnovo)");
+    }
+  } catch {
+    setPriceUpdateMsg("Errore di rete, riprova");
+  } finally {
+    setUpdatingPrice(false);
+  }
+}
 
   async function handleCopyLink() {
     if (!paymentLink) return;
@@ -277,6 +303,17 @@ export default function ClientEditForm({ clientId, initial }: Props) {
           <p className="text-xs text-gray-400">
             Ultimo pagamento ricevuto: {new Date(initial.last_payment_at).toLocaleDateString("it-IT")}
           </p>
+        )}
+        {initial.payment_managed_by_stripe && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleUpdateSubscriptionPrice}
+              disabled={updatingPrice || !form.price}
+              className="btn-secondary text-sm"
+            >
+              {updatingPrice ? "Aggiornamento…" : "Aggiorna prezzo abbonamento"}
+            </button>            {priceUpdateMsg && <span className="text-xs text-gray-500">{priceUpdateMsg}</span>}
+          </div>
         )}
 
         <p className="text-xs text-gray-400">
