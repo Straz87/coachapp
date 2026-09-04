@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+€import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
 
@@ -92,6 +92,16 @@ export async function POST(request: Request) {
     });
 
     await supabase.from("clients").update({ price: newPrice }).eq("id", clientId);
+
+        // Avvisa il cliente via notifica push (se l'ha attivata) che il
+        // prezzo del suo abbonamento e' cambiato, cosi' non se lo ritrova
+        // come sorpresa al rinnovo successivo.
+        if (client.profile_id) {
+                await sendPushToProfile(client.profile_id, {
+                          title: "Prezzo abbonamento aggiornato",
+                          body: "Il tuo trainer ha aggiornato il prezzo del tuo abbonamento a " + newPrice + "€/mese, in vigore dal prossimo rinnovo.",
+                });
+        }
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
