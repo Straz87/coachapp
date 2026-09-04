@@ -25,7 +25,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function activityLabel(daysInactive: number | null | undefined, hasHistory: boolean) {
-  if (!hasHistory) return "Mai registrato";
+  if (!hasHistory) return "Nessuna attività";
   if (daysInactive === 0) return "Oggi";
   if (daysInactive === 1) return "Ieri";
   return `${daysInactive} giorni fa`;
