@@ -269,6 +269,13 @@ export default function AllenamentoGiorno({
         { onConflict: "group_workout_id,client_id" }
       );
     }
+    if (nextCompleted) {
+      fetch("/api/notifications/workout-completed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientProfileId: profileId, workoutTitle: vm.title }),
+      }).catch(() => {});
+    }
   }
 
   function startEditScore(blockIndex: number, scoreIndex: number) {
