@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireClientRole } from "@/lib/auth";
 import ClientWeekView from "@/components/ClientWeekView";
 import ClientProgramCard from "@/components/ClientProgramCard";
-import MaxesOnboardingPopup from "@/components/MaxesOnboardingPopup";
+import OnboardingPopups from "@/components/OnboardingPopups";
 
 export default async function ClienteHome() {
   const { supabase, profile } = await requireClientRole();
@@ -30,7 +30,7 @@ export default async function ClienteHome() {
 
   return (
     <div className="max-w-2xl">
-      <MaxesOnboardingPopup clientId={client.id} />
+      <OnboardingPopups clientId={client.id} />
 
       <h1 className="text-2xl font-bold mb-1">Ciao {profile.full_name.split(" ")[0]} 👋</h1>
       <p className="text-gray-500 text-sm mb-6">Ecco i tuoi allenamenti della settimana.</p>
