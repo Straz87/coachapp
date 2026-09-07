@@ -62,6 +62,11 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           induction_days_per_week: client.induction_days_per_week,
           induction_limitations: client.induction_limitations,
           induction_notes: client.induction_notes,
+          induction_sex: client.induction_sex,
+          induction_birth_date: client.induction_birth_date,
+          induction_height_cm: client.induction_height_cm,
+          induction_weight_kg: client.induction_weight_kg,
+          induction_sports_background: client.induction_sports_background,
         }}
       />
 
