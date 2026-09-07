@@ -20,6 +20,11 @@ type Props = {
     induction_days_per_week?: number | null;
     induction_limitations?: string | null;
     induction_notes?: string | null;
+    induction_sex?: string | null;
+    induction_birth_date?: string | null;
+    induction_height_cm?: number | null;
+    induction_weight_kg?: number | null;
+    induction_sports_background?: string | null;
   };
 };
 
@@ -304,7 +309,12 @@ async function handleUpdateSubscriptionPrice() {
             {initial.induction_days_per_week && <p><span className="text-gray-400">Giorni disponibili:</span> {initial.induction_days_per_week}</p>}
             {initial.induction_limitations && <p><span className="text-gray-400">Limitazioni:</span> {initial.induction_limitations}</p>}
             {initial.induction_notes && <p><span className="text-gray-400">Note:</span> {initial.induction_notes}</p>}
-            {!initial.induction_goal && !initial.induction_experience && !initial.induction_limitations && !initial.induction_notes && (
+            {initial.induction_sex && <p><span className="text-gray-400">Sesso:</span> {initial.induction_sex}</p>}
+            {initial.induction_birth_date && <p><span className="text-gray-400">Data di nascita:</span> {new Date(initial.induction_birth_date).toLocaleDateString("it-IT")}</p>}
+            {initial.induction_height_cm && <p><span className="text-gray-400">Altezza:</span> {initial.induction_height_cm} cm</p>}
+            {initial.induction_weight_kg && <p><span className="text-gray-400">Peso:</span> {initial.induction_weight_kg} kg</p>}
+            {initial.induction_sports_background && <p><span className="text-gray-400">Sport praticati:</span> {initial.induction_sports_background}</p>}
+            {!initial.induction_goal && !initial.induction_experience && !initial.induction_limitations && !initial.induction_notes && !initial.induction_sex && !initial.induction_birth_date && !initial.induction_height_cm && !initial.induction_weight_kg && !initial.induction_sports_background && (
               <p className="text-gray-400">Ha saltato il questionario.</p>
             )}
           </div>
