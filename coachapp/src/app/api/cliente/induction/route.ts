@@ -48,6 +48,11 @@ export async function POST(request: Request) {
     if (body?.daysPerWeek) update.induction_days_per_week = Number(body.daysPerWeek);
     if (typeof body?.limitations === "string") update.induction_limitations = body.limitations;
     if (typeof body?.notes === "string") update.induction_notes = body.notes;
+  if (typeof body?.sex === "string" && body.sex) update.induction_sex = body.sex;
+  if (typeof body?.birthDate === "string" && body.birthDate) update.induction_birth_date = body.birthDate;
+  if (body?.heightCm) update.induction_height_cm = Number(body.heightCm);
+  if (body?.weightKg) update.induction_weight_kg = Number(body.weightKg);
+  if (typeof body?.sportsBackground === "string") update.induction_sports_background = body.sportsBackground;
 
   await admin.from("clients").update(update).eq("id", client.id);
 
