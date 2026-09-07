@@ -134,10 +134,10 @@ export default function ProgramManager({
           const open = openProgram === program.id;
           return (
             <div key={program.id} className="card">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <button
                   onClick={() => setOpenProgram(open ? null : program.id)}
-                  className="flex items-center gap-2 text-left flex-1 min-w-0"
+                  className="flex flex-wrap items-center gap-2 text-left flex-1 min-w-0"
                 >
                   <span className="font-semibold truncate">{program.name}</span>
                   <span className="text-xs text-gray-400 shrink-0">{program.lengthDays} giorni</span>
@@ -155,6 +155,7 @@ export default function ProgramManager({
                     </span>
                   )}
                 </button>
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                 <Link href={`/trainer/programmi/${program.id}`} className="btn-secondary text-sm shrink-0">
                   Apri
                 </Link>
@@ -164,6 +165,7 @@ export default function ProgramManager({
                 >
                   Elimina
                 </button>
+                </div>
               </div>
 
               {open && (
