@@ -14,6 +14,11 @@ const GOALS = [
 const LEVELS = ["Principiante", "Intermedio", "Avanzato"];
 
 const DAYS_OPTIONS = [2, 3, 4, 5, 6];
+const SEXES = [
+  { value: "F", label: "Femmina" },
+  { value: "M", label: "Maschio" },
+  { value: "Altro", label: "Altro" },
+];
 
 // Popup facoltativo che compare una sola volta sulla home del cliente per
 // chiedere obiettivo, livello, disponibilita e limitazioni fisiche, cosi
@@ -29,6 +34,11 @@ export default function InductionPopup({ clientId, onDone }: { clientId: string;
   const [limitations, setLimitations] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sex, setSex] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [heightCm, setHeightCm] = useState("");
+  const [weightKg, setWeightKg] = useState("");
+  const [sportsBackground, setSportsBackground] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -73,7 +83,7 @@ export default function InductionPopup({ clientId, onDone }: { clientId: string;
       await fetch("/api/cliente/induction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal, experience, daysPerWeek, limitations, notes }),
+        body: JSON.stringify({ goal, experience, daysPerWeek, limitations, sex, birthDate, heightCm, weightKg, sportsBackground, notes }),
       });
     } catch (e) {}
     setSaving(false);
@@ -118,6 +128,30 @@ export default function InductionPopup({ clientId, onDone }: { clientId: string;
           <div>
             <label className="text-sm text-gray-600 block mb-1">Altro che vorresti farci sapere</label>
             <textarea className="input w-full" rows={2} placeholder="Preferenze, orari, sport praticati..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">Sesso</label>
+            <div className="flex gap-2">
+              {SEXES.map((s) => <button key={s.value} type="button" onClick={() => setSex(s.value)} className={`flex-1 text-xs py-2 rounded-lg border ${sex === s.value ? "bg-black text-white border-black" : "border-gray-200 text-gray-600"}`}>{s.label}</button>)}
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-sm text-gray-600 block mb-1">Data di nascita</label>
+              <input type="date" className="input w-full" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+            </div>
+            <div className="flex-1">
+              <label className="text-sm text-gray-600 block mb-1">Altezza (cm)</label>
+              <input type="number" className="input w-full" placeholder="Es. 175" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
+            </div>
+            <div className="flex-1">
+              <label className="text-sm text-gray-600 block mb-1">Peso (kg)</label>
+              <input type="number" className="input w-full" placeholder="Es. 72" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">Sport praticati in passato</label>
+            <input type="text" className="input w-full" placeholder="Es. calcio, nuoto, palestra..." value={sportsBackground} onChange={(e) => setSportsBackground(e.target.value)} />
           </div>
         </div>
         <div className="p-5 pt-3 border-t border-gray-100 flex gap-2 shrink-0">
