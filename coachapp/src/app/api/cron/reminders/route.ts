@@ -19,6 +19,7 @@ import { sendPushToProfile } from "@/lib/push";
 const INACTIVITY_DAYS = 5;
 const EXPIRY_DAYS = 5;
 const REMIND_EVERY_DAYS = 7; // non ripetere lo stesso avviso più spesso di così
+const INDUCTION_REMINDER_AFTER_DAYS = 1; // manda un solo promemoria se il cliente non ha completato il questionario di benvenuto entro questo numero di giorni dall'iscrizione
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -32,12 +33,12 @@ export async function GET(request: Request) {
   const { data: clients } = await admin
     .from("clients")
     .select(
-      "id, profile_id, trainer_id, status, expiry_date, start_date, created_at, last_inactivity_reminder_sent_at, last_expiry_reminder_sent_at, profiles:profile_id(full_name)"
+      "id, profile_id, trainer_id, status, expiry_date, start_date, created_at, last_inactivity_reminder_sent_at, last_expiry_reminder_sent_at, induction_onboarded, induction_reminder_sent_at, profiles:profile_id(full_name)"
     )
     .in("status", ["attivo", "in_scadenza"]);
 
   if (!clients || clients.length === 0) {
-    return NextResponse.json({ ok: true, clients: 0, inactivityCount: 0, expiryCount: 0 });
+    return NextResponse.json({ ok: true, clients: 0, inactivityCount: 0, expiryCount: 0, inductionReminderCount: 0 });
   }
 
   const { data: individualDone } = await admin
@@ -61,6 +62,7 @@ export async function GET(request: Request) {
 
   let inactivityCount = 0;
   let expiryCount = 0;
+  let inductionReminderCount = 0;
 
   for (const c of clients as any[]) {
     const clientName = c.profiles?.full_name || "Cliente";
@@ -110,6 +112,20 @@ export async function GET(request: Request) {
       }
     }
 
+  // --- Promemoria induction (questionario di benvenuto) ---
+  if (!c.induction_onboarded && !c.induction_reminder_sent_at && daysSinceJoined >= INDUCTION_REMINDER_AFTER_DAYS) {
+    await sendPushToProfile(c.profile_id, {
+      title: "Raccontaci di te",
+      body: "Prenditi un minuto per rispondere alle domande di benvenuto: ci aiuta a preparare il tuo programma su misura.",
+      url: "/cliente",
+    });
+    await admin
+      .from("clients")
+      .update({ induction_reminder_sent_at: now.toISOString() })
+      .eq("id", c.id);
+    inductionReminderCount++;
+  }
+
     // --- Abbonamento in scadenza ---
     if (c.expiry_date) {
       const expiry = new Date(`${c.expiry_date}T00:00:00`);
@@ -140,5 +156,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, clients: clients.length, inactivityCount, expiryCount });
+  return NextResponse.json({ ok: true, clients: clients.length, inactivityCount, expiryCount, inductionReminderCount });
 }
