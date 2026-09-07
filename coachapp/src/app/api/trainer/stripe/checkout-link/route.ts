@@ -76,7 +76,10 @@ export async function POST(request: Request) {
     if (!requiresFutureCard && couponId) {
       try {
         const coupon = await stripe.coupons.retrieve(couponId);
-        requiresFutureCard = coupon.duration !== "forever";
+        const isFullyFree =
+          coupon.duration === "forever" &&
+          (coupon.percent_off === 100 || (coupon.amount_off && coupon.amount_off >= Math.round(Number(price) * 100)));
+        requiresFutureCard = !isFullyFree;
       } catch {
         requiresFutureCard = true;
       }
