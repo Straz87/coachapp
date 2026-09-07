@@ -64,6 +64,24 @@ export async function POST(request: Request) {
   const clientName = client.profiles?.full_name || "Cliente";
 
   try {
+    // Se c'è una prova gratuita (trialDays) o uno sconto che non dura per
+    // sempre, il cliente dovrà comunque pagare in futuro: in quel caso
+    // vogliamo sempre la carta salvata, altrimenti Stripe la salta perché
+    // l'importo dovuto oggi è zero, e al termine della prova/sconto il
+    // primo addebito vero fallisce per mancanza di un metodo di pagamento
+    // salvato. Il salto della carta resta riservato solo a uno sconto
+    // permanente (coupon "per sempre"), l'unico caso senza nessun addebito
+    // futuro.
+    let requiresFutureCard = !!(trialDays && trialDays > 0);
+    if (!requiresFutureCard && couponId) {
+      try {
+        const coupon = await stripe.coupons.retrieve(couponId);
+        requiresFutureCard = coupon.duration !== "forever";
+      } catch {
+        requiresFutureCard = true;
+      }
+    }
+
     // Riusa il customer Stripe se già esiste (rinnovi/nuovi link successivi),
     // altrimenti lascia che sia Checkout a crearlo dall'email del cliente.
     const session = await stripe.checkout.sessions.create({
@@ -92,11 +110,11 @@ export async function POST(request: Request) {
       // sulla stessa sessione: qui il trainer sceglie lui lo sconto da applicare,
       // quindi non serve un campo dove il cliente digita un codice.
       ...(couponId ? { discounts: [{ coupon: couponId }] } : {}),
-      // Se lo sconto (o la prova gratuita) azzera del tutto quanto dovuto
-      // oggi, Stripe salta anche la richiesta della carta: utile per i
-      // clienti one-to-one a cui il trainer vuole dare accesso gratuito
-      // senza chiedere dati di pagamento.
-      payment_method_collection: "if_required",
+      // Se non c'è nessun addebito futuro previsto (sconto permanente o
+      // nessuno sconto/prova con importo a zero oggi), lasciamo che Stripe
+      // salti la richiesta della carta; altrimenti la chiediamo sempre,
+      // vedi "requiresFutureCard" sopra.
+      payment_method_collection: requiresFutureCard ? "always" : "if_required",
       success_url: `${origin}/trainer/clienti/${client.id}?pagamento=ok`,
       cancel_url: `${origin}/trainer/clienti/${client.id}?pagamento=annullato`,
     });
