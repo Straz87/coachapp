@@ -267,6 +267,25 @@ return next;
 });
 }
 
+function moveBlock(index: number, direction: -1 | 1) {
+  const target = index + direction;
+  if (target < 0 || target >= blocks.length) return;
+  setBlocks((b) => {
+    const next = [...b];
+    [next[index], next[target]] = [next[target], next[index]];
+    return next;
+  });
+  setOpenBlocks((s) => {
+    const next = new Set<number>();
+    s.forEach((i) => {
+      if (i === index) next.add(target);
+      else if (i === target) next.add(index);
+      else next.add(i);
+    });
+    return next;
+  });
+}
+
 function toggleBlock(index: number) {
 setOpenBlocks((s) => {
 const next = new Set(s);
@@ -322,16 +341,37 @@ activityType === t
 </div>
 
 <div className="space-y-2">
-{blocks.map((block, i) => (
+{blocks.map((block, i) => (<div key={i} className="flex items-start gap-1">
+<div className="flex-1 min-w-0">
 <BlockEditor
-key={i}
 block={block}
 open={openBlocks.has(i)}
 onToggle={() => toggleBlock(i)}
 onChange={(patch) => updateBlock(i, patch)}
 onRemove={() => removeBlock(i)}
 />
-))}
+</div>
+<div className="flex flex-col shrink-0 pt-1">
+<button
+type="button"
+onClick={() => moveBlock(i, -1)}
+disabled={i === 0}
+className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs px-1.5 py-0.5 leading-none"
+title="Sposta su"
+>
+▲
+</button>
+<button
+type="button"
+onClick={() => moveBlock(i, 1)}
+disabled={i === blocks.length - 1}
+className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs px-1.5 py-0.5 leading-none"
+title="Sposta giù"
+>
+▼
+</button>
+</div>
+</div>))}
 </div>
 
 <div className="flex flex-wrap items-center gap-2">
