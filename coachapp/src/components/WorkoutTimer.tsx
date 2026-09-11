@@ -151,7 +151,7 @@ export default function WorkoutTimer({
   // FOR TIME: beep quando si raggiunge l'obiettivo (una sola volta)
   useEffect(() => {
     if (useNewEngine) return;
-    if (isCountUp && running && elapsed >= classicSeconds && !targetReached) {
+    if (isCountUp && !timer.noCap && running && elapsed >= classicSeconds && !targetReached) {
       setTargetReached(true);
       playBeep(660, 400);
     }
@@ -512,7 +512,7 @@ export default function WorkoutTimer({
 
   // --- Rendering: motore classico (FOR TIME) ---
   const mainDisplay = formatClock(elapsed);
-  const caption = `Obiettivo: ${formatClock(classicSeconds)}`;
+  const caption = timer.noCap ? "Cronometro libero" : `Obiettivo: ${formatClock(classicSeconds)}`;
 
   return (
     <div className="mt-2 rounded-xl border border-gray-200 bg-white p-3">
