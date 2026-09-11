@@ -583,7 +583,13 @@ export default function GroupWeekCalendar({
                               <IconEdit className="w-3.5 h-3.5" />
                               Modifica
                             </button>
-                            <button
+                            <Link
+href={`/trainer/tabellone/${day.iso}?g=${w.id}`}
+className="w-full flex items-center gap-2 text-left px-3 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100"
+>
+🏆 Tabellone
+</Link>
+<button
                               onClick={() => copySessionToClipboard(w)}
                               className="w-full flex items-center gap-2 text-left px-3 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100"
                             >
