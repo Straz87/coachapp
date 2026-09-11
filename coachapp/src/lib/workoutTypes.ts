@@ -83,6 +83,10 @@ export type TimerConfig = {
   rounds?: number;
   restMinutes?: number;
   restSeconds?: number;
+  // Solo per FOR TIME: se true, il timer e' un cronometro libero senza un
+  // tempo obiettivo -- parte da zero e conta finche' il trainer/atleta non
+  // lo ferma manualmente, utile quando non c'e' un tempo massimo prestabilito.
+  noCap?: boolean;
 };
 
 // Ricava l'elenco dei set di un timer, sia che sia stato salvato nel formato
