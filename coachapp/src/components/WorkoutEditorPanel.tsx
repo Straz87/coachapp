@@ -52,6 +52,9 @@ return `${TIMER_LABELS[t.type]} ${s.minutes}:${String(s.seconds).padStart(2, "0"
 }
 const minutes = t.minutes ?? 0;
 const seconds = t.seconds ?? 0;
+if (t.type === "FOR_TIME" && t.noCap) {
+return `${TIMER_LABELS[t.type]} · senza limite`;
+}
 return `${TIMER_LABELS[t.type]} ${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
@@ -763,6 +766,22 @@ className={`w-10 h-10 rounded-lg flex items-center justify-center text-white shr
 <TabataEditor timer={block.timer!} onChange={(nt) => onChange({ timer: nt })} />
 ) : (
 <div className="space-y-2">
+<label className="flex items-center gap-2 text-sm cursor-pointer">
+<input
+type="checkbox"
+checked={!!block.timer!.noCap}
+onChange={(e) => onChange({ timer: { ...block.timer!, noCap: e.target.checked } })}
+/>
+Senza tempo prestabilito (cronometro libero)
+</label>
+{block.timer!.noCap ? (
+<p className="text-xs text-gray-400">
+Il cronometro parte da zero e conta il tempo impiegato, senza un obiettivo fisso: utile
+per un lavoro da cronometrare libero, sia che lo diriga tu dal vivo sia che lo faccia
+il cliente per conto suo.
+</p>
+) : (
+<>
 <DurationField
 minutes={block.timer!.minutes ?? 0}
 seconds={block.timer!.seconds ?? 0}
@@ -774,6 +793,8 @@ label="Durata"
 Tempo massimo per completare l&apos;allenamento. Il cliente registra il tempo
 impiegato quando finisce.
 </p>
+</>
+)}
 </div>
 )}
 </div>
