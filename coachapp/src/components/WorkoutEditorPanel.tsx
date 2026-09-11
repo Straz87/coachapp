@@ -304,8 +304,8 @@ const datePill = formatDatePill(date);
 
 return (
 <>
-<div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-<div className="bg-white rounded-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto p-6 space-y-5">
+<div className="fixed inset-0 z-50 pointer-events-none">
+<div className="absolute inset-y-0 right-0 w-full sm:max-w-md h-full bg-white overflow-y-auto p-6 space-y-5 shadow-2xl border-l border-gray-200 pointer-events-auto">
 <div className="flex items-center gap-2 text-gray-400">
 <IconEdit className="w-4 h-4" />
 <p className="text-xs font-medium uppercase tracking-wide">Modifica la sessione</p>
