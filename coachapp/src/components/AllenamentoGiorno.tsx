@@ -483,7 +483,7 @@ export default function AllenamentoGiorno({
                           {b.timer ? (
                             <span>
                               ⏱ {TIMER_LABELS[b.timer.type]} ·{" "}
-                              {formatClock(totalTimerSeconds(getTimerSets(b.timer)))}
+                              {b.timer.noCap ? "cronometro libero" : formatClock(totalTimerSeconds(getTimerSets(b.timer)))}
                             </span>
                           ) : (
                             <span>⏱ Nessun cronometro</span>
