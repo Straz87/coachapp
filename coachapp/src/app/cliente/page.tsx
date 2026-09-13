@@ -3,6 +3,7 @@ import { requireClientRole } from "@/lib/auth";
 import ClientWeekView from "@/components/ClientWeekView";
 import ClientProgramCard from "@/components/ClientProgramCard";
 import OnboardingPopups from "@/components/OnboardingPopups";
+import InductionReopenBanner from "@/components/InductionReopenBanner";
 
 export default async function ClienteHome() {
   const { supabase, profile } = await requireClientRole();
@@ -31,6 +32,7 @@ export default async function ClienteHome() {
   return (
     <div className="max-w-2xl">
       <OnboardingPopups clientId={client.id} />
+      <InductionReopenBanner clientId={client.id} />
 
       <h1 className="text-2xl font-bold mb-1">Ciao {profile.full_name.split(" ")[0]} 👋</h1>
       <p className="text-gray-500 text-sm mb-6">Ecco i tuoi allenamenti della settimana.</p>
