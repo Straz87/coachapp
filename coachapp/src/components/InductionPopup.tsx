@@ -25,7 +25,7 @@ const SEXES = [
 // il trainer sa subito cosa vuole il cliente dal programma. Si puo
 // saltare con "Piu tardi" e non ricompare piu (stesso pattern del popup
 // massimali). Usa il flag induction_onboarded sulla tabella clients.
-export default function InductionPopup({ clientId, onDone }: { clientId: string; onDone: () => void }) {
+export default function InductionPopup({ clientId, onDone, forceOpen }: { clientId: string; onDone: () => void; forceOpen?: boolean }) {
   const supabase = createClient();
   const [visible, setVisible] = useState(false);
   const [goal, setGoal] = useState("");
@@ -41,6 +41,10 @@ export default function InductionPopup({ clientId, onDone }: { clientId: string;
   const [sportsBackground, setSportsBackground] = useState("");
 
   useEffect(() => {
+    if (forceOpen) {
+      setVisible(true);
+      return;
+    }
     let isMounted = true;
     async function load() {
       const { data: client } = await supabase
@@ -61,7 +65,7 @@ export default function InductionPopup({ clientId, onDone }: { clientId: string;
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId]);
+  }, [clientId, forceOpen]);
 
   async function handleSkip() {
     setSaving(true);
@@ -155,7 +159,7 @@ export default function InductionPopup({ clientId, onDone }: { clientId: string;
           </div>
         </div>
         <div className="p-5 pt-3 border-t border-gray-100 flex gap-2 shrink-0">
-          <button onClick={handleSkip} disabled={saving} className="btn-secondary flex-1">Piu tardi</button>
+          <button onClick={handleSkip} disabled={saving} className="btn-secondary flex-1">{forceOpen ? "Chiudi" : "Piu tardi"}</button>
           <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">{saving ? "Invio..." : "Invia al trainer"}</button>
         </div>
       </div>
