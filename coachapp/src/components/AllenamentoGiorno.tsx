@@ -21,6 +21,7 @@ import {
     htmlToLines,
 } from "@/lib/workoutTypes";
 import WorkoutTimer from "@/components/WorkoutTimer";
+import DayStrip from "@/components/DayStrip";
 import { latestByExercise } from "@/lib/benchmarks";
 import { unlockAudioContext } from "@/lib/audio";
 
@@ -376,6 +377,8 @@ export default function AllenamentoGiorno({
         <Link href="/cliente" className="text-gray-500 text-sm inline-block">
           ← Torna al calendario
         </Link>
+
+        <DayStrip clientId={clientId} date={date} />
 
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 text-xs px-2.5 py-1 rounded-full">
