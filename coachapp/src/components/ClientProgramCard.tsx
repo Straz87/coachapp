@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { htmlToLines } from "@/lib/workoutTypes";
 
@@ -91,9 +92,12 @@ export default function ClientProgramCard({ clientId }: { clientId: string }) {
         <div key={p.membershipId} className="card">
           <div className="flex items-center justify-between mb-2">
             <p className="font-semibold">{p.programName}</p>
-            <span className="text-xs text-gray-400">
+            <Link
+              href={`/cliente/programmi/${p.programId}/giorno/${p.currentDay}`}
+              className="text-xs text-gray-400 underline hover:text-gray-600"
+            >
               Giorno {p.currentDay} di {p.lengthDays}
-            </span>
+            </Link>
           </div>
           {p.dayTitle ? (
             <>
