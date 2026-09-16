@@ -90,7 +90,7 @@ export default function ClientList({ clients }: { clients: ClientRow[] }) {
           <option value="in_scadenza">In scadenza</option>
           <option value="scaduto">Scaduto</option>
           <option value="sospeso">Sospeso</option>
-                    <option value="in_attesa_pagamento">In attesa di pagamento</option>
+          <option value="in_attesa_pagamento">In attesa di pagamento</option>
         </select>
         <label className="flex items-center gap-2 text-sm text-gray-500 sm:ml-auto">
           <input
@@ -102,12 +102,60 @@ export default function ClientList({ clients }: { clients: ClientRow[] }) {
         </label>
       </div>
 
-              <div className="card p-0 overflow-x-auto">
+      {/* Vista a schede: solo su schermi stretti (telefono). Mostra tutti i
+          dati subito, senza dover scorrere lateralmente come nella tabella. */}
+      <div className="sm:hidden space-y-2">
+        {filtered.map((c) => {
+          const hasHistory = !!c.last_activity;
+          const inactiveWarn =
+            c.days_inactive !== null && c.days_inactive !== undefined
+              ? c.days_inactive >= 5
+              : !hasHistory && c.needs_attention;
+          const expiryWarn =
+            c.days_to_expiry !== null &&
+            c.days_to_expiry !== undefined &&
+            c.days_to_expiry <= 5;
+
+          return (
+            <Link
+              key={c.id}
+              href={`/trainer/clienti/${c.id}`}
+              className={`block card p-4 ${c.needs_attention ? "bg-orange-50/60" : ""}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-medium">
+                    {c.needs_attention && <span className="mr-1">⚠️</span>}
+                    {c.profiles?.full_name || "—"}
+                  </div>
+                  <div className="text-gray-400 text-xs">{c.profiles?.email}</div>
+                </div>
+                <span className={`badge-${c.status}`}>{STATUS_LABEL[c.status]}</span>
+              </div>
+              <div className="flex items-center justify-between mt-3 text-sm">
+                <span className={inactiveWarn ? "text-orange-600 font-medium" : "text-gray-600"}>
+                  {activityLabel(c.days_inactive, hasHistory)}
+                </span>
+                <span className="text-gray-600">{c.price ? `${c.price} €/mese` : "—"}</span>
+              </div>
+              <div className={`mt-1 text-sm ${expiryWarn ? "text-red-600 font-medium" : "text-gray-500"}`}>
+                Scadenza: {expiryLabel(c.expiry_date, c.days_to_expiry)}
+              </div>
+            </Link>
+          );
+        })}
+        {filtered.length === 0 && (
+          <p className="text-center text-gray-400 py-8">Nessun cliente trovato.</p>
+        )}
+      </div>
+
+      {/* Vista a tabella: da tablet in su. */}
+      <div className="hidden sm:block card p-0 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-left">
             <tr>
-          <th className="px-5 py-3 font-medium">Cliente</th>              
-          <th className="px-5 py-3 font-medium">Stato</th>
+              <th className="px-5 py-3 font-medium">Cliente</th>
+              <th className="px-5 py-3 font-medium">Stato</th>
               <th className="px-5 py-3 font-medium">Ultima attività</th>
               <th className="px-5 py-3 font-medium">Prezzo</th>
               <th className="px-5 py-3 font-medium">Scadenza</th>
@@ -116,9 +164,10 @@ export default function ClientList({ clients }: { clients: ClientRow[] }) {
           <tbody>
             {filtered.map((c) => {
               const hasHistory = !!c.last_activity;
-              const inactiveWarn = c.days_inactive !== null && c.days_inactive !== undefined
-                ? c.days_inactive >= 5
-                : !hasHistory && c.needs_attention;
+              const inactiveWarn =
+                c.days_inactive !== null && c.days_inactive !== undefined
+                  ? c.days_inactive >= 5
+                  : !hasHistory && c.needs_attention;
               const expiryWarn =
                 c.days_to_expiry !== null &&
                 c.days_to_expiry !== undefined &&
