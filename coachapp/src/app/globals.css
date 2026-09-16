@@ -37,3 +37,16 @@ body {
 .badge-in_attesa_pagamento {
   @apply bg-blue-100 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-full;
 }
+
+/* iOS/iPadOS Safari fa uno zoom automatico sulla pagina quando il focus va
+   su un campo con font-size sotto i 16px (succede con alcuni input in
+   text-sm/text-xs e con l'editor di testo degli allenamenti). Lavorando da
+   iPad questo zoom indesiderato è molto fastidioso: forziamo tutti i campi
+   di testo a restare leggibili almeno a 16px per evitarlo, senza toccare
+   ogni singolo componente. */
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  font-size: 16px !important;
+}
