@@ -50,6 +50,31 @@ function initials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// Soglia di inattività: stessa usata in trainer/page.tsx per "needs_attention",
+// così il colore di avviso qui coincide con quello della lista clienti.
+const INACTIVITY_DAYS = 5;
+
+type Andamento = {
+  streak: number;
+  completed: number;
+  assigned: number;
+  daysInactive: number | null;
+};
+
+function lastActivityLabel(daysInactive: number | null) {
+  if (daysInactive === null) return "Nessuna";
+  if (daysInactive === 0) return "Oggi";
+  if (daysInactive === 1) return "Ieri";
+  return `${daysInactive}g fa`;
+}
+
+function lastActivityColor(daysInactive: number | null) {
+  if (daysInactive === null) return "text-white/70";
+  if (daysInactive >= INACTIVITY_DAYS) return "text-red-400";
+  if (daysInactive >= 3) return "text-amber-400";
+  return "text-white";
+}
+
 export default function WeekCalendar({
   clientId,
   trainerId,
@@ -81,8 +106,9 @@ export default function WeekCalendar({
     blocks: Block[];
     activityType: string | null;
   } | null>(null);
-    const [showTemplatePrompt, setShowTemplatePrompt] = useState(false);
-    const [templateNameDraft, setTemplateNameDraft] = useState("");
+  const [showTemplatePrompt, setShowTemplatePrompt] = useState(false);
+  const [templateNameDraft, setTemplateNameDraft] = useState("");
+  const [andamento, setAndamento] = useState<Andamento | null>(null);
 
   const days = getWeekDays(weekStart);
   const todayIso = toISODate(new Date());
@@ -124,6 +150,49 @@ export default function WeekCalendar({
   useEffect(() => {
     loadTemplates();
   }, [loadTemplates]);
+
+  // Carica l'andamento del cliente (streak, aderenza, ultima attività) sugli
+  // ultimi 30 giorni, indipendentemente dalla settimana visualizzata nel
+  // calendario: serve solo per il riepilogo nella card nera.
+  useEffect(() => {
+    async function loadAndamento() {
+      const today = toISODate(new Date());
+      const from = toISODate(addDays(new Date(), -29));
+
+      const { data } = await supabase
+        .from("workout_assignments")
+        .select("date, completed, completed_at")
+        .eq("client_id", clientId)
+        .gte("date", from)
+        .lte("date", today)
+        .order("date", { ascending: false });
+
+      const rows = (data || []) as { date: string; completed: boolean; completed_at: string | null }[];
+
+      const cutoff14 = toISODate(addDays(new Date(), -13));
+      const last14 = rows.filter((r) => r.date >= cutoff14);
+      const assigned = last14.length;
+      const completed = last14.filter((r) => r.completed).length;
+
+      let streak = 0;
+      for (const r of rows) {
+        if (r.completed) streak++;
+        else break;
+      }
+
+      const completedDates = rows
+        .filter((r) => r.completed_at)
+        .map((r) => r.completed_at as string)
+        .sort();
+      const lastActivity = completedDates.length > 0 ? completedDates[completedDates.length - 1] : null;
+      const daysInactive = lastActivity
+        ? Math.floor((Date.now() - new Date(lastActivity).getTime()) / 86400000)
+        : null;
+
+      setAndamento({ streak, completed, assigned, daysInactive });
+    }
+    loadAndamento();
+  }, [clientId, supabase]);
 
   function flashBanner(text: string) {
     setBanner(text);
@@ -255,7 +324,7 @@ export default function WeekCalendar({
   }
 
   // Salva la settimana visualizzata come modello riutilizzabile.
-    // Apre il modale per il nome del modello, dopo aver controllato che ci
+  // Apre il modale per il nome del modello, dopo aver controllato che ci
   // sia almeno un giorno compilato da salvare.
   function openSaveAsTemplate() {
     const hasContent = days.some((d) => !!assignments[d.iso]);
@@ -407,7 +476,31 @@ export default function WeekCalendar({
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-between mt-4">
+
+          {andamento && (
+            <div className="grid grid-cols-3 gap-2 py-3 my-3 border-y border-white/10 text-center">
+              <div>
+                <p className="text-lg font-semibold">
+                  {andamento.streak > 0 ? `🔥 ${andamento.streak}` : "0"}
+                </p>
+                <p className="text-[10px] text-white/50 uppercase tracking-wide">Streak</p>
+              </div>
+              <div>
+                <p className="text-lg font-semibold">
+                  {andamento.completed}/{andamento.assigned}
+                </p>
+                <p className="text-[10px] text-white/50 uppercase tracking-wide">Ultime 2 sett.</p>
+              </div>
+              <div>
+                <p className={`text-lg font-semibold ${lastActivityColor(andamento.daysInactive)}`}>
+                  {lastActivityLabel(andamento.daysInactive)}
+                </p>
+                <p className="text-[10px] text-white/50 uppercase tracking-wide">Ultima attività</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between mt-auto">
             <Link href="/trainer/calendario" className="text-xs text-white/60 hover:text-white underline">
               ← Torna ai clienti
             </Link>
@@ -512,11 +605,11 @@ export default function WeekCalendar({
         <p className="text-gray-400 text-sm">Caricamento…</p>
       ) : (
         <div className="rounded-xl overflow-hidden">
-                  <div className="hidden sm:grid sm:grid-cols-4 lg:grid-cols-7 bg-[#E9E8E1]">
+          <div className="hidden sm:grid sm:grid-cols-4 lg:grid-cols-7 bg-[#E9E8E1]">
             {days.map((day, i) => (
               <div
                 key={day.iso}
-                                    className={`px-3 py-2.5 text-sm font-semibold text-gray-800 ${
+                className={`px-3 py-2.5 text-sm font-semibold text-gray-800 ${
                   i < 6 ? "sm:border-r border-gray-300/60" : ""
                 }`}
               >
@@ -591,12 +684,12 @@ export default function WeekCalendar({
                               Modifica
                             </button>
                             <Link
-href={`/trainer/tabellone/${day.iso}?cliente=${clientId}`}
-className="w-full flex items-center gap-2 text-left px-3 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100"
->
-🏆 Tabellone
-</Link>
-<button
+                              href={`/trainer/tabellone/${day.iso}?cliente=${clientId}`}
+                              className="w-full flex items-center gap-2 text-left px-3 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100"
+                            >
+                              🏆 Tabellone
+                            </Link>
+                            <button
                               onClick={() => copySessionToClipboard(a)}
                               className="w-full flex items-center gap-2 text-left px-3 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100"
                             >
