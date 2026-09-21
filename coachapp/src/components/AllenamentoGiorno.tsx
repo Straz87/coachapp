@@ -65,6 +65,7 @@ export default function AllenamentoGiorno({
   const [draftValues, setDraftValues] = useState<string[]>([""]);
   const [draftRx, setDraftRx] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
     const [maxes, setMaxes] = useState<{ exercise_name: string; value_kg: number; recorded_at: string }[]>([]);
 
   const load = useCallback(async () => {
@@ -207,7 +208,6 @@ export default function AllenamentoGiorno({
           return results;
     }
 
-
   function isBlockOpen(index: number) {
     return openBlocks[index] ?? index === 0;
   }
@@ -288,10 +288,34 @@ export default function AllenamentoGiorno({
     setDraftRx(existing?.rx ?? true);
     setEditing({ block: blockIndex, score: scoreIndex });
     setOpenBlocks((prev) => ({ ...prev, [blockIndex]: true }));
+    setSaveError(null);
   }
 
   function updateDraftValue(setIndex: number, value: string) {
     setDraftValues((prev) => prev.map((v, i) => (i === setIndex ? value : v)));
+  }
+
+  // Incrementa/decrementa il valore numerico di una serie (usato dagli
+  // stepper +/- per i punteggi di tipo peso e ripetizioni), partendo da 0
+  // se la serie non ha ancora un valore inserito.
+  function stepDraftValue(setIndex: number, delta: number) {
+    setDraftValues((prev) =>
+      prev.map((v, i) => {
+        if (i !== setIndex) return v;
+        const current = parseFloat(v) || 0;
+        const next = Math.max(0, Math.round((current + delta) * 100) / 100);
+        return String(next);
+      })
+    );
+  }
+
+  // Precompila tutte le serie con i valori della settimana scorsa: un tap
+  // solo per chi ripete lo stesso carico, invece di doverlo ricordare e
+  // riscrivere da zero.
+  function useSameAsLastTime(prevEntry: { values: string[]; rx: boolean }, sets: number) {
+    setDraftValues(Array.from({ length: sets }, (_, i) => prevEntry.values[i] || ""));
+    setDraftRx(prevEntry.rx);
+    setSaveError(null);
   }
 
   // Scrive il punteggio sul database (individuale o di gruppo). Usata sia
@@ -349,7 +373,12 @@ export default function AllenamentoGiorno({
   }
 
   async function saveScore(blockIndex: number, scoreIndex: number) {
-    if (!vm || draftValues.some((v) => v.trim() === "")) return;
+    if (!vm) return;
+    if (draftValues.some((v) => v.trim() === "")) {
+      setSaveError("Manca un valore: inserisci un numero per ogni serie prima di salvare.");
+      return;
+    }
+    setSaveError(null);
     setSaving(true);
     await persistScore(blockIndex, scoreIndex, draftValues, draftRx);
     setSaving(false);
@@ -550,7 +579,7 @@ export default function AllenamentoGiorno({
                                 <span>{scoreLabel(score.type)}</span>
                               </div>
 
-                              {prevEntry && (
+                              {prevEntry && !isEditingThis && (
                                 <div className="flex items-center gap-2 bg-brand/10 border border-brand/30 rounded-xl px-3 py-2 mb-2">
                                   <span className="text-brand-dark">🕐</span>
                                   <span className="text-sm text-gray-700">
@@ -565,6 +594,17 @@ export default function AllenamentoGiorno({
 
                               {isEditingThis ? (
                                 <div className="space-y-2">
+                                  {prevEntry && (
+                                    <button
+                                      type="button"
+                                      onClick={() => useSameAsLastTime(prevEntry, sets)}
+                                      className="w-full text-sm font-medium px-3 py-2 rounded-full border border-brand/40 bg-brand/10 text-brand-dark"
+                                    >
+                                      ↻ Uguale alla scorsa volta ({displayScoreValue(prevEntry, score.aggregation, score.type)}
+                                      {" "}
+                                      {prevEntry.rx ? "RX" : "SC"})
+                                    </button>
+                                  )}
                                   {Array.from({ length: sets }).map((_, setIdx) => {
                                     if (score.type === "amrap") {
                                       const { giri, reps } = parseAmrapValue(draftValues[setIdx] || "");
@@ -610,6 +650,39 @@ export default function AllenamentoGiorno({
                                         </div>
                                       );
                                     }
+                                    if (score.type === "peso" || score.type === "reps") {
+                                      const unit = score.type === "peso" ? " kg" : "";
+                                      const delta = score.type === "peso" ? 2.5 : 1;
+                                      const raw = draftValues[setIdx] || "";
+                                      return (
+                                        <div key={setIdx} className="space-y-1">
+                                          {sets > 1 && (
+                                            <p className="text-xs text-gray-400">Serie {setIdx + 1}</p>
+                                          )}
+                                          <div className="flex items-center gap-3">
+                                            <button
+                                              type="button"
+                                              onClick={() => stepDraftValue(setIdx, -delta)}
+                                              aria-label="Diminuisci"
+                                              className="w-10 h-10 shrink-0 rounded-full border border-gray-200 flex items-center justify-center text-xl font-semibold text-gray-600"
+                                            >
+                                              −
+                                            </button>
+                                            <span className="flex-1 text-center text-lg font-semibold">
+                                              {raw ? `${raw}${unit}` : `—${unit}`}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => stepDraftValue(setIdx, delta)}
+                                              aria-label="Aumenta"
+                                              className="w-10 h-10 shrink-0 rounded-full border border-gray-200 flex items-center justify-center text-xl font-semibold text-gray-600"
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
                                     return (
                                       <input
                                         key={setIdx}
@@ -617,7 +690,7 @@ export default function AllenamentoGiorno({
                                         placeholder={
                                           sets > 1
                                             ? `Serie ${setIdx + 1}`
-                                            : "es. 100 kg, 5 giri + 12 rep…"
+                                            : "es. sub 5:00, 5 giri + 12 rep…"
                                         }
                                         value={draftValues[setIdx] || ""}
                                         onChange={(e) => updateDraftValue(setIdx, e.target.value)}
@@ -642,6 +715,9 @@ export default function AllenamentoGiorno({
                                       Scalato
                                     </label>
                                   </div>
+                                  {saveError && (
+                                    <p className="text-xs text-red-600">{saveError}</p>
+                                  )}
                                   <div className="flex gap-2">
                                     <button
                                       onClick={() => saveScore(i, si)}
@@ -651,7 +727,10 @@ export default function AllenamentoGiorno({
                                       Salva
                                     </button>
                                     <button
-                                      onClick={() => setEditing(null)}
+                                      onClick={() => {
+                                        setEditing(null);
+                                        setSaveError(null);
+                                      }}
                                       className="btn-secondary text-sm"
                                     >
                                       Annulla
