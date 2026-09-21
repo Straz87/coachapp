@@ -9,7 +9,6 @@ import { Block, htmlToLines } from "@/lib/workoutTypes";
 import {
   IconLibrary,
   IconEdit,
-  IconInfinity,
   IconGrid,
   IconList,
   IconChat,
@@ -68,12 +67,23 @@ function lastActivityLabel(daysInactive: number | null) {
   return `${daysInactive}g fa`;
 }
 
-function lastActivityColor(daysInactive: number | null) {
-  if (daysInactive === null) return "text-white/70";
-  if (daysInactive >= INACTIVITY_DAYS) return "text-red-400";
-  if (daysInactive >= 3) return "text-amber-400";
-  return "text-white";
+// Stato "a semaforo" dell'andamento, usato sia per il colore dell'anello di
+// aderenza sia per il testo dell'ultima attività nella card cliente.
+type AndamentoTier = "good" | "warning" | "bad" | "neutral";
+
+function andamentoTier(daysInactive: number | null): AndamentoTier {
+  if (daysInactive === null) return "neutral";
+  if (daysInactive >= INACTIVITY_DAYS) return "bad";
+  if (daysInactive >= 3) return "warning";
+  return "good";
 }
+
+const TIER_COLOR: Record<AndamentoTier, string> = {
+  good: "#27500A",
+  warning: "#854F0B",
+  bad: "#791F1F",
+  neutral: "#3B4D22",
+};
 
 export default function WeekCalendar({
   clientId,
@@ -153,7 +163,7 @@ export default function WeekCalendar({
 
   // Carica l'andamento del cliente (streak, aderenza, ultima attività) sugli
   // ultimi 30 giorni, indipendentemente dalla settimana visualizzata nel
-  // calendario: serve solo per il riepilogo nella card nera.
+  // calendario: serve solo per il riepilogo nella card cliente.
   useEffect(() => {
     async function loadAndamento() {
       const today = toISODate(new Date());
@@ -457,61 +467,79 @@ export default function WeekCalendar({
           </div>
         </div>
 
-        <div className="bg-[#15171D] rounded-2xl p-5 text-white flex flex-col justify-between">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <IconInfinity className="w-5 h-5" />
-                <p className="text-xl font-semibold">{clientName}</p>
-              </div>
-              <p className="text-xs text-white/50">Scheda individuale</p>
+        <div className="bg-[#C7E86B] rounded-2xl p-5 text-[#1D2A0F] flex flex-col justify-between">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-9 h-9 rounded-full bg-[#1D2A0F] text-[#C7E86B] flex items-center justify-center text-xs font-semibold shrink-0">
+              {initials(clientName)}
             </div>
-            <div className="flex items-center gap-2 pl-4 border-l border-white/10 text-right">
-              <div>
-                <p className="text-sm font-semibold">{trainerName}</p>
-                <p className="text-xs text-white/50">Coach</p>
-              </div>
-              <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-xs font-semibold shrink-0">
-                {initials(trainerName)}
-              </div>
+            <div>
+              <p className="text-[15px] font-semibold leading-tight">{clientName}</p>
+              <p className="text-[11px] text-[#3B4D22]">Scheda individuale</p>
             </div>
           </div>
 
-          {andamento && (
-            <div className="grid grid-cols-3 gap-2 py-3 my-3 border-y border-white/10 text-center">
-              <div>
-                <p className="text-lg font-semibold">
-                  {andamento.streak > 0 ? `🔥 ${andamento.streak}` : "0"}
-                </p>
-                <p className="text-[10px] text-white/50 uppercase tracking-wide">Streak</p>
-              </div>
-              <div>
-                <p className="text-lg font-semibold">
-                  {andamento.completed}/{andamento.assigned}
-                </p>
-                <p className="text-[10px] text-white/50 uppercase tracking-wide">Ultime 2 sett.</p>
-              </div>
-              <div>
-                <p className={`text-lg font-semibold ${lastActivityColor(andamento.daysInactive)}`}>
-                  {lastActivityLabel(andamento.daysInactive)}
-                </p>
-                <p className="text-[10px] text-white/50 uppercase tracking-wide">Ultima attività</p>
-              </div>
-            </div>
-          )}
+          {andamento &&
+            (() => {
+              const tier = andamentoTier(andamento.daysInactive);
+              const color = TIER_COLOR[tier];
+              const pct =
+                andamento.assigned > 0 ? Math.round((andamento.completed / andamento.assigned) * 100) : 0;
+              const circumference = 138.2;
+              const dashoffset = circumference * (1 - pct / 100);
+              return (
+                <div className="flex items-center gap-3.5 bg-white/35 rounded-xl px-3.5 py-3 mb-3">
+                  <div className="relative w-[52px] h-[52px] shrink-0">
+                    <svg width="52" height="52" viewBox="0 0 52 52">
+                      <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(29,42,15,0.15)" strokeWidth="5" />
+                      <circle
+                        cx="26"
+                        cy="26"
+                        r="22"
+                        fill="none"
+                        stroke={color}
+                        strokeWidth="5"
+                        strokeLinecap="round"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={dashoffset}
+                        transform="rotate(-90 26 26)"
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold">
+                      {pct}%
+                    </span>
+                  </div>
+                  <div className="flex-1 grid grid-cols-2 gap-2.5">
+                    <div>
+                      <p className="text-[15px] font-semibold">
+                        {andamento.streak > 0 ? `🔥 ${andamento.streak}` : "0"}
+                      </p>
+                      <p className="text-[10px] text-[#3B4D22] uppercase tracking-wide mt-0.5">Streak</p>
+                    </div>
+                    <div>
+                      <p className="text-[15px] font-semibold" style={{ color }}>
+                        {lastActivityLabel(andamento.daysInactive)}
+                      </p>
+                      <p className="text-[10px] text-[#3B4D22] uppercase tracking-wide mt-0.5">
+                        Ultima attività
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
           <div className="flex items-center justify-between mt-auto">
-            <Link href="/trainer/calendario" className="text-xs text-white/60 hover:text-white underline">
+            <Link href="/trainer/calendario" className="text-xs text-[#1D2A0F]/60 hover:text-[#1D2A0F] underline">
               ← Torna ai clienti
             </Link>
             <div className="flex items-center gap-2">
-              <button className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 hover:bg-white">
+              <button className="w-8 h-8 rounded-full bg-[#1D2A0F]/10 flex items-center justify-center text-[#1D2A0F] hover:bg-[#1D2A0F]/20">
                 <IconChat className="w-4 h-4" />
               </button>
-              <button className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 hover:bg-white">
+              <button className="w-8 h-8 rounded-full bg-[#1D2A0F]/10 flex items-center justify-center text-[#1D2A0F] hover:bg-[#1D2A0F]/20">
                 <IconShare className="w-4 h-4" />
               </button>
-              <button className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-brand-dark">
+              <button className="w-8 h-8 rounded-full bg-[#1D2A0F] flex items-center justify-center text-[#C7E86B]">
                 <IconSettings className="w-4 h-4" />
               </button>
             </div>
