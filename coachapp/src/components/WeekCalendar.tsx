@@ -690,12 +690,18 @@ export default function WeekCalendar({
                               {scores.map((score, si) => {
                                 const entry = readClientScoreEntry(a.client_scores, bi, si);
                                 if (!entry) return null;
+                                const setValues = entry.values.filter((v) => v.trim() !== "");
+                                const unit = score.type === "peso" ? " kg" : "";
+                                const detail =
+                                  setValues.length > 1
+                                    ? setValues.map((v) => `${v}${unit}`).join(" · ")
+                                    : displayScoreValue(entry, score.aggregation, score.type);
                                 return (
                                   <p
                                     key={si}
                                     className="text-xs font-semibold text-brand-dark mt-1"
                                   >
-                                    🏋️ {displayScoreValue(entry, score.aggregation, score.type)}{" "}
+                                    🏋️ {detail}{" "}
                                     {entry.rx ? "RX" : "SC"}
                                   </p>
                                 );
@@ -829,3 +835,4 @@ export default function WeekCalendar({
     </div>
   );
 }
+setValues
