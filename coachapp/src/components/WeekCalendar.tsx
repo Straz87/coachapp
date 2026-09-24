@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, getWeekDays, startOfWeek, toISODate } from "@/lib/dates";
 import WorkoutEditorPanel, { WorkoutDraft } from "@/components/WorkoutEditorPanel";
-import { Block, htmlToLines } from "@/lib/workoutTypes";
+import { Block, ClientScores, getBlockScores, readClientScoreEntry, displayScoreValue, htmlToLines } from "@/lib/workoutTypes";
 import {
   IconLibrary,
   IconEdit,
@@ -25,6 +25,7 @@ type Assignment = {
   blocks: Block[];
   completed: boolean;
   activity_type: string | null;
+  client_scores: ClientScores;
 };
 
 type DayInfo = { date: Date; iso: string; label: string; dayNumber: number; month: number };
@@ -668,6 +669,7 @@ export default function WeekCalendar({
                       <div className="space-y-2">
                         {a.blocks.map((b, bi) => {
                           const isNote = b.type === "Nota per l'atleta";
+                          const scores = getBlockScores(b);
                           return (
                             <div key={bi} className={isNote ? "bg-amber-50 rounded px-2 py-1.5" : ""}>
                               <p
@@ -685,6 +687,19 @@ export default function WeekCalendar({
                                   {line}
                                 </p>
                               ))}
+                              {scores.map((score, si) => {
+                                const entry = readClientScoreEntry(a.client_scores, bi, si);
+                                if (!entry) return null;
+                                return (
+                                  <p
+                                    key={si}
+                                    className="text-xs font-semibold text-brand-dark mt-1"
+                                  >
+                                    🏋️ {displayScoreValue(entry, score.aggregation, score.type)}{" "}
+                                    {entry.rx ? "RX" : "SC"}
+                                  </p>
+                                );
+                              })}
                             </div>
                           );
                         })}
