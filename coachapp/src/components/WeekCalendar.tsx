@@ -835,4 +835,3 @@ export default function WeekCalendar({
     </div>
   );
 }
-setValues
