@@ -42,6 +42,59 @@ type ViewModel = {
   clientScores: ClientScores;
 };
 
+// Un punteggio storico trovato in una sessione passata, con la data in cui
+// e' stato registrato: serve a mostrare "l'ultima volta" indipendentemente
+// da quando e' stata quella sessione.
+type HistoryEntry = { values: string[]; rx: boolean; date: string };
+
+// Normalizza il nome esercizio per il confronto (case/spazi non contano).
+function normalizeExerciseName(name: string | null | undefined) {
+  return (name || "").trim().toLowerCase();
+}
+
+// Etichetta leggibile per "quando" e' stato registrato un punteggio storico,
+// relativa al giorno della scheda che si sta guardando.
+function relativeDateLabel(pastDate: string, referenceDate: string) {
+  const diffDays = Math.round(
+    (new Date(`${referenceDate}T00:00:00`).getTime() - new Date(`${pastDate}T00:00:00`).getTime()) / 86400000
+  );
+  if (diffDays <= 0) return "oggi";
+  if (diffDays === 1) return "ieri";
+  if (diffDays < 7) return `${diffDays} giorni fa`;
+  if (diffDays === 7) return "la settimana scorsa";
+  const weeks = Math.round(diffDays / 7);
+  if (weeks <= 5) return `${weeks} settimane fa`;
+  const d = new Date(`${pastDate}T00:00:00`);
+  return d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+}
+
+// Costruisce lo storico "ultimo valore per esercizio" a partire da un elenco
+// di sessioni passate (dalla piu' recente alla piu' vecchia): per ogni
+// blocco con un nome esercizio e per ogni suo punteggio, tiene solo la
+// prima occorrenza trovata (= la piu' recente) con un valore compilato.
+function buildExerciseHistory(
+  rows: { date: string; blocks: Block[]; client_scores: ClientScores }[]
+): Record<string, HistoryEntry> {
+  const history: Record<string, HistoryEntry> = {};
+  for (const row of rows) {
+    const rowBlocks = row.blocks || [];
+    rowBlocks.forEach((rb, rbi) => {
+      const name = normalizeExerciseName(rb.exerciseName);
+      if (!name) return;
+      const rowScores = getBlockScores(rb);
+      rowScores.forEach((_, rsi) => {
+        const key = `${name}__${rsi}`;
+        if (history[key]) return;
+        const entry = readClientScoreEntry(row.client_scores, rbi, rsi);
+        if (entry && entry.values.some((v) => v.trim() !== "")) {
+          history[key] = { values: entry.values, rx: entry.rx, date: row.date };
+        }
+      });
+    });
+  }
+  return history;
+}
+
 export default function AllenamentoGiorno({
   clientId,
   profileId,
@@ -58,6 +111,11 @@ export default function AllenamentoGiorno({
   const supabase = createClient();
   const [vm, setVm] = useState<ViewModel | null>(null);
   const [prevScores, setPrevScores] = useState<ClientScores | null>(null);
+  const [prevDate, setPrevDate] = useState<string | null>(null);
+  // Storico per esercizio (chiave: nome esercizio normalizzato + indice
+  // punteggio): trova "l'ultima volta" anche quando non e' stata esattamente
+  // 7 giorni fa o quando l'ordine dei blocchi e' cambiato rispetto a prima.
+  const [exerciseHistory, setExerciseHistory] = useState<Record<string, HistoryEntry>>({});
   const [loading, setLoading] = useState(true);
   const [openBlocks, setOpenBlocks] = useState<Record<number, boolean>>({});
   const [openTimers, setOpenTimers] = useState<Record<number, boolean>>({});
@@ -89,14 +147,27 @@ export default function AllenamentoGiorno({
         clientScores: assignment.client_scores || {},
       });
 
-      const prevDate = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
+      const weekAgo = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
+      setPrevDate(weekAgo);
       const { data: prevData } = await supabase
         .from("workout_assignments")
         .select("client_scores")
         .eq("client_id", clientId)
-        .eq("date", prevDate)
+        .eq("date", weekAgo)
         .maybeSingle();
       setPrevScores((prevData?.client_scores as ClientScores | null) || null);
+
+      // Storico per esercizio: guarda le sessioni individuali passate del
+      // cliente (non solo quella di esattamente 7 giorni fa) e trova, per
+      // ogni esercizio, l'ultimo punteggio registrato prima di oggi.
+      const { data: historyRows } = await supabase
+        .from("workout_assignments")
+        .select("date, blocks, client_scores")
+        .eq("client_id", clientId)
+        .lt("date", date)
+        .order("date", { ascending: false })
+        .limit(40);
+      setExerciseHistory(buildExerciseHistory(historyRows || []));
 
       setLoading(false);
       return;
@@ -142,12 +213,13 @@ export default function AllenamentoGiorno({
           clientScores: scoreRow?.client_scores || {},
         });
 
-        const prevDate = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
+        const weekAgo = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
+        setPrevDate(weekAgo);
         const { data: prevGroupWorkout } = await supabase
           .from("group_workouts")
           .select("id")
           .eq("group_id", groupWorkout.group_id)
-          .eq("date", prevDate)
+          .eq("date", weekAgo)
           .maybeSingle();
 
         if (prevGroupWorkout) {
@@ -162,6 +234,35 @@ export default function AllenamentoGiorno({
           setPrevScores(null);
         }
 
+        // Storico per esercizio sulle sessioni di gruppo passate dello
+        // stesso gruppo, con i punteggi di questo cliente.
+        const { data: pastGroupWorkouts } = await supabase
+          .from("group_workouts")
+          .select("id, date, blocks")
+          .eq("group_id", groupWorkout.group_id)
+          .lt("date", date)
+          .order("date", { ascending: false })
+          .limit(40);
+
+        const pastIds = (pastGroupWorkouts || []).map((g) => g.id);
+        let pastScoresById = new Map<string, ClientScores>();
+        if (pastIds.length > 0) {
+          const { data: pastScoreRows } = await supabase
+            .from("group_workout_scores")
+            .select("group_workout_id, client_scores")
+            .eq("client_id", clientId)
+            .in("group_workout_id", pastIds);
+          pastScoresById = new Map(
+            (pastScoreRows || []).map((r) => [r.group_workout_id as string, r.client_scores as ClientScores])
+          );
+        }
+        const historyRows = (pastGroupWorkouts || []).map((g) => ({
+          date: g.date as string,
+          blocks: g.blocks as Block[],
+          client_scores: pastScoresById.get(g.id as string) || {},
+        }));
+        setExerciseHistory(buildExerciseHistory(historyRows));
+
         setLoading(false);
         return;
       }
@@ -170,6 +271,8 @@ export default function AllenamentoGiorno({
     // 3) Nessun allenamento individuale né di gruppo per oggi.
     setVm(null);
     setPrevScores(null);
+    setPrevDate(null);
+    setExerciseHistory({});
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, date]);
@@ -571,7 +674,15 @@ export default function AllenamentoGiorno({
                           const scoreEntry = readClientScoreEntry(vm.clientScores, i, si);
                           const isEditingThis = editing?.block === i && editing?.score === si;
                           const sets = Math.max(1, score.sets ?? 1);
-                          const prevEntry = readClientScoreEntry(prevScores, i, si);
+                          // Prima cerca nello storico per nome esercizio (funziona anche
+                          // se l'ultima sessione non era esattamente 7 giorni fa o se i
+                          // blocchi sono cambiati); se il blocco non ha un nome esercizio,
+                          // usa il vecchio confronto con la scheda di 7 giorni fa.
+                          const historyKey = `${normalizeExerciseName(b.exerciseName)}__${si}`;
+                          const byName = b.exerciseName ? exerciseHistory[historyKey] : null;
+                          const byWeekAgo = readClientScoreEntry(prevScores, i, si);
+                          const prevEntry: HistoryEntry | null =
+                            byName || (byWeekAgo && prevDate ? { ...byWeekAgo, date: prevDate } : null);
                           return (
                             <div key={si} className="pt-2 border-t border-gray-100">
                               <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
@@ -583,7 +694,7 @@ export default function AllenamentoGiorno({
                                 <div className="flex items-center gap-2 bg-brand/10 border border-brand/30 rounded-xl px-3 py-2 mb-2">
                                   <span className="text-brand-dark">🕐</span>
                                   <span className="text-sm text-gray-700">
-                                    Settimana scorsa:{" "}
+                                    {relativeDateLabel(prevEntry.date, date)}:{" "}
                                     <span className="font-semibold">
                                       {displayScoreValue(prevEntry, score.aggregation, score.type)}{" "}
                                       {prevEntry.rx ? "RX" : "SC"}
@@ -600,7 +711,8 @@ export default function AllenamentoGiorno({
                                       onClick={() => useSameAsLastTime(prevEntry, sets)}
                                       className="w-full text-sm font-medium px-3 py-2 rounded-full border border-brand/40 bg-brand/10 text-brand-dark"
                                     >
-                                      ↻ Uguale alla scorsa volta ({displayScoreValue(prevEntry, score.aggregation, score.type)}
+                                      ↻ Stesso carico di {relativeDateLabel(prevEntry.date, date)} (
+                                      {displayScoreValue(prevEntry, score.aggregation, score.type)}
                                       {" "}
                                       {prevEntry.rx ? "RX" : "SC"})
                                     </button>
