@@ -692,18 +692,20 @@ export default function WeekCalendar({
                                 if (!entry) return null;
                                 const setValues = entry.values.filter((v) => v.trim() !== "");
                                 const unit = score.type === "peso" ? " kg" : "";
-                                const detail =
+                                const summary = displayScoreValue(entry, score.aggregation, score.type);
+                                const perSet =
                                   setValues.length > 1
                                     ? setValues.map((v) => `${v}${unit}`).join(" · ")
-                                    : displayScoreValue(entry, score.aggregation, score.type);
+                                    : null;
                                 return (
-                                  <p
-                                    key={si}
-                                    className="text-xs font-semibold text-brand-dark mt-1"
-                                  >
-                                    🏋️ {detail}{" "}
-                                    {entry.rx ? "RX" : "SC"}
-                                  </p>
+                                  <div key={si} className="mt-1">
+                                    <p className="text-xs font-semibold text-brand-dark">
+                                      🏋️ {summary} {entry.rx ? "RX" : "SC"}
+                                    </p>
+                                    {perSet && (
+                                      <p className="text-[11px] text-gray-500">{perSet}</p>
+                                    )}
+                                  </div>
                                 );
                               })}
                             </div>
