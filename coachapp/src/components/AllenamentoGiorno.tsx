@@ -18,7 +18,9 @@ import {
   getTimerSets,
   totalTimerSeconds,
   formatClock,
-    htmlToLines,
+  htmlToLines,
+  blockNoteKey,
+  readBlockNote,
 } from "@/lib/workoutTypes";
 import WorkoutTimer from "@/components/WorkoutTimer";
 import DayStrip from "@/components/DayStrip";
@@ -124,7 +126,12 @@ export default function AllenamentoGiorno({
   const [draftRx, setDraftRx] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-    const [maxes, setMaxes] = useState<{ exercise_name: string; value_kg: number; recorded_at: string }[]>([]);
+  const [maxes, setMaxes] = useState<{ exercise_name: string; value_kg: number; recorded_at: string }[]>([]);
+  // Nota libera (facoltativa) per blocco: bozza in corso di modifica e
+  // quale blocco ha la nota aperta in edit in questo momento.
+  const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
+  const [editingNote, setEditingNote] = useState<number | null>(null);
+  const [savingNote, setSavingNote] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -281,35 +288,35 @@ export default function AllenamentoGiorno({
     load();
   }, [load]);
 
-    useEffect(() => {
-          async function loadMaxes() {
-                  const { data } = await supabase
-                    .from("client_maxes")
-                    .select("exercise_name, value_kg, recorded_at")
-                    .eq("client_id", clientId)
-                    .not("value_kg", "is", null);
-                  setMaxes(latestByExercise(data || []));
-          }
-          loadMaxes();
-    }, [clientId]);
-
-    function computeMaxLines(description: string) {
-          if (maxes.length === 0) return [];
-          const lines = htmlToLines(description);
-          const results: { exerciseName: string; pct: number; kg: number }[] = [];
-          for (const line of lines) {
-                  const pctMatch = line.match(/(\d+(?:[.,]\d+)?)\s*%/);
-                  if (!pctMatch) continue;
-                  const pct = Number(pctMatch[1].replace(",", "."));
-                  const lower = line.toLowerCase();
-                  const max = maxes.find((m) => lower.includes(m.exercise_name.toLowerCase()));
-                  if (!max) continue;
-                  const raw = (max.value_kg * pct) / 100;
-                  const kg = Math.round(raw * 2) / 2;
-                  results.push({ exerciseName: max.exercise_name, pct, kg });
-          }
-          return results;
+  useEffect(() => {
+    async function loadMaxes() {
+      const { data } = await supabase
+        .from("client_maxes")
+        .select("exercise_name, value_kg, recorded_at")
+        .eq("client_id", clientId)
+        .not("value_kg", "is", null);
+      setMaxes(latestByExercise(data || []));
     }
+    loadMaxes();
+  }, [clientId]);
+
+  function computeMaxLines(description: string) {
+    if (maxes.length === 0) return [];
+    const lines = htmlToLines(description);
+    const results: { exerciseName: string; pct: number; kg: number }[] = [];
+    for (const line of lines) {
+      const pctMatch = line.match(/(\d+(?:[.,]\d+)?)\s*%/);
+      if (!pctMatch) continue;
+      const pct = Number(pctMatch[1].replace(",", "."));
+      const lower = line.toLowerCase();
+      const max = maxes.find((m) => lower.includes(m.exercise_name.toLowerCase()));
+      if (!max) continue;
+      const raw = (max.value_kg * pct) / 100;
+      const kg = Math.round(raw * 2) / 2;
+      results.push({ exerciseName: max.exercise_name, pct, kg });
+    }
+    return results;
+  }
 
   function isBlockOpen(index: number) {
     return openBlocks[index] ?? index === 0;
@@ -450,6 +457,51 @@ export default function AllenamentoGiorno({
     }
   }
 
+  // Scrive (o cancella, se vuota) la nota libera del cliente per un blocco,
+  // riusando la stessa colonna client_scores (nessuna nuova tabella/colonna).
+  async function persistNote(blockIndex: number, text: string) {
+    if (!vm) return;
+    const nextScores: ClientScores = { ...vm.clientScores };
+    const key = blockNoteKey(blockIndex);
+    if (text) {
+      nextScores[key] = text;
+    } else {
+      delete nextScores[key];
+    }
+    setVm({ ...vm, clientScores: nextScores });
+
+    if (vm.source.kind === "individual") {
+      await supabase
+        .from("workout_assignments")
+        .update({ client_scores: nextScores })
+        .eq("id", vm.source.assignmentId);
+    } else {
+      await supabase.from("group_workout_scores").upsert(
+        {
+          group_workout_id: vm.source.groupWorkoutId,
+          client_id: clientId,
+          client_scores: nextScores,
+          completed: vm.completed,
+        },
+        { onConflict: "group_workout_id,client_id" }
+      );
+    }
+  }
+
+  function startEditNote(blockIndex: number) {
+    const existing = readBlockNote(vm?.clientScores, blockIndex);
+    setNoteDrafts((prev) => ({ ...prev, [blockIndex]: existing }));
+    setEditingNote(blockIndex);
+  }
+
+  async function saveNote(blockIndex: number) {
+    const text = (noteDrafts[blockIndex] ?? "").trim();
+    setSavingNote(true);
+    await persistNote(blockIndex, text);
+    setSavingNote(false);
+    setEditingNote(null);
+  }
+
   // Chiamata quando il timer AMRAP finisce (o viene fermato): somma i giri
   // registrati con il tasto "+" durante ogni set e precompila l'editor del
   // punteggio (il primo punteggio "amrap" del blocco). Salva subito i giri
@@ -584,6 +636,8 @@ export default function AllenamentoGiorno({
                 const scores = getBlockScores(b);
                 const headerEntry = readClientScoreEntry(vm.clientScores, i, 0);
                 const open = isBlockOpen(i);
+                const existingNote = readBlockNote(vm.clientScores, i);
+                const isEditingNote = editingNote === i;
                 return (
                   <div key={i} className="card">
                     <button
@@ -603,6 +657,9 @@ export default function AllenamentoGiorno({
                             {displayScoreValue(headerEntry, scores[0].aggregation, scores[0].type)}
                             {scores.length > 1 ? " +" : ""}
                           </span>
+                        )}
+                        {existingNote && (
+                          <span className="text-xs text-gray-400">💬</span>
                         )}
                       </span>
                       <span
@@ -648,21 +705,21 @@ export default function AllenamentoGiorno({
                         />
 
                         {computeMaxLines(b.description).map((m, mi) =>
-                                                  h(
-                                                                                "div",
-                                                    {
-                                                                                    key: mi,
-                                                                                    className: "flex items-center gap-2 bg-brand/10 border border-brand/30 rounded-xl px-3 py-2",
-                                                    },
-                                                                                h("span", { className: "text-brand-dark" }, "🔢"),
-                                                                                h(
-                                                                                                                "span",
-                                                                                  { className: "text-sm text-gray-700" },
-                                                                                                                m.exerciseName + " " + m.pct + "%: ",
-                                                                                                                h("span", { className: "font-semibold" }, m.kg + " kg")
-                                                                                                              )
-                                                                              )
-                                                                                    )}
+                          h(
+                            "div",
+                            {
+                              key: mi,
+                              className: "flex items-center gap-2 bg-brand/10 border border-brand/30 rounded-xl px-3 py-2",
+                            },
+                            h("span", { className: "text-brand-dark" }, "🔢"),
+                            h(
+                              "span",
+                              { className: "text-sm text-gray-700" },
+                              m.exerciseName + " " + m.pct + "%: ",
+                              h("span", { className: "font-semibold" }, m.kg + " kg")
+                            )
+                          )
+                        )}
 
                         {b.rpe !== null && (
                           <span className="inline-block text-xs bg-gray-100 text-gray-700 rounded-full px-2 py-1">
@@ -876,6 +933,52 @@ export default function AllenamentoGiorno({
                             </div>
                           );
                         })}
+
+                        <div className="pt-2 border-t border-gray-100">
+                          {isEditingNote ? (
+                            <div className="space-y-2">
+                              <textarea
+                                autoFocus
+                                className="input w-full text-sm"
+                                rows={2}
+                                placeholder="Una parola per il coach (facoltativo): come ti sei sentito, dolori, dubbi sull'esecuzione…"
+                                value={noteDrafts[i] ?? existingNote}
+                                onChange={(e) =>
+                                  setNoteDrafts((prev) => ({ ...prev, [i]: e.target.value }))
+                                }
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => saveNote(i)}
+                                  disabled={savingNote}
+                                  className="btn-primary text-sm"
+                                >
+                                  Salva nota
+                                </button>
+                                <button
+                                  onClick={() => setEditingNote(null)}
+                                  className="btn-secondary text-sm"
+                                >
+                                  Annulla
+                                </button>
+                              </div>
+                            </div>
+                          ) : existingNote ? (
+                            <button
+                              onClick={() => startEditNote(i)}
+                              className="w-full text-left text-sm text-gray-600 bg-gray-50 rounded-xl px-3 py-2"
+                            >
+                              💬 {existingNote}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => startEditNote(i)}
+                              className="text-xs text-gray-400 underline"
+                            >
+                              + Aggiungi una nota per il coach
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
