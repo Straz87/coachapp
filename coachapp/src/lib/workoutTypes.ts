@@ -189,7 +189,13 @@ export type ClientScoreEntry = {
   rx: boolean; // true = RX (come da programma), false = Scalato
 };
 
-export type ClientScores = Record<string, ClientScoreEntry>;
+// Oltre alle voci di punteggio (ClientScoreEntry, chiave = indice blocco,
+// eventualmente composta con l'indice del punteggio), questo stesso oggetto
+// JSON può contenere una nota libera per blocco sotto la chiave prodotta da
+// blockNoteKey() — una stringa semplice, non un ClientScoreEntry. Nessuna
+// nuova colonna nel database: riusa la stessa colonna client_scores già
+// esistente su workout_assignments / group_workout_scores.
+export type ClientScores = Record<string, ClientScoreEntry | string>;
 
 // Le schede create prima dell'introduzione delle serie multiple salvavano
 // { value: string, rx: boolean }. Questo helper legge sia il formato nuovo
@@ -225,6 +231,20 @@ export function readClientScoreEntry(
 ): ClientScoreEntry | null {
   if (!scores) return null;
   return normalizeEntry(scores[clientScoreKey(blockIndex, scoreIndex)]);
+}
+
+// Chiave usata in ClientScores per la nota libera (facoltativa) di un
+// blocco. Il prefisso "n" evita qualsiasi collisione con le chiavi dei
+// punteggi, che sono sempre numeriche o "numero:numero".
+export function blockNoteKey(blockIndex: number): string {
+  return `n${blockIndex}`;
+}
+
+// Legge la nota libera del cliente per un blocco, se presente.
+export function readBlockNote(scores: ClientScores | null | undefined, blockIndex: number): string {
+  if (!scores) return "";
+  const raw = scores[blockNoteKey(blockIndex)];
+  return typeof raw === "string" ? raw : "";
 }
 
 // Testo da mostrare per un punteggio (una o più serie), secondo la modalità
