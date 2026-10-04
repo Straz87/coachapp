@@ -18,7 +18,7 @@ import {
   TimerSet,
   emptyBlock,
   emptyScoreConfig,
-  getBlockScores,
+  getBlockScoresRaw,
   htmlToLines,
   getTimerSets,
   totalTimerSeconds,
@@ -494,7 +494,7 @@ function BlockEditor({
   const isNote = block.type === "Nota per l'atleta";
   const isCustomType = !BLOCK_TYPES.includes(block.type);
   const summary = timerSummary(block);
-  const scores = getBlockScores(block);
+  const scores = getBlockScoresRaw(block);
 
   function updateScore(scoreIndex: number, patch: Partial<ScoreConfig>) {
     const next = scores.map((s, i) => (i === scoreIndex ? { ...s, ...patch } : s));
