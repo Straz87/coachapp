@@ -168,10 +168,37 @@ export function emptyScoreConfig(): ScoreConfig {
 // vecchio formato a un solo punteggio (score: ScoreConfig | null). Usare
 // sempre questa funzione invece di leggere block.score/block.scores
 // direttamente.
-export function getBlockScores(block: Block): ScoreConfig[] {
+export function getBlockScoresRaw(block: Block): ScoreConfig[] {
   if (block.scores && block.scores.length > 0) return block.scores;
   if (block.score) return [block.score];
   return [];
+}
+
+// Tipi di blocco per cui NON ha senso chiedere un carico: il cliente non deve
+// riportare nessun peso. Tutti gli altri (Movemax, WOD, Bodybuilding, Braccia,
+// Addominali, ecc.) hanno di default il campo "Peso (kg)".
+const NO_DEFAULT_SCORE_TYPES = [
+  "warm up",
+  "warmup",
+  "skills",
+  "mobility",
+  "nota per l'atleta",
+  "defaticamento",
+  "stretching",
+  "cool down",
+  "cooldown",
+];
+
+// Versione "effettiva" usata da cliente e revisione trainer: se il trainer non
+// ha configurato nessun punteggio, i blocchi di lavoro hanno comunque il campo
+// "Peso (kg)" di default, così il cliente può sempre registrare il carico
+// (anche sulle schede create prima di questa regola).
+export function getBlockScores(block: Block): ScoreConfig[] {
+  const raw = getBlockScoresRaw(block);
+  if (raw.length > 0) return raw;
+  const type = (block.type || "").trim().toLowerCase();
+  if (!type || NO_DEFAULT_SCORE_TYPES.includes(type)) return [];
+  return [emptyScoreConfig()];
 }
 
 // Estrae il primo numero da una stringa punteggio (es. "100 kg" -> 100, "5 giri + 12 rep" -> 5).
