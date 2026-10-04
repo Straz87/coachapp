@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireClientRole } from "@/lib/auth";
-import { htmlToLines } from "@/lib/workoutTypes";
+import type { Block } from "@/lib/workoutTypes";
 import ProgramDayStrip from "@/components/ProgramDayStrip";
 import ProgramMarkDoneButton from "@/components/ProgramMarkDoneButton";
+import ProgramDayBlocks from "@/components/ProgramDayBlocks";
 
 // Pagina di un singolo giorno di un programma a durata fissa (es. "Giorno
 // 12 di 90"), con la striscia dei giorni gia' raggiunti in alto cosi' il
@@ -76,18 +77,12 @@ export default async function ProgramDayPage({
       </div>
 
       {day ? (
-        <div className="space-y-3">
-          {(day.blocks || []).map((b: { type: string; description: string }, i: number) => (
-            <div key={i} className="card">
-              <p className="text-xs font-medium text-gray-700 mb-1">{b.type}</p>
-              {htmlToLines(b.description).map((line: string, li: number) => (
-                <p key={li} className="text-sm text-gray-600">
-                  {line}
-                </p>
-              ))}
-            </div>
-          ))}
-        </div>
+        <ProgramDayBlocks
+          programId={params.programId}
+          clientId={client.id}
+          dayNumber={dayNumber}
+          blocks={(day.blocks || []) as Block[]}
+        />
       ) : (
         <p className="text-gray-400 text-sm">Il tuo coach non ha ancora pubblicato questo giorno.</p>
       )}
