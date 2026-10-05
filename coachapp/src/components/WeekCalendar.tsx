@@ -26,6 +26,8 @@ type Assignment = {
   completed: boolean;
   activity_type: string | null;
   client_scores: ClientScores;
+  // Risposte del trainer alle note del cliente (chiave = indice blocco).
+  trainer_replies?: Record<string, string> | null;
 };
 
 type DayInfo = { date: Date; iso: string; label: string; dayNumber: number; month: number };
@@ -120,6 +122,31 @@ export default function WeekCalendar({
   const [showTemplatePrompt, setShowTemplatePrompt] = useState(false);
   const [templateNameDraft, setTemplateNameDraft] = useState("");
   const [andamento, setAndamento] = useState<Andamento | null>(null);
+  // Risposta del trainer a una nota del cliente: quale nota è in modifica
+  // (chiave "idAssegnazione:indiceBlocco") e il testo in bozza.
+  const [replyOpen, setReplyOpen] = useState<string | null>(null);
+  const [replyDraft, setReplyDraft] = useState("");
+  const [savingReply, setSavingReply] = useState(false);
+
+  async function saveReply(a: Assignment, blockIndex: number) {
+    const text = replyDraft.trim();
+    setSavingReply(true);
+    const next: Record<string, string> = { ...(a.trainer_replies || {}) };
+    if (text) next[String(blockIndex)] = text;
+    else delete next[String(blockIndex)];
+    const { error } = await supabase
+      .from("workout_assignments")
+      .update({ trainer_replies: next })
+      .eq("id", a.id);
+    setSavingReply(false);
+    if (error) {
+      setBanner("Errore nel salvataggio della risposta, riprova.");
+      return;
+    }
+    setAssignments((prev) => ({ ...prev, [a.date]: { ...a, trainer_replies: next } }));
+    setReplyOpen(null);
+    setReplyDraft("");
+  }
 
   const days = getWeekDays(weekStart);
   const todayIso = toISODate(new Date());
@@ -709,9 +736,61 @@ export default function WeekCalendar({
                                 );
                               })}
                               {readBlockNote(a.client_scores, bi) && (
-                                <p className="mt-1 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1 whitespace-pre-wrap">
-                                  💬 {readBlockNote(a.client_scores, bi)}
-                                </p>
+                                <div className="mt-1 space-y-1">
+                                  <p className="text-xs text-blue-700 bg-blue-50 rounded px-2 py-1 whitespace-pre-wrap">
+                                    💬 {readBlockNote(a.client_scores, bi)}
+                                  </p>
+                                  {replyOpen === `${a.id}:${bi}` ? (
+                                    <div className="space-y-1">
+                                      <textarea
+                                        autoFocus
+                                        rows={2}
+                                        className="input w-full text-xs"
+                                        placeholder="Scrivi la tua risposta…"
+                                        value={replyDraft}
+                                        onChange={(e) => setReplyDraft(e.target.value)}
+                                      />
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => saveReply(a, bi)}
+                                          disabled={savingReply}
+                                          className="btn-primary text-xs px-3 py-1"
+                                        >
+                                          {savingReply ? "…" : "Invia"}
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setReplyOpen(null);
+                                            setReplyDraft("");
+                                          }}
+                                          className="btn-secondary text-xs px-3 py-1"
+                                        >
+                                          Annulla
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : a.trainer_replies?.[String(bi)] ? (
+                                    <button
+                                      onClick={() => {
+                                        setReplyOpen(`${a.id}:${bi}`);
+                                        setReplyDraft(a.trainer_replies?.[String(bi)] || "");
+                                      }}
+                                      className="block w-full text-left text-xs text-green-800 bg-green-50 rounded px-2 py-1 whitespace-pre-wrap"
+                                    >
+                                      ↩️ Tu: {a.trainer_replies?.[String(bi)]}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setReplyOpen(`${a.id}:${bi}`);
+                                        setReplyDraft("");
+                                      }}
+                                      className="text-[11px] text-gray-500 underline"
+                                    >
+                                      Rispondi
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           );
