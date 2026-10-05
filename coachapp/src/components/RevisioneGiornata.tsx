@@ -35,6 +35,8 @@ type ViewModel = {
   completedAt: string | null;
   likedBy: string[];
   clientScores: ClientScores;
+  // Risposte del trainer alle note del cliente (chiave = indice blocco).
+  trainerReplies: Record<string, string>;
 };
 
 export default function RevisioneGiornata({
@@ -55,6 +57,33 @@ export default function RevisioneGiornata({
   const [prevScores, setPrevScores] = useState<ClientScores | null>(null);
   const [loading, setLoading] = useState(true);
   const [openBlocks, setOpenBlocks] = useState<Record<number, boolean>>({});
+  // Risposta alla nota di un blocco: quale blocco è in modifica e la bozza.
+  const [replyOpen, setReplyOpen] = useState<number | null>(null);
+  const [replyDraft, setReplyDraft] = useState("");
+  const [savingReply, setSavingReply] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
+
+  async function saveReply(blockIndex: number) {
+    if (!vm || vm.source.kind !== "individual") return;
+    const text = replyDraft.trim();
+    setSavingReply(true);
+    setReplyError(null);
+    const next: Record<string, string> = { ...vm.trainerReplies };
+    if (text) next[String(blockIndex)] = text;
+    else delete next[String(blockIndex)];
+    const { error } = await supabase
+      .from("workout_assignments")
+      .update({ trainer_replies: next })
+      .eq("id", vm.source.assignmentId);
+    setSavingReply(false);
+    if (error) {
+      setReplyError("Errore nel salvataggio della risposta, riprova.");
+      return;
+    }
+    setVm({ ...vm, trainerReplies: next });
+    setReplyOpen(null);
+    setReplyDraft("");
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,6 +106,7 @@ export default function RevisioneGiornata({
         completedAt: assignment.completed_at || null,
         likedBy: assignment.liked_by || [],
         clientScores: assignment.client_scores || {},
+        trainerReplies: assignment.trainer_replies || {},
       });
 
       const prevDate = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
@@ -133,6 +163,7 @@ export default function RevisioneGiornata({
           completedAt: scoreRow?.completed_at || null,
           likedBy: groupWorkout.liked_by || [],
           clientScores: scoreRow?.client_scores || {},
+          trainerReplies: {},
         });
 
         const prevDate = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
@@ -312,6 +343,63 @@ export default function RevisioneGiornata({
                       <p className="text-sm text-gray-700 bg-blue-50 rounded-xl px-3 py-2 whitespace-pre-wrap">
                         💬 {readBlockNote(vm.clientScores, i)}
                       </p>
+
+                      {vm.source.kind === "individual" && (
+                        <div className="mt-2">
+                          {replyOpen === i ? (
+                            <div className="space-y-2">
+                              <textarea
+                                autoFocus
+                                rows={2}
+                                className="input w-full text-sm"
+                                placeholder="Scrivi la tua risposta…"
+                                value={replyDraft}
+                                onChange={(e) => setReplyDraft(e.target.value)}
+                              />
+                              {replyError && <p className="text-xs text-red-500">{replyError}</p>}
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => saveReply(i)}
+                                  disabled={savingReply}
+                                  className="btn-primary text-sm"
+                                >
+                                  {savingReply ? "Invio…" : "Invia risposta"}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setReplyOpen(null);
+                                    setReplyDraft("");
+                                    setReplyError(null);
+                                  }}
+                                  className="btn-secondary text-sm"
+                                >
+                                  Annulla
+                                </button>
+                              </div>
+                            </div>
+                          ) : vm.trainerReplies[String(i)] ? (
+                            <button
+                              onClick={() => {
+                                setReplyOpen(i);
+                                setReplyDraft(vm.trainerReplies[String(i)] || "");
+                              }}
+                              className="w-full text-left text-sm text-green-900 bg-green-50 rounded-xl px-3 py-2 whitespace-pre-wrap"
+                            >
+                              ↩️ Tu: {vm.trainerReplies[String(i)]}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setReplyOpen(i);
+                                setReplyDraft("");
+                              }}
+                              className="btn-secondary text-sm"
+                            >
+                              ↩️ Rispondi
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
