@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, getWeekDays, startOfWeek, toISODate } from "@/lib/dates";
 import WorkoutEditorPanel, { WorkoutDraft } from "@/components/WorkoutEditorPanel";
-import { Block, ClientScores, getBlockScores, readClientScoreEntry, displayScoreValue, htmlToLines } from "@/lib/workoutTypes";
+import { Block, ClientScores, getBlockScores, readClientScoreEntry, displayScoreValue, htmlToLines, readBlockNote } from "@/lib/workoutTypes";
 import {
   IconLibrary,
   IconEdit,
@@ -708,6 +708,11 @@ export default function WeekCalendar({
                                   </div>
                                 );
                               })}
+                              {readBlockNote(a.client_scores, bi) && (
+                                <p className="mt-1 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1 whitespace-pre-wrap">
+                                  💬 {readBlockNote(a.client_scores, bi)}
+                                </p>
+                              )}
                             </div>
                           );
                         })}

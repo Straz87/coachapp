@@ -15,6 +15,7 @@ import {
   getTimerSets,
   totalTimerSeconds,
   formatClock,
+  readBlockNote,
 } from "@/lib/workoutTypes";
 
 // Vista di sola lettura per il trainer: mostra cosa il cliente ha
@@ -304,6 +305,15 @@ export default function RevisioneGiornata({
                       </div>
                     );
                   })}
+
+                  {readBlockNote(vm.clientScores, i) && (
+                    <div className="pt-2 border-t border-gray-100">
+                      <p className="text-xs text-gray-400 mb-1">Nota del cliente</p>
+                      <p className="text-sm text-gray-700 bg-blue-50 rounded-xl px-3 py-2 whitespace-pre-wrap">
+                        💬 {readBlockNote(vm.clientScores, i)}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
