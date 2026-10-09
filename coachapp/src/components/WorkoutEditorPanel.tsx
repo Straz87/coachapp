@@ -489,8 +489,17 @@ export default function WorkoutEditorPanel({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => addBlock("Warm up")} className="btn-secondary text-sm">
+              + Warm up
+            </button>
+            <button onClick={() => addBlock("Il Movemax del giorno")} className="btn-secondary text-sm">
+              + Esercizio
+            </button>
+            <button onClick={() => addBlock("Mobility")} className="btn-secondary text-sm">
+              + Mobility
+            </button>
             <button onClick={() => addBlock()} className="btn-secondary text-sm">
-              + Aggiungi blocco
+              + Altro blocco
             </button>
             <button onClick={() => addBlock("Nota per l'atleta")} className="btn-secondary text-sm">
               + Nota per l&apos;atleta
