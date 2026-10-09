@@ -42,8 +42,6 @@ type ViewModel = {
   completed: boolean;
   likedBy: string[];
   clientScores: ClientScores;
-  // Risposte del trainer alle note del cliente (chiave = indice blocco).
-  trainerReplies: Record<string, string>;
 };
 
 // Un punteggio storico trovato in una sessione passata, con la data in cui
@@ -154,7 +152,6 @@ export default function AllenamentoGiorno({
         completed: assignment.completed,
         likedBy: assignment.liked_by || [],
         clientScores: assignment.client_scores || {},
-        trainerReplies: assignment.trainer_replies || {},
       });
 
       const weekAgo = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
@@ -221,7 +218,6 @@ export default function AllenamentoGiorno({
           completed: scoreRow?.completed || false,
           likedBy: groupWorkout.liked_by || [],
           clientScores: scoreRow?.client_scores || {},
-          trainerReplies: {},
         });
 
         const weekAgo = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
@@ -407,6 +403,21 @@ export default function AllenamentoGiorno({
 
   function updateDraftValue(setIndex: number, value: string) {
     setDraftValues((prev) => prev.map((v, i) => (i === setIndex ? value : v)));
+  }
+
+  // Scrittura diretta del valore (tastierino numerico). Le serie successive
+  // ancora vuote, o uguali al valore precedente di questa serie, si
+  // aggiornano da sole: basta digitare il peso una volta.
+  function typeDraftValue(setIndex: number, value: string) {
+    if (value !== "" && !/^\d*\.?\d*$/.test(value)) return;
+    setDraftValues((prev) => {
+      const old = prev[setIndex] || "";
+      return prev.map((v, i) => {
+        if (i === setIndex) return value;
+        if (i > setIndex && (v === "" || v === old)) return value;
+        return v;
+      });
+    });
   }
 
   // Incrementa/decrementa il valore numerico di una serie (usato dagli
@@ -841,9 +852,18 @@ export default function AllenamentoGiorno({
                                             >
                                               −
                                             </button>
-                                            <span className="flex-1 text-center text-lg font-semibold">
-                                              {raw ? `${raw}${unit}` : `—${unit}`}
-                                            </span>
+                                            <div className="flex-1 flex items-center justify-center gap-1">
+                                              <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                placeholder="—"
+                                                value={raw}
+                                                onFocus={(e) => e.target.select()}
+                                                onChange={(e) => typeDraftValue(setIdx, e.target.value.replace(",", "."))}
+                                                className="w-24 text-center text-lg font-semibold rounded-lg border border-transparent focus:border-gray-300 bg-transparent py-1"
+                                              />
+                                              {unit && <span className="text-lg font-semibold text-gray-500">{unit.trim()}</span>}
+                                            </div>
                                             <button
                                               type="button"
                                               onClick={() => stepDraftValue(setIdx, delta)}
@@ -968,19 +988,12 @@ export default function AllenamentoGiorno({
                               </div>
                             </div>
                           ) : existingNote ? (
-                            <div className="space-y-2">
-                              <button
-                                onClick={() => startEditNote(i)}
-                                className="w-full text-left text-sm text-gray-600 bg-gray-50 rounded-xl px-3 py-2"
-                              >
-                                💬 {existingNote}
-                              </button>
-                              {vm.trainerReplies[String(i)] && (
-                                <p className="text-sm text-green-900 bg-green-50 rounded-xl px-3 py-2 whitespace-pre-wrap">
-                                  ↩️ {trainerName}: {vm.trainerReplies[String(i)]}
-                                </p>
-                              )}
-                            </div>
+                            <button
+                              onClick={() => startEditNote(i)}
+                              className="w-full text-left text-sm text-gray-600 bg-gray-50 rounded-xl px-3 py-2"
+                            >
+                              💬 {existingNote}
+                            </button>
                           ) : (
                             <button
                               onClick={() => startEditNote(i)}

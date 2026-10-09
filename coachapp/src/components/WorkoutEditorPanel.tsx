@@ -25,6 +25,64 @@ import {
   formatClock,
 } from "@/lib/workoutTypes";
 
+
+// ---- Incolla/detta la scheda: trasforma un testo in blocchi ----
+const PASTE_HEADERS: Record<string, string> = {
+  "warm up": "Warm up", "warmup": "Warm up", "riscaldamento": "Warm up",
+  "skills": "Skills", "skill": "Skills",
+  "mobility": "Mobility", "mobilita": "Mobility", "mobilità": "Mobility",
+  "wod specifico": "WOD Specifico", "wod": "WOD",
+  "bodybuilding": "Bodybuilding",
+  "movemax": "Il Movemax del giorno", "il movemax del giorno": "Il Movemax del giorno",
+  "nota": "Nota per l'atleta", "nota per l'atleta": "Nota per l'atleta",
+  "defaticamento": "Defaticamento", "stretching": "Defaticamento",
+  "aerobica": "Aerobica", "braccia": "Braccia", "addominali": "Addominali",
+  "altro": "Altro",
+};
+
+function escHtml(t: string) {
+  return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// "Leg press 3x12 60 sec" -> ["Leg press", "3x12 rep", "60 sec recupero"]
+function splitExerciseLine(line: string): string[] | null {
+  const m = line.match(/^(.*?[A-Za-zÀ-ÿ\)])[\s,\-–:]+(\d+\s*[x×]\s*\d+(?:\s*[-–]\s*\d+)*)\s*(?:rep|reps|ripetizioni)?\s*(?:[,\-–@/]?\s*(?:rec(?:upero)?\s*)?(\d+(?:\s*[-–]\s*\d+)?\s*(?:sec|secondi|s|min|minuti|'|")))?\s*$/i);
+  if (!m) return null;
+  const out = [m[1].trim(), m[2].replace(/\s+/g, "").replace("×", "x") + " rep"];
+  if (m[3]) out.push(m[3].replace(/\s+/g, " ").trim().replace(/^(\d+(?:\s*[-–]\s*\d+)?)\s*(s|secondi)$/i, "$1 sec").replace(/\s*(sec|min)$/i, " $1") + " recupero");
+  return out;
+}
+
+function linesToHtml(lines: string[]) {
+  return lines.map((l) => "<p>" + escHtml(l) + "</p>").join("");
+}
+
+export function parseWorkoutText(text: string): Block[] {
+  const paragraphs = text
+    .replace(/\r/g, "")
+    .split(/\n\s*\n/)
+    .map((p) => p.split("\n").map((l) => l.replace(/^[\s•\-*]+/, "").trim()).filter(Boolean))
+    .filter((p) => p.length > 0);
+  const out: Block[] = [];
+  for (const lines of paragraphs) {
+    const head = lines[0].replace(/[:\-–]+\s*$/, "").trim().toLowerCase();
+    const known = PASTE_HEADERS[head];
+    if (known) {
+      out.push({ ...emptyBlock(), type: known, description: linesToHtml(lines.slice(1)) });
+      continue;
+    }
+    const parsed = lines.map(splitExerciseLine);
+    if (parsed.every((x) => x)) {
+      parsed.forEach((x) =>
+        out.push({ ...emptyBlock(), type: "Il Movemax del giorno", description: linesToHtml(x as string[]) })
+      );
+    } else {
+      out.push({ ...emptyBlock(), type: "Il Movemax del giorno", description: linesToHtml(lines) });
+    }
+  }
+  return out;
+}
+
 export type WorkoutDraft = {
   title: string;
   blocks: Block[];
@@ -181,6 +239,8 @@ export default function WorkoutEditorPanel({
     new Set(initial.blocks.length > 0 ? [] : [0])
   );
 
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
   const [templates, setTemplates] = useState<
     { id: string; name: string; activity_type: string | null; blocks: Block[] }[]
   >([]);
@@ -256,6 +316,19 @@ export default function WorkoutEditorPanel({
 
   function updateBlock(index: number, patch: Partial<Block>) {
     setBlocks((b) => b.map((blk, i) => (i === index ? { ...blk, ...patch } : blk)));
+  }
+
+  function applyPaste() {
+    const parsed = parseWorkoutText(pasteText);
+    if (parsed.length === 0) return;
+    setBlocks((b) => {
+      const onlyEmpty = b.length === 1 && !b[0].description.replace(/<[^>]*>/g, "").trim();
+      const next = onlyEmpty ? parsed : [...b, ...parsed];
+      setOpenBlocks(new Set());
+      return next;
+    });
+    setPasteText("");
+    setPasteOpen(false);
   }
 
   function addBlock(type?: string) {
@@ -349,6 +422,33 @@ export default function WorkoutEditorPanel({
                 {t}
               </button>
             ))}
+          </div>
+
+          <div className="rounded-xl border border-gray-200 p-3">
+            <button
+              type="button"
+              onClick={() => setPasteOpen(!pasteOpen)}
+              className="text-sm font-medium text-gray-700 w-full text-left"
+            >
+              {pasteOpen ? "▾" : "▸"} Incolla o detta la scheda
+            </button>
+            {pasteOpen && (
+              <div className="mt-2 space-y-2">
+                <textarea
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  rows={8}
+                  className="w-full rounded-lg border border-gray-200 p-2 text-base"
+                  placeholder={"Warm up\n5' bike + mobilità anche\n\nSquat 4x10 60-70 sec\n\nPanca 4x10 90 sec\n\nDefaticamento\nStretching 5 min"}
+                />
+                <p className="text-xs text-gray-400">
+                  Righe vuote separano i blocchi. Un nome tipo «Warm up» o «Defaticamento» da solo sulla prima riga sceglie il tipo; «Squat 4x10 60 sec» diventa un blocco con nome, serie e recupero. Su iPhone usa il microfono della tastiera per dettare.
+                </p>
+                <button type="button" onClick={applyPaste} className="btn-secondary text-sm">
+                  Crea blocchi
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
