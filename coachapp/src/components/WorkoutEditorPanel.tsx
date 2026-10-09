@@ -239,7 +239,10 @@ export default function WorkoutEditorPanel({
     new Set(initial.blocks.length > 0 ? [] : [0])
   );
 
-  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(
+    initial.blocks.length === 0 ||
+      initial.blocks.every((b) => !(b.description || "").replace(/<[^>]*>/g, "").trim())
+  );
   const [pasteText, setPasteText] = useState("");
   const [templates, setTemplates] = useState<
     { id: string; name: string; activity_type: string | null; blocks: Block[] }[]
@@ -424,27 +427,27 @@ export default function WorkoutEditorPanel({
             ))}
           </div>
 
-          <div className="rounded-xl border border-gray-200 p-3">
+          <div className="rounded-xl border-2 border-brand bg-brand/10 p-3">
             <button
               type="button"
               onClick={() => setPasteOpen(!pasteOpen)}
               className="text-sm font-medium text-gray-700 w-full text-left"
             >
-              {pasteOpen ? "▾" : "▸"} Incolla o detta la scheda
+              {pasteOpen ? "▾" : "▸"} ✍️ Scrivi o detta tutta la scheda qui
             </button>
             {pasteOpen && (
               <div className="mt-2 space-y-2">
                 <textarea
                   value={pasteText}
                   onChange={(e) => setPasteText(e.target.value)}
-                  rows={8}
+                  rows={10}
                   className="w-full rounded-lg border border-gray-200 p-2 text-base"
                   placeholder={"Warm up\n5' bike + mobilità anche\n\nSquat 4x10 60-70 sec\n\nPanca 4x10 90 sec\n\nDefaticamento\nStretching 5 min"}
                 />
                 <p className="text-xs text-gray-400">
                   Righe vuote separano i blocchi. Un nome tipo «Warm up» o «Defaticamento» da solo sulla prima riga sceglie il tipo; «Squat 4x10 60 sec» diventa un blocco con nome, serie e recupero. Su iPhone usa il microfono della tastiera per dettare.
                 </p>
-                <button type="button" onClick={applyPaste} className="btn-secondary text-sm">
+                <button type="button" onClick={applyPaste} className="btn-primary w-full">
                   Crea blocchi
                 </button>
               </div>
@@ -519,7 +522,7 @@ export default function WorkoutEditorPanel({
             {templateMsg && <span className="text-xs text-green-600">{templateMsg}</span>}
           </div>
 
-          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+          <div className="sticky bottom-0 -mx-6 -mb-6 px-6 py-3 bg-white flex items-center justify-between border-t border-gray-100">
             <div className="flex gap-2">
               <button onClick={onCancel} className="btn-secondary">
                 Annulla
