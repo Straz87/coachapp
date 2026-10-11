@@ -772,6 +772,22 @@ export default function AllenamentoGiorno({
                                       {prevEntry.rx ? "RX" : "SC"}
                                     </span>
                                   </span>
+                                  {!scoreEntry && score.type !== "amrap" && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        persistScore(
+                                          i,
+                                          si,
+                                          Array.from({ length: sets }, (_, k) => prevEntry.values[k] || prevEntry.values[0] || ""),
+                                          prevEntry.rx
+                                        )
+                                      }
+                                      className="ml-auto text-sm font-semibold px-3 py-1.5 rounded-full bg-brand text-brand-dark shrink-0"
+                                    >
+                                      ✓ Uguale
+                                    </button>
+                                  )}
                                 </div>
                               )}
 
