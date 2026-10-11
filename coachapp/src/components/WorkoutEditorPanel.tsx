@@ -427,13 +427,13 @@ export default function WorkoutEditorPanel({
             ))}
           </div>
 
-          <div className="rounded-xl border-2 border-brand bg-brand/10 p-3">
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
             <button
               type="button"
               onClick={() => setPasteOpen(!pasteOpen)}
               className="text-sm font-medium text-gray-700 w-full text-left"
             >
-              {pasteOpen ? "▾" : "▸"} ✍️ Scrivi o detta tutta la scheda qui
+              {pasteOpen ? "▾" : "▸"} Scrivi o detta tutta la scheda
             </button>
             {pasteOpen && (
               <div className="mt-2 space-y-2">
@@ -447,7 +447,7 @@ export default function WorkoutEditorPanel({
                 <p className="text-xs text-gray-400">
                   Righe vuote separano i blocchi. Un nome tipo «Warm up» o «Defaticamento» da solo sulla prima riga sceglie il tipo; «Squat 4x10 60 sec» diventa un blocco con nome, serie e recupero. Su iPhone usa il microfono della tastiera per dettare.
                 </p>
-                <button type="button" onClick={applyPaste} className="btn-primary w-full">
+                <button type="button" onClick={applyPaste} className="btn-secondary w-full">
                   Crea blocchi
                 </button>
               </div>
