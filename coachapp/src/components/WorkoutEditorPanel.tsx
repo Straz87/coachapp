@@ -455,7 +455,11 @@ export default function WorkoutEditorPanel({
           </div>
 
           <div className="space-y-2">
-            {blocks.map((block, i) => (<div key={i} className="flex items-start gap-1">
+            {!(
+              pasteOpen &&
+              blocks.every((b) => !(b.description || "").replace(/<[^>]*>/g, "").trim())
+            ) &&
+              blocks.map((block, i) => (<div key={i} className="flex items-start gap-1">
               <div className="flex-1 min-w-0">
                 <BlockEditor
                   block={block}
