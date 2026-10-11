@@ -337,7 +337,16 @@ export default function WorkoutEditorPanel({
   function addBlock(type?: string) {
     setBlocks((b) => {
       const next = [...b, type ? { ...emptyBlock(), type } : emptyBlock()];
-      setOpenBlocks((s) => new Set(s).add(next.length - 1));
+      const newIndex = next.length - 1;
+      setOpenBlocks(new Set([newIndex]));
+      setTimeout(() => {
+        const el = document.getElementById("block-" + newIndex);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          const editable = el.querySelector("[contenteditable='true'], textarea") as HTMLElement | null;
+          if (editable) editable.focus();
+        }
+      }, 80);
       return next;
     });
   }
@@ -459,7 +468,7 @@ export default function WorkoutEditorPanel({
               pasteOpen &&
               blocks.every((b) => !(b.description || "").replace(/<[^>]*>/g, "").trim())
             ) &&
-              blocks.map((block, i) => (<div key={i} className="flex items-start gap-1">
+              blocks.map((block, i) => (<div key={i} id={"block-" + i} className="flex items-start gap-1">
               <div className="flex-1 min-w-0">
                 <BlockEditor
                   block={block}
