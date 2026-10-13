@@ -423,17 +423,6 @@ export default function AllenamentoGiorno({
   // Incrementa/decrementa il valore numerico di una serie (usato dagli
   // stepper +/- per i punteggi di tipo peso e ripetizioni), partendo da 0
   // se la serie non ha ancora un valore inserito.
-  function stepDraftValue(setIndex: number, delta: number) {
-    setDraftValues((prev) =>
-      prev.map((v, i) => {
-        if (i !== setIndex) return v;
-        const current = parseFloat(v) || 0;
-        const next = Math.max(0, Math.round((current + delta) * 100) / 100);
-        return String(next);
-      })
-    );
-  }
-
   // Precompila tutte le serie con i valori della settimana scorsa: un tap
   // solo per chi ripete lo stesso carico, invece di doverlo ricordare e
   // riscrivere da zero.
@@ -852,7 +841,6 @@ export default function AllenamentoGiorno({
                                     }
                                     if (score.type === "peso" || score.type === "reps") {
                                       const unit = score.type === "peso" ? " kg" : "";
-                                      const delta = score.type === "peso" ? 2.5 : 1;
                                       const raw = draftValues[setIdx] || "";
                                       return (
                                         <div key={setIdx} className="space-y-1">
@@ -860,15 +848,7 @@ export default function AllenamentoGiorno({
                                             <p className="text-xs text-gray-400">Serie {setIdx + 1}</p>
                                           )}
                                           <div className="flex items-center gap-3">
-                                            <button
-                                              type="button"
-                                              onClick={() => stepDraftValue(setIdx, -delta)}
-                                              aria-label="Diminuisci"
-                                              className="w-10 h-10 shrink-0 rounded-full border border-gray-200 flex items-center justify-center text-xl font-semibold text-gray-600"
-                                            >
-                                              −
-                                            </button>
-                                            <div className="flex-1 flex items-center justify-center gap-1">
+                                            <div className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-1">
                                               <input
                                                 type="text"
                                                 inputMode="decimal"
@@ -876,18 +856,10 @@ export default function AllenamentoGiorno({
                                                 value={raw}
                                                 onFocus={(e) => e.target.select()}
                                                 onChange={(e) => typeDraftValue(setIdx, e.target.value.replace(",", "."))}
-                                                className="w-24 text-center text-lg font-semibold rounded-lg border border-transparent focus:border-gray-300 bg-transparent py-1"
+                                                className="w-24 text-center text-xl font-semibold bg-transparent outline-none py-1"
                                               />
                                               {unit && <span className="text-lg font-semibold text-gray-500">{unit.trim()}</span>}
                                             </div>
-                                            <button
-                                              type="button"
-                                              onClick={() => stepDraftValue(setIdx, delta)}
-                                              aria-label="Aumenta"
-                                              className="w-10 h-10 shrink-0 rounded-full border border-gray-200 flex items-center justify-center text-xl font-semibold text-gray-600"
-                                            >
-                                              +
-                                            </button>
                                           </div>
                                         </div>
                                       );
