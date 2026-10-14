@@ -5,6 +5,7 @@ import ClientEditForm from "@/components/ClientEditForm";
 import ProgressChart from "@/components/ProgressChart";
 import ClientMaxes from "@/components/ClientMaxes";
 import CategoryMaxes from "@/components/CategoryMaxes";
+import ProgressTracking from "@/components/ProgressTracking";
 
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const { supabase, profile } = await requireTrainer();
@@ -46,6 +47,11 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
         </Link>
       </div>
 
+      <section>
+        <h2 className="font-semibold mb-3">Andamento allenamenti</h2>
+        <ProgressTracking clientId={client.id} coach />
+      </section>
+
       <ClientEditForm
         clientId={client.id}
         initial={{
@@ -56,21 +62,10 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           internal_note: client.internal_note,
           payment_managed_by_stripe: client.payment_managed_by_stripe,
           last_payment_at: client.last_payment_at,
-          induction_onboarded: client.induction_onboarded,
-          induction_goal: client.induction_goal,
-          induction_experience: client.induction_experience,
-          induction_days_per_week: client.induction_days_per_week,
-          induction_limitations: client.induction_limitations,
-          induction_notes: client.induction_notes,
-          induction_sex: client.induction_sex,
-          induction_birth_date: client.induction_birth_date,
-          induction_height_cm: client.induction_height_cm,
-          induction_weight_kg: client.induction_weight_kg,
-          induction_sports_background: client.induction_sports_background,
         }}
       />
 
-              <ClientMaxes clientId={client.id} />
+      <ClientMaxes clientId={client.id} />
       <CategoryMaxes clientId={client.id} categoryKey="monostructural" label="Monostructural" valueType="time" />
       <CategoryMaxes clientId={client.id} categoryKey="gymnastics" label="Gymnastics" valueType="reps" />
 
