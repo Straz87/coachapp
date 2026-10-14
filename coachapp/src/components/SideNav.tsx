@@ -11,11 +11,15 @@ type NavItem = { href: string; label: string; icon: string; short?: string };
 
 export default function SideNav({
   items,
+  barItems,
+  moreItems,
   fullName,
   trainerId,
   isTrainer,
 }: {
   items: NavItem[];
+  barItems?: NavItem[];
+  moreItems?: NavItem[];
   fullName: string;
   trainerId?: string;
   isTrainer?: boolean;
@@ -24,6 +28,11 @@ export default function SideNav({
   const router = useRouter();
   const supabase = createClient();
   const [open, setOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const barList = barItems ?? items;
+  const moreActive = (moreItems || []).some(
+    (m) => pathname === m.href || pathname.startsWith(m.href + "/")
+  );
 
   const [mounted, setMounted] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
@@ -126,9 +135,9 @@ export default function SideNav({
 
       {/* Barra in basso solo su mobile e solo per i clienti: le sezioni
           principali sempre a un tocco, senza aprire il menu. */}
-      {!trainerId && !isTrainer && items.length > 0 && (
+      {!trainerId && !isTrainer && barList.length > 0 && (
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-100 flex justify-around px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-          {items.map((item) => {
+          {barList.map((item) => {
             const active =
               item.href === "/cliente"
                 ? pathname === "/cliente" || pathname.startsWith("/cliente/allenamento")
@@ -153,6 +162,49 @@ export default function SideNav({
               </Link>
             );
           })}
+          {moreItems && moreItems.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              className="flex flex-col items-center gap-0.5 text-[11px] flex-1 min-w-0"
+            >
+              <span
+                className={`w-12 h-7 rounded-full flex items-center justify-center text-lg leading-none ${
+                  moreActive ? "bg-brand" : ""
+                }`}
+              >
+                ⋯
+              </span>
+              <span className={moreActive ? "font-semibold text-gray-900" : "text-gray-500"}>Altro</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Foglio "Altro" dal basso: sezioni usate meno spesso */}
+      {moreOpen && (
+        <div className="md:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setMoreOpen(false)} />
+          <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-xl">
+            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-gray-200" />
+            <ul className="space-y-1">
+              {(moreItems || []).map((item) => (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    prefetch={false}
+                    onClick={() => setMoreOpen(false)}
+                    className="flex items-center gap-3 px-3 py-3 rounded-xl text-base font-medium text-gray-800 hover:bg-gray-100"
+                  >
+                    <span className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-lg">
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
