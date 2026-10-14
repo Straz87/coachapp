@@ -2,13 +2,17 @@ import { requireClientRole } from "@/lib/auth";
 import SideNav from "@/components/SideNav";
 import ReactivatePaymentButton from "@/components/ReactivatePaymentButton";
 
-const NAV_ITEMS = [
-  { href: "/cliente", label: "I miei allenamenti", short: "Allenamenti", icon: "🏋️" },
-  { href: "/cliente/progressi", label: "Progressi", short: "Progressi", icon: "📈" },
-  { href: "/cliente/dieta", label: "Piano alimentare", short: "Dieta", icon: "🥗" },
-  { href: "/cliente/chat", label: "Messaggi", short: "Chat", icon: "💬" },
-  { href: "/cliente/massimali", label: "Massimali", short: "Massimali", icon: "🔢" },
-];
+const OGGI = { href: "/cliente", label: "Oggi", short: "Oggi", icon: "🏠" };
+const CALENDARIO = { href: "/cliente/calendario", label: "Calendario", short: "Calendario", icon: "📅" };
+const PROGRESSI = { href: "/cliente/progressi", label: "Progressi", short: "Progressi", icon: "📈" };
+const CHAT = { href: "/cliente/chat", label: "Messaggi", short: "Chat", icon: "💬" };
+const DIETA = { href: "/cliente/dieta", label: "Piano alimentare", short: "Dieta", icon: "🥗" };
+const MASSIMALI = { href: "/cliente/massimali", label: "Massimali", short: "Massimali", icon: "🔢" };
+
+// Menu completo (☰ e desktop), barra in basso su mobile e voci sotto "Altro".
+const NAV_ITEMS = [OGGI, CALENDARIO, PROGRESSI, CHAT, DIETA, MASSIMALI];
+const BAR_ITEMS = [OGGI, CALENDARIO, PROGRESSI, CHAT];
+const MORE_ITEMS = [DIETA, MASSIMALI];
 
 // Stati che bloccano l'accesso all'app: il webhook Stripe li imposta in
 // automatico quando un pagamento fallisce (scaduto) o l'abbonamento viene
@@ -59,7 +63,7 @@ export default async function ClienteLayout({ children }: { children: React.Reac
 
   return (
     <div className="flex flex-col md:flex-row">
-      <SideNav items={NAV_ITEMS} fullName={profile.full_name} />
+      <SideNav items={NAV_ITEMS} barItems={BAR_ITEMS} moreItems={MORE_ITEMS} fullName={profile.full_name} />
       <main className="flex-1 p-4 pb-24 md:p-8 min-w-0">{children}</main>
     </div>
   );

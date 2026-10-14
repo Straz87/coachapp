@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { requireClientRole } from "@/lib/auth";
-import ClientWeekView from "@/components/ClientWeekView";
+import OggiCard from "@/components/OggiCard";
 import ClientProgramCard from "@/components/ClientProgramCard";
-import OnboardingPopups from "@/components/OnboardingPopups";
-import InductionReopenBanner from "@/components/InductionReopenBanner";
 
 export default async function ClienteHome() {
   const { supabase, profile } = await requireClientRole();
@@ -31,11 +29,8 @@ export default async function ClienteHome() {
 
   return (
     <div className="max-w-2xl">
-      <OnboardingPopups clientId={client.id} />
-      <InductionReopenBanner clientId={client.id} />
-
       <h1 className="text-2xl font-bold mb-1">Ciao {profile.full_name.split(" ")[0]} 👋</h1>
-      <p className="text-gray-500 text-sm mb-6">Ecco i tuoi allenamenti della settimana.</p>
+      <p className="text-gray-500 text-sm mb-5">Ecco cosa c&apos;è in programma oggi.</p>
 
       {(pendingPriceChanges || []).map((change: any) => (
         <Link
@@ -50,9 +45,16 @@ export default async function ClienteHome() {
         </Link>
       ))}
 
+      <OggiCard clientId={client.id} />
+
       <ClientProgramCard clientId={client.id} />
 
-      <ClientWeekView clientId={client.id} />
+      <Link
+        href="/cliente/calendario"
+        className="block text-center text-sm text-gray-500 hover:text-gray-800 mt-2"
+      >
+        Vedi il calendario completo →
+      </Link>
     </div>
   );
 }
