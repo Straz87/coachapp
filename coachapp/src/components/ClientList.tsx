@@ -40,10 +40,34 @@ function expiryLabel(expiryDate: string | null, daysToExpiry: number | null | un
   return `${formatted} (tra ${daysToExpiry}g)`;
 }
 
+function isExpiring(c: ClientRow) {
+  return c.days_to_expiry !== null && c.days_to_expiry !== undefined && c.days_to_expiry >= 0 && c.days_to_expiry <= 5;
+}
+
+function isStalled(c: ClientRow) {
+  if (c.days_inactive !== null && c.days_inactive !== undefined) return c.days_inactive >= 5;
+  return !c.last_activity && !!c.needs_attention && !isExpiring(c);
+}
+
+function initials(name: string | undefined) {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
+}
+
 export default function ClientList({ clients }: { clients: ClientRow[] }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
   const [urgentFirst, setUrgentFirst] = useState(true);
+
+  const todo = useMemo(
+    () => ({
+      fermi: clients.filter(isStalled).length,
+      scadenza: clients.filter(isExpiring).length,
+      scaduti: clients.filter((c) => c.status === "scaduto").length,
+    }),
+    [clients]
+  );
 
   const filtered = useMemo(() => {
     const list = clients.filter((c) => {
@@ -54,6 +78,10 @@ export default function ClientList({ clients }: { clients: ClientRow[] }) {
           ? true
           : statusFilter === "attenzione"
           ? !!c.needs_attention
+          : statusFilter === "fermi"
+          ? isStalled(c)
+          : statusFilter === "scadenza"
+          ? isExpiring(c)
           : c.status === statusFilter;
       return matchesQuery && matchesStatus;
     });
@@ -70,8 +98,60 @@ export default function ClientList({ clients }: { clients: ClientRow[] }) {
     return list;
   }, [clients, query, statusFilter, urgentFirst]);
 
+  const chip = (value: string, label: string) => (
+    <button
+      type="button"
+      onClick={() => setStatusFilter(value)}
+      className={`shrink-0 rounded-full px-3.5 py-1.5 text-[13px] ${
+        statusFilter === value
+          ? "bg-brand font-semibold text-gray-900"
+          : "border border-gray-200 text-gray-600"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  const todoRow = (value: string, color: string, text: string) => (
+    <button
+      type="button"
+      onClick={() => setStatusFilter(value)}
+      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm border-t first:border-t-0 border-gray-100"
+    >
+      <span className={`h-2 w-2 rounded-full ${color}`} />
+      <span className="flex-1">{text}</span>
+      <span className="text-gray-300">›</span>
+    </button>
+  );
+
+  const nothingTodo = todo.fermi + todo.scadenza + todo.scaduti === 0;
+
   return (
     <div>
+      {/* Da fare oggi: solo telefono. Un tocco filtra la lista sotto. */}
+      <div className="sm:hidden mb-5">
+        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Da fare oggi</p>
+        <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
+          {todo.fermi > 0 &&
+            todoRow(
+              "fermi",
+              "bg-red-500",
+              `${todo.fermi} ${todo.fermi === 1 ? "cliente fermo" : "clienti fermi"} da 5+ giorni`
+            )}
+          {todo.scadenza > 0 &&
+            todoRow(
+              "scadenza",
+              "bg-amber-500",
+              `${todo.scadenza} ${todo.scadenza === 1 ? "abbonamento in scadenza" : "abbonamenti in scadenza"}`
+            )}
+          {todo.scaduti > 0 &&
+            todoRow("scaduto", "bg-red-500", `${todo.scaduti} ${todo.scaduti === 1 ? "abbonamento scaduto" : "abbonamenti scaduti"}`)}
+          {nothingTodo && (
+            <p className="px-4 py-3 text-sm text-gray-500">Tutto a posto: nessun cliente da contattare.</p>
+          )}
+        </div>
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
         <input
           className="input sm:max-w-xs"
@@ -79,20 +159,28 @@ export default function ClientList({ clients }: { clients: ClientRow[] }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <div className="sm:hidden flex gap-2 overflow-x-auto -mx-1 px-1">
+          {chip("tutti", "Tutti")}
+          {chip("attenzione", "Da contattare")}
+          {chip("scadenza", "In scadenza")}
+          {chip("scaduto", "Scaduti")}
+        </div>
         <select
-          className="input sm:max-w-[200px]"
+          className="input hidden sm:block sm:max-w-[200px]"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
           <option value="tutti">Tutti gli stati</option>
           <option value="attenzione">⚠️ Da contattare</option>
+          <option value="fermi">Fermi da 5+ giorni</option>
+          <option value="scadenza">In scadenza (5 giorni)</option>
           <option value="attivo">Attivo</option>
           <option value="in_scadenza">In scadenza</option>
           <option value="scaduto">Scaduto</option>
           <option value="sospeso">Sospeso</option>
           <option value="in_attesa_pagamento">In attesa di pagamento</option>
         </select>
-        <label className="flex items-center gap-2 text-sm text-gray-500 sm:ml-auto">
+        <label className="hidden sm:flex items-center gap-2 text-sm text-gray-500 sm:ml-auto">
           <input
             type="checkbox"
             checked={urgentFirst}
@@ -102,45 +190,45 @@ export default function ClientList({ clients }: { clients: ClientRow[] }) {
         </label>
       </div>
 
-      {/* Vista a schede: solo su schermi stretti (telefono). Mostra tutti i
-          dati subito, senza dover scorrere lateralmente come nella tabella. */}
-      <div className="sm:hidden space-y-2">
+      {/* Telefono: righe pulite con avatar e stato in una riga. */}
+      <div className="sm:hidden rounded-2xl border border-gray-100 bg-white overflow-hidden">
         {filtered.map((c) => {
           const hasHistory = !!c.last_activity;
-          const inactiveWarn =
-            c.days_inactive !== null && c.days_inactive !== undefined
-              ? c.days_inactive >= 5
-              : !hasHistory && c.needs_attention;
-          const expiryWarn =
-            c.days_to_expiry !== null &&
-            c.days_to_expiry !== undefined &&
-            c.days_to_expiry <= 5;
+          const stalled = isStalled(c);
+          const expiring = isExpiring(c) || c.status === "in_scadenza";
+          const bad = stalled || c.status === "scaduto" || c.status === "sospeso";
+          const tone = bad
+            ? { avatar: "bg-red-50 text-red-700", dot: "bg-red-500", text: "text-red-600" }
+            : expiring
+            ? { avatar: "bg-amber-50 text-amber-700", dot: "bg-amber-500", text: "text-amber-700" }
+            : { avatar: "bg-gray-100 text-gray-700", dot: "bg-green-500", text: "text-gray-500" };
+
+          let line: string;
+          if (c.status === "scaduto") line = "Abbonamento scaduto";
+          else if (c.status === "sospeso") line = "Abbonamento sospeso";
+          else if (c.status === "in_attesa_pagamento") line = "In attesa di pagamento";
+          else if (isExpiring(c))
+            line = c.days_to_expiry === 0 ? "Scade oggi" : `Scade tra ${c.days_to_expiry} giorni`;
+          else if (stalled)
+            line = hasHistory ? `Fermo da ${c.days_inactive} giorni` : "Nessuna attività";
+          else line = `Ultima attività: ${activityLabel(c.days_inactive, hasHistory).toLowerCase()}`;
 
           return (
             <Link
               key={c.id}
               href={`/trainer/clienti/${c.id}`}
-              className={`block card p-4 ${c.needs_attention ? "bg-orange-50/60" : ""}`}
+              className="flex items-center gap-3 px-4 py-3 border-t first:border-t-0 border-gray-100"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="font-medium">
-                    {c.needs_attention && <span className="mr-1">⚠️</span>}
-                    {c.profiles?.full_name || "—"}
-                  </div>
-                  <div className="text-gray-400 text-xs">{c.profiles?.email}</div>
-                </div>
-                <span className={`badge-${c.status}`}>{STATUS_LABEL[c.status]}</span>
-              </div>
-              <div className="flex items-center justify-between mt-3 text-sm">
-                <span className={inactiveWarn ? "text-orange-600 font-medium" : "text-gray-600"}>
-                  {activityLabel(c.days_inactive, hasHistory)}
-                </span>
-                <span className="text-gray-600">{c.price ? `${c.price} €/mese` : "—"}</span>
-              </div>
-              <div className={`mt-1 text-sm ${expiryWarn ? "text-red-600 font-medium" : "text-gray-500"}`}>
-                Scadenza: {expiryLabel(c.expiry_date, c.days_to_expiry)}
-              </div>
+              <span
+                className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-[13px] font-semibold ${tone.avatar}`}
+              >
+                {initials(c.profiles?.full_name)}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{c.profiles?.full_name || "—"}</span>
+                <span className={`block truncate text-xs ${tone.text}`}>{line}</span>
+              </span>
+              <span className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
             </Link>
           );
         })}
