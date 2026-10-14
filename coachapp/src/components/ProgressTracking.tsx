@@ -95,7 +95,7 @@ function Bars({ items }: { items: { label: string; value: number; display: strin
   );
 }
 
-export default function ProgressTracking({ clientId }: { clientId: string }) {
+export default function ProgressTracking({ clientId, coach }: { clientId: string; coach?: boolean }) {
   const supabase = createClient();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [tab, setTab] = useState<"carico" | "volume" | "costanza">("carico");
@@ -189,8 +189,9 @@ export default function ProgressTracking({ clientId }: { clientId: string }) {
         <>
           {names.length === 0 ? (
             <div className="card text-sm text-gray-500">
-              Qui vedrai l&apos;andamento dei tuoi carichi. Segna il peso nelle tue schede e i grafici
-              compaiono da soli.
+              {coach
+                ? "Il cliente non ha ancora segnato pesi: i grafici compaiono appena li inserisce nelle schede."
+                : "Qui vedrai l'andamento dei tuoi carichi. Segna il peso nelle tue schede e i grafici compaiono da soli."}
             </div>
           ) : (
             <>
