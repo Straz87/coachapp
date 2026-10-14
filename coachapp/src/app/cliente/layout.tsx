@@ -3,11 +3,10 @@ import SideNav from "@/components/SideNav";
 import ReactivatePaymentButton from "@/components/ReactivatePaymentButton";
 
 const NAV_ITEMS = [
-  { href: "/cliente", label: "I miei allenamenti", icon: "🏋️" },
-  { href: "/cliente/progressi", label: "Progressi", icon: "📈" },
-  { href: "/cliente/dieta", label: "Piano alimentare", icon: "🥗" },
-  { href: "/cliente/chat", label: "Messaggi", icon: "💬" },
-  { href: "/cliente/massimali", label: "Massimali", icon: "🔢" },
+  { href: "/cliente", label: "I miei allenamenti", short: "Allenamenti", icon: "🏋️" },
+  { href: "/cliente/progressi", label: "Progressi", short: "Progressi", icon: "📈" },
+  { href: "/cliente/dieta", label: "Piano alimentare", short: "Dieta", icon: "🥗" },
+  { href: "/cliente/chat", label: "Messaggi", short: "Chat", icon: "💬" },
 ];
 
 // Stati che bloccano l'accesso all'app: il webhook Stripe li imposta in
@@ -16,7 +15,7 @@ const NAV_ITEMS = [
 // visibile al trainer: il cliente continuava a vedere tutto normalmente.
 // Ora blocchiamo qui, in un unico punto condiviso da tutte le pagine
 // cliente, invece di ripetere il controllo in ogni pagina.
-const BLOCKED_STATUSES = ["scaduto", "sospeso", "in_attesa_pagamento"];
+const BLOCKED_STATUSES = ["scaduto", "sospeso"];
 
 export default async function ClienteLayout({ children }: { children: React.ReactNode }) {
   const { supabase, profile } = await requireClientRole();
@@ -31,16 +30,9 @@ export default async function ClienteLayout({ children }: { children: React.Reac
 
   if (blocked) {
     const message =
-client!.status === "sospeso"
-            ? "Il tuo abbonamento è stato sospeso."
-              : client!.status === "in_attesa_pagamento"
-            ? "Il tuo abbonamento è quasi pronto."
-              : "Il tuo abbonamento è scaduto.";
-
-        const detail =
-                client!.status === "in_attesa_pagamento"
-            ? "Manca solo il pagamento per attivare il tuo accesso. Completalo ora, oppure contatta il tuo trainer se pensi sia un errore."
-                  : "Paga ora per riattivarlo subito, oppure contatta il tuo trainer. Non appena il pagamento sarà regolarizzato tornerai a vedere i tuoi allenamenti, i progressi e la chat.";
+      client!.status === "sospeso"
+        ? "Il tuo abbonamento è stato sospeso."
+        : "Il tuo abbonamento è scaduto.";
 
     return (
       <div className="flex flex-col md:flex-row">
@@ -50,7 +42,8 @@ client!.status === "sospeso"
             <div className="text-4xl mb-4">🔒</div>
             <h1 className="text-xl font-bold mb-2">{message}</h1>
             <p className="text-gray-500 text-sm">
-              {detail}
+              Paga ora per riattivarlo subito, oppure contatta il tuo trainer. Non appena il pagamento sarà
+              regolarizzato tornerai a vedere i tuoi allenamenti, i progressi e la chat.
             </p>
             <ReactivatePaymentButton />
           </div>
@@ -62,7 +55,7 @@ client!.status === "sospeso"
   return (
     <div className="flex flex-col md:flex-row">
       <SideNav items={NAV_ITEMS} fullName={profile.full_name} />
-      <main className="flex-1 p-4 md:p-8 min-w-0">{children}</main>
+      <main className="flex-1 p-4 pb-24 md:p-8 min-w-0">{children}</main>
     </div>
   );
 }
