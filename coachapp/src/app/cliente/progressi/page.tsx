@@ -1,6 +1,6 @@
 import { requireClientRole } from "@/lib/auth";
 import ProgressHistory from "@/components/ProgressHistory";
-import ExerciseProgress from "@/components/ExerciseProgress";
+import ProgressTracking from "@/components/ProgressTracking";
 
 export default async function ProgressiPage() {
   const { supabase, profile } = await requireClientRole();
@@ -16,14 +16,15 @@ export default async function ProgressiPage() {
   return (
     <div className="max-w-xl space-y-8">
       <div>
-        <h1 className="text-2xl font-bold mb-6">I miei progressi</h1>
-        <ProgressHistory clientId={client.id} />
+        <h1 className="text-2xl font-bold mb-4">Progressi</h1>
+        <ProgressTracking clientId={client.id} />
       </div>
 
       <div>
-        <h2 className="text-xl font-bold mb-4">Progressioni di carico</h2>
-        <ExerciseProgress clientId={client.id} />
+        <h2 className="text-xl font-bold mb-4">Misure e peso corporeo</h2>
+        <ProgressHistory clientId={client.id} />
       </div>
+
     </div>
   );
 }
