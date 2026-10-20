@@ -825,6 +825,12 @@ function LinesField({
         }}
       />
       <p className="text-xs text-gray-400 mt-1">Una riga per ogni cosa da fare.</p>
+      {/\d\s*%/.test(text) && (
+        <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mt-2">
+          Hai scritto una percentuale. Il cliente vedrà i kg solo se ha salvato in Massimali il massimale con lo
+          stesso nome scritto nella riga (es. &quot;Snatch 80%&quot;).
+        </p>
+      )}
     </div>
   );
 }
