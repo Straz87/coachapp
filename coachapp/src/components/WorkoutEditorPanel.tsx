@@ -215,6 +215,75 @@ function DurationField({
   );
 }
 
+// Categorie che si possono aggiungere con "+ Aggiungi blocco".
+const CATEGORY_CHOICES: { label: string; type: string }[] = [
+  { label: "Warm up", type: "Warm up" },
+  { label: "Mobility", type: "Mobility" },
+  { label: "Skills", type: "Skills" },
+  { label: "Movemax", type: "Il Movemax del giorno" },
+  { label: "Bodybuilding", type: "Bodybuilding" },
+  { label: "WOD", type: "WOD" },
+  { label: "WOD specifico", type: "WOD Specifico" },
+  { label: "Aerobica", type: "Aerobica" },
+  { label: "Defaticamento", type: "Defaticamento" },
+  { label: "Altro", type: "" },
+];
+
+// Tipi di blocco in cui ogni blocco e' un singolo esercizio (nome, serie,
+// ripetizioni, recupero), con il peso richiesto al cliente.
+const EXERCISE_TYPES = ["Il Movemax del giorno", "Bodybuilding"];
+
+function typeLabel(type: string): string {
+  if (type === "Il Movemax del giorno") return "Movemax";
+  return type || "Altro";
+}
+
+function isBlockEmpty(b: Block): boolean {
+  return !(b.description || "").replace(/<[^>]*>/g, "").trim();
+}
+
+// L'HTML e' "semplice" se contiene solo paragrafi e a capo: in quel caso si
+// puo' modificare come testo normale senza perdere formattazione.
+function isPlainHtml(html: string): boolean {
+  return !/<(?!\/?(?:p|br)\b)[a-z]/i.test(html || "");
+}
+
+type ExerciseFieldsValue = { name: string; sets: string; reps: string; rest: string };
+
+const SETS_RE = /^(\d+)\s*[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)\s*(?:rep|reps|ripetizioni)?$/i;
+const REST_RE = /^(\d+(?:\s*[-–]\s*\d+)?)\s*(?:sec|s|secondi)\s*(?:di\s*)?(?:recupero|rec)?$/i;
+
+// Legge la descrizione di un blocco e la scompone in nome/serie/rep/recupero.
+// Se non rientra nel formato semplice ritorna null (si usa il testo libero).
+function parseExercise(html: string): ExerciseFieldsValue | null {
+  const lines = htmlToLines(html);
+  if (lines.length === 0) return { name: "", sets: "", reps: "", rest: "" };
+  if (lines.length > 3) return null;
+  const out: ExerciseFieldsValue = { name: lines[0], sets: "", reps: "", rest: "" };
+  if (SETS_RE.test(lines[0])) return null;
+  for (const line of lines.slice(1)) {
+    const s = line.match(SETS_RE);
+    const r = line.match(REST_RE);
+    if (s && !out.sets) {
+      out.sets = s[1];
+      out.reps = s[2].replace(/\s+/g, "");
+    } else if (r && !out.rest) {
+      out.rest = r[1].replace(/\s+/g, "");
+    } else {
+      return null;
+    }
+  }
+  return out;
+}
+
+function buildExerciseHtml(v: ExerciseFieldsValue): string {
+  if (!v.name.trim()) return "";
+  const lines = [v.name.trim()];
+  if (v.sets.trim() && v.reps.trim()) lines.push(`${v.sets.trim()}x${v.reps.trim()} rep`);
+  if (v.rest.trim()) lines.push(`${v.rest.trim()} sec recupero`);
+  return linesToHtml(lines);
+}
+
 export default function WorkoutEditorPanel({
   initial,
   date,
@@ -232,17 +301,12 @@ export default function WorkoutEditorPanel({
 }) {
   const [title, setTitle] = useState(initial.title);
   const [activityType, setActivityType] = useState<string | null>(initial.activityType ?? null);
-  const [blocks, setBlocks] = useState<Block[]>(
-    initial.blocks.length > 0 ? initial.blocks : [emptyBlock()]
-  );
-  const [openBlocks, setOpenBlocks] = useState<Set<number>>(
-    new Set(initial.blocks.length > 0 ? [] : [0])
-  );
+  const [blocks, setBlocks] = useState<Block[]>(initial.blocks);
+  // Indice del blocco che si sta modificando (null = si vede l'elenco).
+  const [editing, setEditing] = useState<number | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
-  const [pasteOpen, setPasteOpen] = useState(
-    initial.blocks.length === 0 ||
-      initial.blocks.every((b) => !(b.description || "").replace(/<[^>]*>/g, "").trim())
-  );
+  const [pasteOpen, setPasteOpen] = useState(initial.blocks.length === 0);
   const [pasteText, setPasteText] = useState("");
   const [templates, setTemplates] = useState<
     { id: string; name: string; activity_type: string | null; blocks: Block[] }[]
@@ -261,22 +325,30 @@ export default function WorkoutEditorPanel({
       .catch(() => {});
   }, []);
 
+  function scrollToBlock(index: number) {
+    setTimeout(() => {
+      const el = document.getElementById("block-" + index);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+  }
+
   function handleLoadTemplate(id: string) {
     const tpl = templates.find((t) => t.id === id);
     if (!tpl) return;
-    const hasContent = blocks.some((b) => b.description.trim() !== "");
+    const hasContent = blocks.some((b) => !isBlockEmpty(b));
     if (hasContent && !confirm(`Questo sostituirà i blocchi già compilati con il template "${tpl.name}". Continuare?`)) {
       return;
     }
-    setBlocks(tpl.blocks.length > 0 ? tpl.blocks : [emptyBlock()]);
-    setOpenBlocks(new Set());
+    setBlocks(tpl.blocks);
+    setEditing(null);
+    setPasteOpen(false);
     if (tpl.activity_type) setActivityType(tpl.activity_type);
     setTemplateMsg(`Caricato "${tpl.name}"`);
     setTimeout(() => setTemplateMsg(null), 2500);
   }
 
   function openSaveAsTemplate() {
-    const cleaned = blocks.filter((b) => b.description.trim() !== "");
+    const cleaned = blocks.filter((b) => !isBlockEmpty(b));
     if (cleaned.length === 0) {
       alert("Compila almeno un blocco prima di salvarlo come template.");
       return;
@@ -287,7 +359,7 @@ export default function WorkoutEditorPanel({
 
   async function handleSaveAsTemplate(name: string) {
     if (!name || !name.trim()) return;
-    const cleaned = blocks.filter((b) => b.description.trim() !== "");
+    const cleaned = blocks.filter((b) => !isBlockEmpty(b));
     if (cleaned.length === 0) {
       alert("Compila almeno un blocco prima di salvarlo come template.");
       return;
@@ -324,43 +396,29 @@ export default function WorkoutEditorPanel({
   function applyPaste() {
     const parsed = parseWorkoutText(pasteText);
     if (parsed.length === 0) return;
-    setBlocks((b) => {
-      const onlyEmpty = b.length === 1 && !b[0].description.replace(/<[^>]*>/g, "").trim();
-      const next = onlyEmpty ? parsed : [...b, ...parsed];
-      setOpenBlocks(new Set());
-      return next;
-    });
+    const first = blocks.length;
+    setBlocks((b) => [...b, ...parsed]);
     setPasteText("");
     setPasteOpen(false);
+    scrollToBlock(first);
   }
 
-  function addBlock(type?: string) {
-    setBlocks((b) => {
-      const next = [...b, type ? { ...emptyBlock(), type } : emptyBlock()];
-      const newIndex = next.length - 1;
-      setOpenBlocks(new Set([newIndex]));
-      setTimeout(() => {
-        const el = document.getElementById("block-" + newIndex);
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-          const editable = el.querySelector("[contenteditable='true'], textarea") as HTMLElement | null;
-          if (editable) editable.focus();
-        }
-      }, 80);
-      return next;
-    });
+  // Aggiunge un blocco della categoria scelta in fondo all'elenco e lo apre.
+  function addBlock(type: string) {
+    const base = { ...emptyBlock(), type };
+    if (SCORE_DEFAULT_BLOCK_TYPES.includes(type)) {
+      base.scores = [emptyScoreConfig()];
+      base.score = null;
+    }
+    setEditing(blocks.length);
+    setBlocks((b) => [...b, base]);
+    setPasteOpen(false);
+    setSheetOpen(false);
   }
 
   function removeBlock(index: number) {
     setBlocks((b) => b.filter((_, i) => i !== index));
-    setOpenBlocks((s) => {
-      const next = new Set<number>();
-      s.forEach((i) => {
-        if (i < index) next.add(i);
-        else if (i > index) next.add(i - 1);
-      });
-      return next;
-    });
+    setEditing(null);
   }
 
   function moveBlock(index: number, direction: -1 | 1) {
@@ -371,37 +429,98 @@ export default function WorkoutEditorPanel({
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
-    setOpenBlocks((s) => {
-      const next = new Set<number>();
-      s.forEach((i) => {
-        if (i === index) next.add(target);
-        else if (i === target) next.add(index);
-        else next.add(i);
-      });
-      return next;
-    });
+    setEditing(target);
   }
 
-  function toggleBlock(index: number) {
-    setOpenBlocks((s) => {
-      const next = new Set(s);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
+  // Chiude la schermata del blocco: se e' rimasto vuoto lo toglie.
+  function closeEdit() {
+    if (editing === null) return;
+    const idx = editing;
+    const b = blocks[idx];
+    if (b && isBlockEmpty(b)) {
+      setBlocks((list) => list.filter((_, i) => i !== idx));
+      setEditing(null);
+      return;
+    }
+    setEditing(null);
+    scrollToBlock(idx);
   }
 
   function handleSave() {
-    const cleaned = blocks.filter((b) => b.description.trim() !== "");
+    const cleaned = blocks.filter((b) => !isBlockEmpty(b));
     onSave({ title: title.trim() || "Allenamento", blocks: cleaned, activityType });
   }
 
   const datePill = formatDatePill(date);
 
+  const shell = (children: React.ReactNode) => (
+    <div className="fixed inset-0 z-50 pointer-events-none">
+      <div className="absolute inset-y-0 right-0 w-full sm:max-w-md h-full bg-white overflow-y-auto p-6 space-y-5 shadow-2xl border-l border-gray-200 pointer-events-auto">
+        {children}
+      </div>
+    </div>
+  );
+
+  // ---- Schermata di modifica di un singolo blocco ----
+  if (editing !== null && blocks[editing]) {
+    return shell(
+      <>
+        <div className="sticky top-0 z-10 -mx-6 -mt-6 px-6 py-3 bg-white border-b border-gray-100 flex items-center justify-between">
+          <button type="button" onClick={closeEdit} className="text-sm text-gray-500">
+            ← Scheda
+          </button>
+          <span className="font-semibold">{typeLabel(blocks[editing].type)}</span>
+          <button type="button" onClick={closeEdit} className="btn-primary text-sm py-1.5 px-5">
+            Fatto
+          </button>
+        </div>
+        <BlockEditor
+          key={editing}
+          block={blocks[editing]}
+          index={editing}
+          total={blocks.length}
+          onChange={(patch) => updateBlock(editing, patch)}
+          onRemove={() => removeBlock(editing)}
+          onMove={(d) => moveBlock(editing, d)}
+        />
+      </>
+    );
+  }
+
+  const pasteBox = (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+      <button
+        type="button"
+        onClick={() => setPasteOpen(!pasteOpen)}
+        className="text-sm font-medium text-gray-700 w-full text-left"
+      >
+        {pasteOpen ? "▾" : "▸"} {blocks.length === 0 ? "Scrivi o detta tutta la scheda" : "Scrivi o detta più blocchi"}
+      </button>
+      {pasteOpen && (
+        <div className="mt-2 space-y-2">
+          <textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            rows={8}
+            className="w-full rounded-lg border border-gray-200 p-2 text-base"
+            placeholder={"Warm up\n5' bike + mobilità anche\n\nSquat 4x10 60-70 sec\n\nPanca 4x10 90 sec\n\nDefaticamento\nStretching 5 min"}
+          />
+          <p className="text-xs text-gray-400">
+            Lascia una riga vuota tra un blocco e l&apos;altro. Su iPhone usa il microfono della tastiera per dettare.
+          </p>
+          <button type="button" onClick={applyPaste} className="btn-secondary w-full">
+            Aggiungi alla scheda
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  // ---- Elenco dei blocchi ----
   return (
     <>
-      <div className="fixed inset-0 z-50 pointer-events-none">
-        <div className="absolute inset-y-0 right-0 w-full sm:max-w-md h-full bg-white overflow-y-auto p-6 space-y-5 shadow-2xl border-l border-gray-200 pointer-events-auto">
+      {shell(
+        <>
           <div className="flex items-center gap-2 text-gray-400">
             <IconEdit className="w-4 h-4" />
             <p className="text-xs font-medium uppercase tracking-wide">Modifica la sessione</p>
@@ -416,9 +535,7 @@ export default function WorkoutEditorPanel({
 
           <div className="flex flex-wrap gap-2">
             {datePill && (
-              <span className="bg-gray-100 text-gray-600 rounded-full px-4 py-1.5 text-sm">
-                {datePill}
-              </span>
+              <span className="bg-gray-100 text-gray-600 rounded-full px-4 py-1.5 text-sm">{datePill}</span>
             )}
             {ACTIVITY_TYPES.map((t) => (
               <button
@@ -436,87 +553,46 @@ export default function WorkoutEditorPanel({
             ))}
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-            <button
-              type="button"
-              onClick={() => setPasteOpen(!pasteOpen)}
-              className="text-sm font-medium text-gray-700 w-full text-left"
-            >
-              {pasteOpen ? "▾" : "▸"} Scrivi o detta tutta la scheda
-            </button>
-            {pasteOpen && (
-              <div className="mt-2 space-y-2">
-                <textarea
-                  value={pasteText}
-                  onChange={(e) => setPasteText(e.target.value)}
-                  rows={10}
-                  className="w-full rounded-lg border border-gray-200 p-2 text-base"
-                  placeholder={"Warm up\n5' bike + mobilità anche\n\nSquat 4x10 60-70 sec\n\nPanca 4x10 90 sec\n\nDefaticamento\nStretching 5 min"}
-                />
-                <p className="text-xs text-gray-400">
-                  Righe vuote separano i blocchi. Un nome tipo «Warm up» o «Defaticamento» da solo sulla prima riga sceglie il tipo; «Squat 4x10 60 sec» diventa un blocco con nome, serie e recupero. Su iPhone usa il microfono della tastiera per dettare.
-                </p>
-                <button type="button" onClick={applyPaste} className="btn-secondary w-full">
-                  Crea blocchi
-                </button>
-              </div>
-            )}
-          </div>
+          {blocks.length === 0 && pasteBox}
 
-          <div className="space-y-2">
-            {!(
-              pasteOpen &&
-              blocks.every((b) => !(b.description || "").replace(/<[^>]*>/g, "").trim())
-            ) &&
-              blocks.map((block, i) => (<div key={i} id={"block-" + i} className="flex items-start gap-1">
-              <div className="flex-1 min-w-0">
-                <BlockEditor
-                  block={block}
-                  open={openBlocks.has(i)}
-                  onToggle={() => toggleBlock(i)}
-                  onChange={(patch) => updateBlock(i, patch)}
-                  onRemove={() => removeBlock(i)}
-                />
-              </div>
-              <div className="flex flex-col shrink-0 pt-1">
-                <button
-                  type="button"
-                  onClick={() => moveBlock(i, -1)}
-                  disabled={i === 0}
-                  className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs px-1.5 py-0.5 leading-none"
-                  title="Sposta su"
-                >
-                  ▲
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveBlock(i, 1)}
-                  disabled={i === blocks.length - 1}
-                  className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs px-1.5 py-0.5 leading-none"
-                  title="Sposta giù"
-                >
-                  ▼
-                </button>
-              </div>
-            </div>))}
-          </div>
+          {blocks.length > 0 && (
+            <div className="rounded-2xl border border-gray-100 overflow-hidden">
+              {blocks.map((block, i) => {
+                const timer = timerSummary(block);
+                return (
+                  <button
+                    key={i}
+                    id={"block-" + i}
+                    type="button"
+                    onClick={() => setEditing(i)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left border-t first:border-t-0 border-gray-100 hover:bg-gray-50"
+                  >
+                    <span className="w-5 shrink-0 text-sm text-gray-400">{i + 1}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold text-[15px]">{typeLabel(block.type)}</span>
+                      <span className="block text-xs text-gray-500 truncate">
+                        {timer ? `${timer} · ` : ""}
+                        {blockPreview(block)}
+                      </span>
+                    </span>
+                    <span className="text-gray-300 shrink-0">›</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="w-full rounded-2xl border-2 border-dashed border-gray-300 py-3.5 text-[15px] text-gray-600 hover:bg-gray-50"
+          >
+            + Aggiungi blocco
+          </button>
+
+          {blocks.length > 0 && pasteBox}
 
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={() => addBlock("Warm up")} className="btn-secondary text-sm">
-              + Warm up
-            </button>
-            <button onClick={() => addBlock("Il Movemax del giorno")} className="btn-secondary text-sm">
-              + Esercizio
-            </button>
-            <button onClick={() => addBlock("Mobility")} className="btn-secondary text-sm">
-              + Mobility
-            </button>
-            <button onClick={() => addBlock()} className="btn-secondary text-sm">
-              + Altro blocco
-            </button>
-            <button onClick={() => addBlock("Nota per l'atleta")} className="btn-secondary text-sm">
-              + Nota per l&apos;atleta
-            </button>
             {templates.length > 0 && (
               <select
                 className="input text-sm w-auto"
@@ -559,8 +635,39 @@ export default function WorkoutEditorPanel({
               {saving ? "Salvataggio…" : "Salva"}
             </button>
           </div>
+        </>
+      )}
+
+      {sheetOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end bg-black/40" onClick={() => setSheetOpen(false)}>
+          <div
+            className="w-full sm:max-w-md sm:ml-auto bg-white rounded-t-3xl px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-gray-200" />
+            <div className="grid grid-cols-2 gap-2">
+              {CATEGORY_CHOICES.map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  onClick={() => addBlock(c.type)}
+                  className="rounded-2xl bg-gray-100 px-4 py-4 text-left text-[15px] font-medium active:bg-gray-200"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => addBlock("Nota per l'atleta")}
+              className="mt-2 w-full rounded-2xl bg-gray-100 px-4 py-3 text-[15px]"
+            >
+              Nota per l&apos;atleta
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
       {showTemplatePrompt && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
@@ -602,23 +709,130 @@ export default function WorkoutEditorPanel({
   );
 }
 
-function BlockEditor({
+// Esercizio singolo: nome, serie, ripetizioni e recupero in campi separati.
+function ExerciseFields({
   block,
-  open,
-  onToggle,
   onChange,
-  onRemove,
 }: {
   block: Block;
-  open: boolean;
-  onToggle: () => void;
+  onChange: (patch: Partial<Block>) => void;
+}) {
+  const [v, setV] = useState<ExerciseFieldsValue>(
+    () => parseExercise(block.description) || { name: "", sets: "", reps: "", rest: "" }
+  );
+  const scores = getBlockScoresRaw(block);
+
+  function update(patch: Partial<ExerciseFieldsValue>) {
+    const next = { ...v, ...patch };
+    setV(next);
+    const out: Partial<Block> = {
+      description: buildExerciseHtml(next),
+      exerciseName: next.name.trim() || null,
+    };
+    if (patch.sets !== undefined && scores.length > 0) {
+      const n = Math.min(10, Math.max(1, parseInt(next.sets, 10) || 1));
+      out.scores = scores.map((s, i) => (i === 0 ? { ...s, sets: n } : s));
+      out.score = null;
+    }
+    onChange(out);
+  }
+
+  function togglePeso(on: boolean) {
+    if (on) {
+      const n = Math.min(10, Math.max(1, parseInt(v.sets, 10) || 1));
+      onChange({ scores: [{ ...emptyScoreConfig(), sets: n }], score: null });
+    } else {
+      onChange({ scores: [], score: null });
+    }
+  }
+
+  const field = (label: string, key: "sets" | "reps" | "rest", mode: "numeric" | "text") => (
+    <div className="rounded-xl bg-gray-100 px-3 py-1.5">
+      <label className="block text-[11px] text-gray-500">{label}</label>
+      <input
+        inputMode={mode}
+        className="w-full bg-transparent outline-none text-lg font-semibold"
+        value={v[key]}
+        onChange={(e) => update({ [key]: e.target.value } as Partial<ExerciseFieldsValue>)}
+      />
+    </div>
+  );
+
+  return (
+    <div className="rounded-2xl border border-gray-200 p-3 space-y-3">
+      <input
+        autoFocus={!v.name}
+        className="w-full border-none outline-none text-lg font-semibold placeholder:text-gray-300"
+        placeholder="Nome esercizio"
+        value={v.name}
+        onChange={(e) => update({ name: e.target.value })}
+      />
+      <div className="grid grid-cols-3 gap-2">
+        {field("Serie", "sets", "numeric")}
+        {field("Rep", "reps", "text")}
+        {field("Recupero (s)", "rest", "text")}
+      </div>
+      <ToggleSection label="Chiedi il peso al cliente" enabled={scores.length > 0} onToggle={togglePeso}>
+        <p className="text-xs text-gray-400">
+          Il cliente inserisce il peso di ogni serie ({scores[0]?.sets ?? 1}).
+        </p>
+      </ToggleSection>
+    </div>
+  );
+}
+
+// Testo semplice: una riga per ogni cosa da fare.
+function LinesField({
+  block,
+  onChange,
+}: {
+  block: Block;
+  onChange: (patch: Partial<Block>) => void;
+}) {
+  const [text, setText] = useState(() => htmlToLines(block.description).join("\n"));
+  return (
+    <div>
+      <textarea
+        autoFocus={!text}
+        rows={7}
+        className="w-full rounded-2xl border border-gray-200 p-3 text-base"
+        placeholder="Scrivi una riga per ogni cosa da fare"
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange({
+            description: linesToHtml(e.target.value.split("\n").filter((l) => l.trim() !== "")),
+          });
+        }}
+      />
+      <p className="text-xs text-gray-400 mt-1">Una riga per ogni cosa da fare.</p>
+    </div>
+  );
+}
+
+
+function BlockEditor({
+  block,
+  index,
+  total,
+  onChange,
+  onRemove,
+  onMove,
+}: {
+  block: Block;
+  index: number;
+  total: number;
   onChange: (patch: Partial<Block>) => void;
   onRemove: () => void;
+  onMove: (direction: -1 | 1) => void;
 }) {
   const [showTimerPreview, setShowTimerPreview] = useState(false);
-  const isNote = block.type === "Nota per l'atleta";
   const isCustomType = !BLOCK_TYPES.includes(block.type);
-  const summary = timerSummary(block);
+  const [showOptions, setShowOptions] = useState(false);
+  const [exerciseParsable] = useState(() => parseExercise(block.description) !== null);
+  const [useRich] = useState(() => !isPlainHtml(block.description));
+  const exerciseMode = exerciseParsable && EXERCISE_TYPES.includes(block.type);
+  const showAll = !exerciseMode || showOptions;
   const scores = getBlockScoresRaw(block);
 
   function updateScore(scoreIndex: number, patch: Partial<ScoreConfig>) {
@@ -650,70 +864,19 @@ function BlockEditor({
     onChange(patch);
   }
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={onToggle}
-        className={`w-full text-left border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 ${
-          isNote ? "bg-amber-50" : "bg-white hover:bg-gray-50"
-        }`}
-      >
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span
-              className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                isNote ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-700"
-              }`}
-            >
-              {block.type}
-            </span>
-            {summary && (
-              <span className="text-xs text-gray-500 flex items-center gap-1 shrink-0">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5">
-                  <circle cx="12" cy="12" r="8" />
-                  <path d="M12 8v4l3 2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                {summary}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-gray-400 truncate">{blockPreview(block)}</p>
-        </div>
-        <span className="text-gray-300 shrink-0">▾</span>
-      </button>
-    );
-  }
-
   return (
-    <div className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50/40">
-      <div className="flex gap-2 items-center">
-        <select
-          className="input"
-          value={isCustomType ? "Altro" : block.type}
-          onChange={(e) => handleTypeChange(e.target.value)}
-        >
-          {BLOCK_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={onToggle}
-          className="text-gray-400 hover:text-gray-700 text-sm px-2 shrink-0"
-          title="Comprimi"
-        >
-          ▴
-        </button>
-        <button
-          onClick={onRemove}
-          className="text-gray-400 hover:text-red-600 text-sm px-2 shrink-0"
-          title="Rimuovi sezione"
-        >
-          ✕
-        </button>
-      </div>
+    <div className="space-y-4">
+      <select
+        className="input"
+        value={isCustomType ? "Altro" : block.type}
+        onChange={(e) => handleTypeChange(e.target.value)}
+      >
+        {BLOCK_TYPES.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
 
       {isCustomType && (
         <input
@@ -724,12 +887,30 @@ function BlockEditor({
         />
       )}
 
-      <RichTextEditor
-        value={block.description}
-        onChange={(html) => onChange({ description: html })}
-        placeholder="Descrivi l'esercizio, le serie/ripetizioni, e incolla eventuali link a video…"
-      />
+      {exerciseMode ? (
+        <ExerciseFields block={block} onChange={onChange} />
+      ) : useRich ? (
+        <RichTextEditor
+          value={block.description}
+          onChange={(html) => onChange({ description: html })}
+          placeholder="Descrivi l'esercizio, le serie/ripetizioni, e incolla eventuali link a video…"
+        />
+      ) : (
+        <LinesField block={block} onChange={onChange} />
+      )}
 
+      {exerciseMode && (
+        <button
+          type="button"
+          onClick={() => setShowOptions((s) => !s)}
+          className="text-sm text-gray-500 underline"
+        >
+          {showOptions ? "Nascondi altre opzioni" : "Altre opzioni (RPE, timer…)"}
+        </button>
+      )}
+
+      {showAll && (
+        <>
       {/* RPE */}
       <ToggleSection
         label="Aggiungere un RPE"
@@ -751,6 +932,8 @@ function BlockEditor({
         )}
       </ToggleSection>
 
+      {!exerciseMode && (
+      <>
       {/* Punteggio / Obiettivo */}
       <ToggleSection
         label="Chiedere un punteggio / obiettivo"
@@ -846,6 +1029,8 @@ function BlockEditor({
         )}
       </ToggleSection>
 
+      </>
+      )}
       {/* Timer */}
       <ToggleSection
         label="Aggiungere un timer"
@@ -963,6 +1148,22 @@ function BlockEditor({
         )}
         {block.timer && showTimerPreview && <WorkoutTimer timer={block.timer} />}
       </ToggleSection>
+        </>
+      )}
+
+      <div className="flex items-center justify-between text-xs text-gray-500 pt-2">
+        <div className="flex gap-1">
+          <button type="button" onClick={() => onMove(-1)} disabled={index === 0} className="px-2.5 py-1 rounded-full border border-gray-200 bg-white disabled:opacity-30">
+            ↑ Sposta su
+          </button>
+          <button type="button" onClick={() => onMove(1)} disabled={index === total - 1} className="px-2.5 py-1 rounded-full border border-gray-200 bg-white disabled:opacity-30">
+            ↓ Sposta giù
+          </button>
+        </div>
+        <button type="button" onClick={onRemove} className="text-red-600 px-2 py-1">
+          Elimina blocco
+        </button>
+      </div>
     </div>
   );
 }
@@ -1217,10 +1418,22 @@ function ToggleSection({
 }) {
   return (
     <div>
-      <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-        <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
-        {label}
-      </label>
+      <button
+        type="button"
+        onClick={() => onToggle(!enabled)}
+        className="w-full flex items-center justify-between gap-3 py-1.5 text-sm font-medium text-left"
+      >
+        <span>{label}</span>
+        <span
+          className={`shrink-0 w-11 h-6 rounded-full p-0.5 transition ${enabled ? "bg-brand" : "bg-gray-200"}`}
+        >
+          <span
+            className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${
+              enabled ? "translate-x-5" : ""
+            }`}
+          />
+        </span>
+      </button>
       {enabled && <div className="mt-2">{children}</div>}
     </div>
   );
