@@ -45,9 +45,7 @@ export default async function ClienteHome() {
         </Link>
       ))}
 
-      <OggiCard clientId={client.id} />
-
-      <ClientProgramCard clientId={client.id} />
+      <OggiCard clientId={client.id} programs={<ClientProgramCard clientId={client.id} />} />
     </div>
   );
 }
