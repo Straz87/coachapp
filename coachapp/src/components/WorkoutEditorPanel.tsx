@@ -248,23 +248,27 @@ function isPlainHtml(html: string): boolean {
   return !/<(?!\/?(?:p|br)\b)[a-z]/i.test(html || "");
 }
 
-type ExerciseFieldsValue = { name: string; sets: string; reps: string; rest: string };
+type ExerciseFieldsValue = { name: string; sets: string; reps: string; rest: string; pct: string };
 
 const SETS_RE = /^(\d+)\s*[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)\s*(?:rep|reps|ripetizioni)?$/i;
+const PCT_RE = /^(\d+(?:[.,]\d+)?)\s*%\s*(?:del\s+)?(?:massimale|1\s*rm)\b/i;
 const REST_RE = /^(\d+(?:\s*[-–]\s*\d+)?)\s*(?:sec|s|secondi)\s*(?:di\s*)?(?:recupero|rec)?$/i;
 
 // Legge la descrizione di un blocco e la scompone in nome/serie/rep/recupero.
 // Se non rientra nel formato semplice ritorna null (si usa il testo libero).
 function parseExercise(html: string): ExerciseFieldsValue | null {
   const lines = htmlToLines(html);
-  if (lines.length === 0) return { name: "", sets: "", reps: "", rest: "" };
-  if (lines.length > 3) return null;
-  const out: ExerciseFieldsValue = { name: lines[0], sets: "", reps: "", rest: "" };
+  if (lines.length === 0) return { name: "", sets: "", reps: "", rest: "", pct: "" };
+  if (lines.length > 4) return null;
+  const out: ExerciseFieldsValue = { name: lines[0], sets: "", reps: "", rest: "", pct: "" };
   if (SETS_RE.test(lines[0])) return null;
   for (const line of lines.slice(1)) {
     const s = line.match(SETS_RE);
     const r = line.match(REST_RE);
-    if (s && !out.sets) {
+    const p = line.match(PCT_RE);
+    if (p && !out.pct) {
+      out.pct = p[1];
+    } else if (s && !out.sets) {
       out.sets = s[1];
       out.reps = s[2].replace(/\s+/g, "");
     } else if (r && !out.rest) {
@@ -280,6 +284,7 @@ function buildExerciseHtml(v: ExerciseFieldsValue): string {
   if (!v.name.trim()) return "";
   const lines = [v.name.trim()];
   if (v.sets.trim() && v.reps.trim()) lines.push(`${v.sets.trim()}x${v.reps.trim()} rep`);
+  if (v.pct.trim()) lines.push(`${v.pct.trim()}% del massimale di ${v.name.trim()}`);
   if (v.rest.trim()) lines.push(`${v.rest.trim()} sec recupero`);
   return linesToHtml(lines);
 }
@@ -716,7 +721,7 @@ function ExerciseFields({
   onChange: (patch: Partial<Block>) => void;
 }) {
   const [v, setV] = useState<ExerciseFieldsValue>(
-    () => parseExercise(block.description) || { name: "", sets: "", reps: "", rest: "" }
+    () => parseExercise(block.description) || { name: "", sets: "", reps: "", rest: "", pct: "" }
   );
   const scores = getBlockScoresRaw(block);
 
@@ -770,6 +775,22 @@ function ExerciseFields({
         {field("Rep", "reps", "text")}
         {field("Recupero (s)", "rest", "text")}
       </div>
+      <div className="rounded-xl bg-gray-100 px-3 py-1.5">
+        <label className="block text-[11px] text-gray-500">% del massimale (facoltativo)</label>
+        <input
+          inputMode="decimal"
+          placeholder="es. 80"
+          className="w-full bg-transparent outline-none text-lg font-semibold placeholder:text-gray-300"
+          value={v.pct}
+          onChange={(e) => update({ pct: e.target.value.replace(/[^\d.,]/g, "") })}
+        />
+      </div>
+      {v.pct.trim() && (
+        <p className="text-xs text-gray-400 -mt-1">
+          Il cliente vedrà i kg calcolati dal suo massimale di &quot;{v.name.trim() || "questo esercizio"}&quot;.
+          Deve averlo salvato in Massimali con questo nome.
+        </p>
+      )}
       <ToggleSection label="Chiedi il peso al cliente" enabled={scores.length > 0} onToggle={togglePeso}>
         <p className="text-xs text-gray-400">
           Il cliente inserisce il peso di ogni serie ({scores[0]?.sets ?? 1}).
