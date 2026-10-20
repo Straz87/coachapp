@@ -590,8 +590,6 @@ export default function WorkoutEditorPanel({
             + Aggiungi blocco
           </button>
 
-          {blocks.length > 0 && pasteBox}
-
           <div className="flex flex-wrap items-center gap-2">
             {templates.length > 0 && (
               <select
