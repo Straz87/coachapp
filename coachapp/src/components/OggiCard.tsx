@@ -130,7 +130,7 @@ export default function OggiCard({ clientId }: { clientId: string }) {
             return (
               <Link
                 key={d.iso}
-                href={r ? `/cliente/allenamento/${d.iso}` : "/cliente/calendario"}
+                href={`/cliente/allenamento/${d.iso}`}
                 className="flex flex-col items-center gap-1"
               >
                 <span className="text-[11px] text-gray-400">{d.label.slice(0, 1).toUpperCase()}</span>

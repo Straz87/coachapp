@@ -711,6 +711,8 @@ export default function AllenamentoGiorno({
               <p className="text-gray-500 text-sm mt-1">{dateLabel}</p>
             </div>
 
+            {vm.source.kind === "group" && (
+              <>
             <button
               onClick={toggleLike}
               className="w-full text-left rounded-2xl px-5 py-4 text-white font-medium flex items-center justify-between"
@@ -755,6 +757,9 @@ export default function AllenamentoGiorno({
                 →
               </span>
             </Link>
+
+              </>
+            )}
 
             <p className="text-xs uppercase tracking-wide text-gray-400 pt-2">
               ({vm.blocks.length}) blocchi · tocca per aprire
@@ -869,6 +874,20 @@ export default function AllenamentoGiorno({
                             )
                           )
                         )}
+
+                        {computeMaxLines(b.description).length === 0 &&
+                          htmlToLines(b.description).some((l) => /\d+(?:[.,]\d+)?\s*%/.test(l)) && (
+                            <Link
+                              href="/cliente/massimali"
+                              className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 text-sm text-gray-600"
+                            >
+                              <span>🔢</span>
+                              <span className="flex-1">
+                                Per vedere i kg della percentuale, salva il tuo massimale (1RM) di questo esercizio.
+                              </span>
+                              <span className="text-gray-400">→</span>
+                            </Link>
+                          )}
 
                         {b.rpe !== null && (
                           <span className="inline-block text-xs bg-gray-100 text-gray-700 rounded-full px-2 py-1">
