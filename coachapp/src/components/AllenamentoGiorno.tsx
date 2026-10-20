@@ -339,7 +339,9 @@ export default function AllenamentoGiorno({
     const b = vm?.blocks[index];
     if (!b) return;
     const sc = getBlockScores(b);
-    if (sc[0] && sc[0].type === "peso" && !readClientScoreEntry(vm?.clientScores, index, 0)) {
+    const existing = readClientScoreEntry(vm?.clientScores, index, 0);
+    const hasValues = !!existing && existing.values.some((v) => v.trim() !== "");
+    if (sc[0] && sc[0].type === "peso" && !hasValues) {
       startEditScore(index, 0);
     }
   }
@@ -405,6 +407,11 @@ export default function AllenamentoGiorno({
   async function markSetDone(blockIndex: number, scoreIndex: number, setIdx: number, sets: number, rest: number) {
     const key = `${blockIndex}-${scoreIndex}-${setIdx}`;
     const wasDone = !!doneSets[key];
+    if (!wasDone && !(draftValues[setIdx] || "").trim()) {
+      setSaveError("Scrivi il peso di questa serie prima di segnarla fatta.");
+      return;
+    }
+    setSaveError(null);
     setDoneSets((prev) => ({ ...prev, [key]: !wasDone }));
     if (wasDone) return;
     if (setIdx >= sets - 1) {
