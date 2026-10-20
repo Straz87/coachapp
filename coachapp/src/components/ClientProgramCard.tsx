@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { htmlToLines } from "@/lib/workoutTypes";
+import { latestByExercise } from "@/lib/benchmarks";
 
 type ProgramInfo = {
   membershipId: string;
@@ -16,13 +16,28 @@ type ProgramInfo = {
   dayBlocks: { type: string; description: string }[];
 };
 
+type Max = { exercise_name: string; value_kg: number };
+
+// Se la riga contiene "90%" e il cliente ha salvato il massimale di
+// quell'esercizio (il nome compare nella riga), restituisce i kg (a 0,5).
+function kgForLine(line: string, maxes: Max[]): number | null {
+  const m = line.match(/(\d+(?:[.,]\d+)?)\s*%/);
+  if (!m) return null;
+  const pct = Number(m[1].replace(",", "."));
+  const lower = line.toLowerCase();
+  const max = maxes.find((x) => lower.includes(x.exercise_name.toLowerCase()));
+  if (!max) return null;
+  return Math.round(((max.value_kg * pct) / 100) * 2) / 2;
+}
+
 // Card sulla home del cliente per i programmi a durata fissa a cui è
 // iscritto: mostra il giorno IN CUI SI TROVA LUI (non quello del
-// calendario) e permette di segnarlo come fatto per avanzare al
-// successivo.
+// calendario) a blocchi apribili, e permette di segnarlo come fatto per
+// avanzare al successivo.
 export default function ClientProgramCard({ clientId }: { clientId: string }) {
   const supabase = createClient();
   const [programs, setPrograms] = useState<ProgramInfo[] | null>(null);
+  const [maxes, setMaxes] = useState<Max[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -57,6 +72,13 @@ export default function ClientProgramCard({ clientId }: { clientId: string }) {
         });
       }
       if (isMounted) setPrograms(results);
+
+      const { data: mx } = await supabase
+        .from("client_maxes")
+        .select("exercise_name, value_kg, recorded_at")
+        .eq("client_id", clientId)
+        .not("value_kg", "is", null);
+      if (isMounted) setMaxes(latestByExercise(mx || []) as Max[]);
     }
 
     load();
@@ -87,37 +109,50 @@ export default function ClientProgramCard({ clientId }: { clientId: string }) {
   if (!programs || programs.length === 0) return null;
 
   return (
-    <div className="space-y-4 mb-6">
+    <div className="mb-6">
       {programs.map((p) => (
-        <div key={p.membershipId} className="card">
-          <div className="flex items-center justify-between mb-2">
-            <p className="font-semibold">{p.programName}</p>
-            <Link
-              href={`/cliente/programmi/${p.programId}/giorno/${p.currentDay}`}
-              className="text-xs text-gray-400 underline hover:text-gray-600"
-            >
+        <div key={p.membershipId} className="mb-4">
+          <div className="flex items-baseline justify-between mx-0.5 mb-2">
+            <p className="font-bold">{p.programName}</p>
+            <span className="text-xs text-gray-500">
               Giorno {p.currentDay} di {p.lengthDays}
-            </Link>
+            </span>
           </div>
           {p.dayTitle ? (
             <>
-              <p className="text-sm font-medium mb-2">{p.dayTitle}</p>
-              <div className="space-y-2 mb-3">
-                {p.dayBlocks.map((b, i) => (
-                  <div key={i}>
-                    <p className="text-xs font-medium text-gray-700">{b.type}</p>
-                    {htmlToLines(b.description).map((line, li) => (
-                      <p key={li} className="text-xs text-gray-500">
-                        {line}
-                      </p>
-                    ))}
-                  </div>
-                ))}
-              </div>
+              {p.dayTitle && <p className="text-sm text-gray-500 mx-0.5 mb-2">{p.dayTitle}</p>}
+              {p.dayBlocks.map((b, i) => {
+                const lines = htmlToLines(b.description);
+                return (
+                  <details key={i} open={i === 0} className="card !p-0 mb-2 group">
+                    <summary className="list-none flex items-center gap-2.5 px-4 py-3.5 font-semibold cursor-pointer [&::-webkit-details-marker]:hidden">
+                      <span className="w-6 h-6 rounded-full bg-brand text-xs flex items-center justify-center">
+                        {i + 1}
+                      </span>
+                      <span>{b.type}</span>
+                      <span className="ml-auto text-xs font-normal text-gray-400">
+                        {lines.length} {lines.length === 1 ? "riga" : "righe"}
+                      </span>
+                      <span className="text-gray-400 transition-transform group-open:rotate-90">›</span>
+                    </summary>
+                    <div className="pl-[52px] pr-4 pb-3 text-sm text-gray-700">
+                      {lines.map((line, li) => {
+                        const kg = kgForLine(line, maxes);
+                        return (
+                          <div key={li} className="border-t border-gray-100 py-1.5">
+                            {line}
+                            {kg !== null && <span className="font-semibold text-gray-900"> → {kg} kg</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                );
+              })}
               <button
                 onClick={() => markDone(p.programId)}
                 disabled={busyId === p.programId}
-                className="btn-primary w-full text-sm"
+                className="btn-primary w-full text-sm mt-1"
               >
                 {busyId === p.programId ? "Attendi…" : "✓ Segna come fatto"}
               </button>
