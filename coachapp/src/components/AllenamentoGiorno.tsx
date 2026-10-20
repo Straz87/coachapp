@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement as h, useCallback, useEffect, useState } from "react";
+import { createElement as h, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, toISODate } from "@/lib/dates";
@@ -97,6 +97,32 @@ function buildExerciseHistory(
   return history;
 }
 
+// Serie, ripetizioni e recupero letti dalla descrizione del blocco
+// ("Squat" / "4x10 rep" / "60 sec recupero"). Servono a mostrare un riepilogo
+// chiaro in cima al blocco e a far partire il timer di recupero.
+function exerciseInfo(description: string): { sets: string; reps: string; rest: number } {
+  const lines = htmlToLines(description);
+  let sets = "";
+  let reps = "";
+  let rest = 0;
+  for (const line of lines) {
+    const m = line.match(/(\d+)\s*[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)/i);
+    if (m && !sets) {
+      sets = m[1];
+      reps = m[2].replace(/\s+/g, "");
+    }
+    const r =
+      line.match(/(\d+)(?:\s*[-–]\s*(\d+))?\s*(sec|secondi|min|minuti|s|')\s*(?:di\s*)?(?:recupero|rec)\b/i) ||
+      line.match(/\b(?:recupero|rec)\b\.?\s*(?:di\s*)?(\d+)(?:\s*[-–]\s*(\d+))?\s*(sec|secondi|min|minuti|s|')/i);
+    if (r && !rest) {
+      const value = Number(r[2] || r[1]);
+      const unit = r[3].toLowerCase();
+      rest = unit.startsWith("m") || unit === "'" ? value * 60 : value;
+    }
+  }
+  return { sets, reps, rest };
+}
+
 export default function AllenamentoGiorno({
   clientId,
   profileId,
@@ -132,6 +158,13 @@ export default function AllenamentoGiorno({
   const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
   const [editingNote, setEditingNote] = useState<number | null>(null);
   const [savingNote, setSavingNote] = useState(false);
+  // Timer di recupero tra una serie e l'altra (parte dal tasto ✓ della serie).
+  const [restEnd, setRestEnd] = useState<number | null>(null);
+  const [restLeft, setRestLeft] = useState(0);
+  const [restLabel, setRestLabel] = useState("");
+  const [doneSets, setDoneSets] = useState<Record<string, boolean>>({});
+  const audioRef = useRef<AudioContext | null>(null);
+  const autoEditedFor = useRef<string>("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -300,6 +333,89 @@ export default function AllenamentoGiorno({
     loadMaxes();
   }, [clientId]);
 
+  // Apre da solo l'inserimento delle serie per il primo punteggio "peso" del
+  // blocco, cosi il cliente vede subito le serie senza dover premere nulla.
+  function autoEdit(index: number) {
+    const b = vm?.blocks[index];
+    if (!b) return;
+    const sc = getBlockScores(b);
+    if (sc[0] && sc[0].type === "peso" && !readClientScoreEntry(vm?.clientScores, index, 0)) {
+      startEditScore(index, 0);
+    }
+  }
+
+  useEffect(() => {
+    if (vm && autoEditedFor.current !== date) {
+      autoEditedFor.current = date;
+      autoEdit(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vm]);
+
+  useEffect(() => {
+    if (restEnd === null) return;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((restEnd - Date.now()) / 1000));
+      setRestLeft(left);
+      if (left <= 0) {
+        setRestEnd(null);
+        try {
+          navigator.vibrate?.([250, 100, 250]);
+        } catch {}
+        playBeep();
+      }
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restEnd]);
+
+  function playBeep() {
+    const ctx = audioRef.current;
+    if (!ctx) return;
+    try {
+      for (let k = 0; k < 3; k++) {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.frequency.value = 880;
+        g.gain.value = 0.2;
+        o.connect(g);
+        g.connect(ctx.destination);
+        const t = ctx.currentTime + k * 0.3;
+        o.start(t);
+        o.stop(t + 0.15);
+      }
+    } catch {}
+  }
+
+  function startRest(seconds: number, label: string) {
+    unlockAudioContext();
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!audioRef.current && Ctx) audioRef.current = new Ctx();
+      audioRef.current?.resume();
+    } catch {}
+    setRestLabel(label);
+    setRestEnd(Date.now() + seconds * 1000);
+  }
+
+  // Tasto ✓ di una serie: la segna fatta, salva subito i pesi gia' scritti e
+  // fa partire il recupero. All'ultima serie chiude e salva tutto.
+  async function markSetDone(blockIndex: number, scoreIndex: number, setIdx: number, sets: number, rest: number) {
+    const key = `${blockIndex}-${scoreIndex}-${setIdx}`;
+    const wasDone = !!doneSets[key];
+    setDoneSets((prev) => ({ ...prev, [key]: !wasDone }));
+    if (wasDone) return;
+    if (setIdx >= sets - 1) {
+      setRestEnd(null);
+      await saveScore(blockIndex, scoreIndex);
+      return;
+    }
+    persistScore(blockIndex, scoreIndex, draftValues, draftRx);
+    if (rest > 0) startRest(rest, `Serie ${setIdx + 1} fatta`);
+  }
+
   function computeMaxLines(description: string) {
     if (maxes.length === 0) return [];
     const lines = htmlToLines(description);
@@ -323,7 +439,9 @@ export default function AllenamentoGiorno({
   }
 
   function toggleBlock(index: number) {
-    setOpenBlocks((prev) => ({ ...prev, [index]: !isBlockOpen(index) }));
+    const willOpen = !isBlockOpen(index);
+    setOpenBlocks((prev) => ({ ...prev, [index]: willOpen }));
+    if (willOpen) autoEdit(index);
   }
 
   function toggleTimer(index: number) {
@@ -642,6 +760,7 @@ export default function AllenamentoGiorno({
                 const open = isBlockOpen(i);
                 const existingNote = readBlockNote(vm.clientScores, i);
                 const isEditingNote = editingNote === i;
+                const info = exerciseInfo(b.description);
                 return (
                   <div key={i} className="card">
                     <button
@@ -701,6 +820,25 @@ export default function AllenamentoGiorno({
                             autoStart
                             onComplete={(roundsBySet) => applyTimerResult(i, roundsBySet)}
                           />
+                        )}
+
+                        {(info.sets || info.rest > 0) && (
+                          <div className="flex flex-wrap gap-2">
+                            {info.sets && (
+                              <span className="text-sm font-semibold bg-gray-900 text-white rounded-full px-3 py-1">
+                                {info.sets} serie × {info.reps} rep
+                              </span>
+                            )}
+                            {info.rest > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => startRest(info.rest, "Recupero")}
+                                className="text-sm font-semibold bg-gray-100 text-gray-700 rounded-full px-3 py-1"
+                              >
+                                ⏱ Recupero {info.rest >= 60 && info.rest % 60 === 0 ? `${info.rest / 60} min` : `${info.rest} s`} · avvia
+                              </button>
+                            )}
+                          </div>
                         )}
 
                         <div
@@ -860,6 +998,18 @@ export default function AllenamentoGiorno({
                                               />
                                               {unit && <span className="text-lg font-semibold text-gray-500">{unit.trim()}</span>}
                                             </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => markSetDone(i, si, setIdx, sets, info.rest)}
+                                              aria-label={`Serie ${setIdx + 1} fatta`}
+                                              className={`shrink-0 w-12 h-12 rounded-full text-xl font-bold ${
+                                                doneSets[`${i}-${si}-${setIdx}`]
+                                                  ? "bg-brand text-brand-dark"
+                                                  : "bg-gray-100 text-gray-400"
+                                              }`}
+                                            >
+                                              ✓
+                                            </button>
                                           </div>
                                         </div>
                                       );
@@ -1000,6 +1150,41 @@ export default function AllenamentoGiorno({
           </>
         )}
       </div>
+
+      {restEnd !== null && (
+        <div className="fixed left-0 right-0 bottom-24 px-4 z-40">
+          <div className="max-w-xl mx-auto rounded-2xl bg-gray-900 text-white px-4 py-3 flex items-center gap-3 shadow-xl">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-gray-400 truncate">{restLabel} · recupero</p>
+              <p className="text-3xl font-bold tabular-nums" style={{ color: "#d4f547" }}>
+                {formatClock(restLeft)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRestEnd((e) => (e === null ? e : Math.max(Date.now() + 1000, e - 15000)))}
+              className="rounded-full bg-white/10 px-3 py-2 text-sm font-semibold"
+            >
+              −15
+            </button>
+            <button
+              type="button"
+              onClick={() => setRestEnd((e) => (e === null ? e : e + 15000))}
+              className="rounded-full bg-white/10 px-3 py-2 text-sm font-semibold"
+            >
+              +15
+            </button>
+            <button
+              type="button"
+              onClick={() => setRestEnd(null)}
+              className="rounded-full px-4 py-2 text-sm font-semibold"
+              style={{ background: "#d4f547", color: "#0c1210" }}
+            >
+              Salta
+            </button>
+          </div>
+        </div>
+      )}
 
       {vm && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent">
