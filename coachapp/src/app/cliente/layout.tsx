@@ -3,15 +3,14 @@ import SideNav from "@/components/SideNav";
 import ReactivatePaymentButton from "@/components/ReactivatePaymentButton";
 
 const OGGI = { href: "/cliente", label: "Oggi", short: "Oggi", icon: "🏠" };
-const CALENDARIO = { href: "/cliente/calendario", label: "Calendario", short: "Calendario", icon: "📅" };
 const PROGRESSI = { href: "/cliente/progressi", label: "Progressi", short: "Progressi", icon: "📈" };
 const CHAT = { href: "/cliente/chat", label: "Messaggi", short: "Chat", icon: "💬" };
 const DIETA = { href: "/cliente/dieta", label: "Piano alimentare", short: "Dieta", icon: "🥗" };
 const MASSIMALI = { href: "/cliente/massimali", label: "Massimali", short: "Massimali", icon: "🔢" };
 
 // Menu completo (☰ e desktop), barra in basso su mobile e voci sotto "Altro".
-const NAV_ITEMS = [OGGI, CALENDARIO, PROGRESSI, CHAT, DIETA, MASSIMALI];
-const BAR_ITEMS = [OGGI, CALENDARIO, PROGRESSI, CHAT];
+const NAV_ITEMS = [OGGI, PROGRESSI, CHAT, DIETA, MASSIMALI];
+const BAR_ITEMS = [OGGI, PROGRESSI, CHAT];
 const MORE_ITEMS = [DIETA, MASSIMALI];
 
 // Stati che bloccano l'accesso all'app: il webhook Stripe li imposta in

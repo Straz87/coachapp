@@ -48,13 +48,6 @@ export default async function ClienteHome() {
       <OggiCard clientId={client.id} />
 
       <ClientProgramCard clientId={client.id} />
-
-      <Link
-        href="/cliente/calendario"
-        className="block text-center text-sm text-gray-500 hover:text-gray-800 mt-2"
-      >
-        Vedi il calendario completo →
-      </Link>
     </div>
   );
 }
