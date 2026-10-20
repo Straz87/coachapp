@@ -111,20 +111,25 @@ export default function ClientProgramCard({ clientId }: { clientId: string }) {
   return (
     <div className="mb-6">
       {programs.map((p) => (
-        <div key={p.membershipId} className="mb-4">
-          <div className="flex items-baseline justify-between mx-0.5 mb-2">
-            <p className="font-bold">{p.programName}</p>
-            <span className="text-xs text-gray-500">
-              Giorno {p.currentDay} di {p.lengthDays}
+        <details key={p.membershipId} className="card !p-0 mb-3 group/prog">
+          <summary className="list-none flex items-center gap-3 px-4 py-4 cursor-pointer [&::-webkit-details-marker]:hidden">
+            <span className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-lg">🏋️</span>
+            <span className="min-w-0">
+              <span className="block font-bold truncate">{p.programName}</span>
+              <span className="block text-xs text-gray-500">
+                Giorno {p.currentDay} di {p.lengthDays}
+                {p.dayTitle ? ` · ${p.dayTitle}` : ""}
+              </span>
             </span>
-          </div>
+            <span className="ml-auto text-gray-400 transition-transform group-open/prog:rotate-90">›</span>
+          </summary>
+          <div className="px-3 pb-3">
           {p.dayTitle ? (
             <>
-              {p.dayTitle && <p className="text-sm text-gray-500 mx-0.5 mb-2">{p.dayTitle}</p>}
               {p.dayBlocks.map((b, i) => {
                 const lines = htmlToLines(b.description);
                 return (
-                  <details key={i} open={i === 0} className="card !p-0 mb-2 group">
+                  <details key={i} className="rounded-2xl bg-gray-50 mb-2 group">
                     <summary className="list-none flex items-center gap-2.5 px-4 py-3.5 font-semibold cursor-pointer [&::-webkit-details-marker]:hidden">
                       <span className="w-6 h-6 rounded-full bg-brand text-xs flex items-center justify-center">
                         {i + 1}
@@ -158,9 +163,10 @@ export default function ClientProgramCard({ clientId }: { clientId: string }) {
               </button>
             </>
           ) : (
-            <p className="text-gray-400 text-sm">Il tuo coach non ha ancora pubblicato questo giorno.</p>
+            <p className="text-gray-400 text-sm px-1 pb-1">Il tuo coach non ha ancora pubblicato questo giorno.</p>
           )}
-        </div>
+          </div>
+        </details>
       ))}
     </div>
   );
