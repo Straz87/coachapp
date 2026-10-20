@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getWeekDays, startOfWeek, toISODate } from "@/lib/dates";
@@ -15,7 +15,7 @@ type Row = {
   isGroup?: boolean;
 };
 
-export default function OggiCard({ clientId }: { clientId: string }) {
+export default function OggiCard({ clientId, programs }: { clientId: string; programs?: ReactNode }) {
   const supabase = createClient();
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [loading, setLoading] = useState(true);
@@ -75,48 +75,6 @@ export default function OggiCard({ clientId }: { clientId: string }) {
   return (
     <div className="mb-4 space-y-3">
       <div className="card">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
-          Oggi{todayLabel ? ` · ${todayLabel.label} ${todayLabel.dayNumber}/${todayLabel.month}` : ""}
-        </p>
-
-        {today ? (
-          <>
-            <p className="text-xl font-bold mb-2">{today.title}</p>
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              {(today.blocks || []).slice(0, 5).map((b, i) => (
-                <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full">
-                  {b.type}
-                </span>
-              ))}
-            </div>
-            <Link
-              href={`/cliente/allenamento/${todayIso}`}
-              className={`${today.completed ? "btn-secondary" : "btn-primary"} block w-full text-center`}
-            >
-              {today.completed ? "✓ Completato · Rivedi" : "Inizia allenamento"}
-            </Link>
-          </>
-        ) : (
-          <>
-            <p className="text-xl font-bold mb-1">Oggi riposo 😌</p>
-            <p className="text-sm text-gray-500">
-              {next
-                ? `Prossimo allenamento: ${next.label} ${next.dayNumber}/${next.month} · ${rows[next.iso].title}`
-                : "Nessun altro allenamento in programma questa settimana."}
-            </p>
-            {next && (
-              <Link
-                href={`/cliente/allenamento/${next.iso}`}
-                className="block text-sm font-medium text-gray-700 underline mt-3"
-              >
-                Dai un&apos;occhiata
-              </Link>
-            )}
-          </>
-        )}
-      </div>
-
-      <div className="card">
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-semibold">Questa settimana</p>
           <p className="text-xs text-gray-500">
@@ -158,6 +116,35 @@ export default function OggiCard({ clientId }: { clientId: string }) {
         </span>
         <span className="text-gray-400">→</span>
       </Link>
+
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 pt-3 px-0.5">
+        Allenamenti di oggi{todayLabel ? ` · ${todayLabel.label} ${todayLabel.dayNumber}/${todayLabel.month}` : ""}
+      </p>
+
+      {programs}
+
+      {today ? (
+        <Link href={`/cliente/allenamento/${todayIso}`} className="card flex items-center gap-3">
+          <span className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-lg">
+            {today.completed ? "✅" : "📋"}
+          </span>
+          <span className="min-w-0">
+            <span className="block font-bold truncate">{today.title}</span>
+            <span className="block text-xs text-gray-500 truncate">
+              {today.completed
+                ? "Completato · tocca per rivedere"
+                : (today.blocks || []).slice(0, 3).map((b) => b.type).join(" · ") || "Scheda individuale"}
+            </span>
+          </span>
+          <span className="ml-auto text-gray-400">›</span>
+        </Link>
+      ) : (
+        <div className="card text-sm text-gray-500">
+          {next
+            ? `Nessuna scheda individuale oggi. Prossima: ${next.label} ${next.dayNumber}/${next.month} · ${rows[next.iso].title}`
+            : "Nessuna scheda individuale oggi."}
+        </div>
+      )}
     </div>
   );
 }

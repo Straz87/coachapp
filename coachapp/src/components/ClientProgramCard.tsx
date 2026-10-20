@@ -109,7 +109,7 @@ export default function ClientProgramCard({ clientId }: { clientId: string }) {
   if (!programs || programs.length === 0) return null;
 
   return (
-    <div className="mb-6">
+    <div className="">
       {programs.map((p) => (
         <details key={p.membershipId} className="card !p-0 mb-3 group/prog">
           <summary className="list-none flex items-center gap-3 px-4 py-4 cursor-pointer [&::-webkit-details-marker]:hidden">
