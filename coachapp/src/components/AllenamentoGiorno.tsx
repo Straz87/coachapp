@@ -165,6 +165,7 @@ export default function AllenamentoGiorno({
   const [doneSets, setDoneSets] = useState<Record<string, boolean>>({});
   const audioRef = useRef<AudioContext | null>(null);
   const autoEditedFor = useRef<string>("");
+  const [fatigue, setFatigue] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -186,6 +187,7 @@ export default function AllenamentoGiorno({
         likedBy: assignment.liked_by || [],
         clientScores: assignment.client_scores || {},
       });
+      setFatigue(assignment.fatigue ?? null);
 
       const weekAgo = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
       setPrevDate(weekAgo);
@@ -252,6 +254,7 @@ export default function AllenamentoGiorno({
           likedBy: groupWorkout.liked_by || [],
           clientScores: scoreRow?.client_scores || {},
         });
+        setFatigue(scoreRow?.fatigue ?? null);
 
         const weekAgo = toISODate(addDays(new Date(`${date}T00:00:00`), -7));
         setPrevDate(weekAgo);
@@ -511,6 +514,26 @@ export default function AllenamentoGiorno({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientProfileId: profileId, workoutTitle: vm.title }),
       }).catch(() => {});
+    }
+  }
+
+  async function saveFatigue(value: number) {
+    if (!vm) return;
+    const next = fatigue === value ? null : value;
+    setFatigue(next);
+    if (vm.source.kind === "individual") {
+      await supabase.from("workout_assignments").update({ fatigue: next }).eq("id", vm.source.assignmentId);
+    } else {
+      await supabase.from("group_workout_scores").upsert(
+        {
+          group_workout_id: vm.source.groupWorkoutId,
+          client_id: clientId,
+          completed: vm.completed,
+          client_scores: vm.clientScores,
+          fatigue: next,
+        },
+        { onConflict: "group_workout_id,client_id" }
+      );
     }
   }
 
@@ -1208,6 +1231,26 @@ export default function AllenamentoGiorno({
             >
               Salta
             </button>
+          </div>
+        </div>
+      )}
+
+      {vm && vm.completed && (
+        <div className="bg-white rounded-2xl p-4 mt-4 mb-24 shadow-sm">
+          <p className="font-semibold mb-1">Quanto è stato faticoso?</p>
+          <p className="text-xs text-gray-500 mb-3">Da 1 (leggero) a 10 (massimo sforzo)</p>
+          <div className="grid grid-cols-5 gap-2">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+              <button
+                key={n}
+                onClick={() => saveFatigue(n)}
+                className={`h-11 rounded-xl font-semibold ${
+                  fatigue === n ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
           </div>
         </div>
       )}

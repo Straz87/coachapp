@@ -15,6 +15,7 @@ type Row = {
   completed: boolean | null;
   blocks: Block[];
   client_scores: ClientScores | null;
+  fatigue?: number | null;
 };
 
 type Session = { date: string; kg: number; volume: number };
@@ -105,7 +106,7 @@ export default function ProgressTracking({ clientId, coach }: { clientId: string
     (async () => {
       const { data } = await supabase
         .from("workout_assignments")
-        .select("date, completed, blocks, client_scores")
+        .select("date, completed, blocks, client_scores, fatigue")
         .eq("client_id", clientId)
         .order("date", { ascending: true });
       setRows((data as Row[]) || []);
@@ -154,6 +155,12 @@ export default function ProgressTracking({ clientId, coach }: { clientId: string
   }, [rows]);
 
   if (rows === null) return <p className="text-gray-400 text-sm">Caricamento…</p>;
+
+  const fatigues = (rows || [])
+    .filter((r) => r.fatigue != null)
+    .slice(-8)
+    .map((r) => ({ date: r.date, value: r.fatigue as number }));
+  const fatigueAvg = fatigues.length ? fatigues.reduce((s, f) => s + f.value, 0) / fatigues.length : 0;
 
   const names = Object.keys(byExercise).sort((a, b) => byExercise[b].length - byExercise[a].length);
   const current = exercise && byExercise[exercise] ? exercise : names[0] || null;
@@ -304,6 +311,27 @@ export default function ProgressTracking({ clientId, coach }: { clientId: string
                   <div className="text-[9px] text-gray-400 mt-1">{shortDate(a.week)}</div>
                 </div>
               ))}
+            </div>
+          )}
+          {fatigues.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mb-2">
+                Fatica percepita (1-10) · media {fatigueAvg.toFixed(1)}
+              </p>
+              <div className="flex gap-1.5">
+                {fatigues.map((f) => (
+                  <div key={f.date} className="flex-1 text-center">
+                    <div
+                      className={`h-9 rounded-lg flex items-center justify-center text-sm font-semibold ${
+                        f.value >= 8 ? "bg-red-100 text-red-700" : f.value >= 5 ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {f.value}
+                    </div>
+                    <div className="text-[9px] text-gray-400 mt-1">{shortDate(f.date)}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
