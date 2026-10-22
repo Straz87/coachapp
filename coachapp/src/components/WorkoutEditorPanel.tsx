@@ -53,8 +53,26 @@ function splitExerciseLine(line: string): string[] | null {
   return out;
 }
 
+// I link (es. video) diventano toccabili per il cliente: "▶ Guarda il video".
+function linkify(escaped: string) {
+  return escaped.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer">▶ Guarda il video</a>'
+  );
+}
+
 function linesToHtml(lines: string[]) {
-  return lines.map((l) => "<p>" + escHtml(l) + "</p>").join("");
+  return lines.map((l) => "<p>" + linkify(escHtml(l)) + "</p>").join("");
+}
+
+// Come htmlToLines, ma rimette l'indirizzo al posto del link, così il coach
+// ritrova il link che ha incollato quando riapre il blocco.
+function linesFromHtml(html: string): string[] {
+  const unlinked = (html || "").replace(
+    /<a\s[^>]*href="([^"]+)"[^>]*>.*?<\/a>/gi,
+    (_m, url: string) => url.replace(/&amp;/g, "&")
+  );
+  return htmlToLines(unlinked);
 }
 
 export function parseWorkoutText(text: string): Block[] {
@@ -248,7 +266,7 @@ function isPlainHtml(html: string): boolean {
   return !/<(?!\/?(?:p|br)\b)[a-z]/i.test(html || "");
 }
 
-type ExerciseFieldsValue = { name: string; sets: string; reps: string; rest: string; pct: string };
+type ExerciseFieldsValue = { name: string; sets: string; reps: string; rest: string; pct: string; video: string };
 
 const SETS_RE = /^(\d+)\s*[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)\s*(?:rep|reps|ripetizioni)?$/i;
 const PCT_RE = /^(\d+(?:[.,]\d+)?)\s*%\s*(?:del\s+)?(?:massimale|1\s*rm)\b/i;
@@ -257,16 +275,18 @@ const REST_RE = /^(\d+(?:\s*[-–]\s*\d+)?)\s*(?:sec|s|secondi)\s*(?:di\s*)?(?:r
 // Legge la descrizione di un blocco e la scompone in nome/serie/rep/recupero.
 // Se non rientra nel formato semplice ritorna null (si usa il testo libero).
 function parseExercise(html: string): ExerciseFieldsValue | null {
-  const lines = htmlToLines(html);
-  if (lines.length === 0) return { name: "", sets: "", reps: "", rest: "", pct: "" };
-  if (lines.length > 4) return null;
-  const out: ExerciseFieldsValue = { name: lines[0], sets: "", reps: "", rest: "", pct: "" };
+  const lines = linesFromHtml(html);
+  if (lines.length === 0) return { name: "", sets: "", reps: "", rest: "", pct: "", video: "" };
+  if (lines.length > 5) return null;
+  const out: ExerciseFieldsValue = { name: lines[0], sets: "", reps: "", rest: "", pct: "", video: "" };
   if (SETS_RE.test(lines[0])) return null;
   for (const line of lines.slice(1)) {
     const s = line.match(SETS_RE);
     const r = line.match(REST_RE);
     const p = line.match(PCT_RE);
-    if (p && !out.pct) {
+    if (/^https?:\/\/\S+$/i.test(line) && !out.video) {
+      out.video = line;
+    } else if (p && !out.pct) {
       out.pct = p[1];
     } else if (s && !out.sets) {
       out.sets = s[1];
@@ -286,6 +306,7 @@ function buildExerciseHtml(v: ExerciseFieldsValue): string {
   if (v.sets.trim() && v.reps.trim()) lines.push(`${v.sets.trim()}x${v.reps.trim()} rep`);
   if (v.pct.trim()) lines.push(`${v.pct.trim()}% del massimale di ${v.name.trim()}`);
   if (v.rest.trim()) lines.push(`${v.rest.trim()} sec recupero`);
+  if (v.video.trim()) lines.push(v.video.trim());
   return linesToHtml(lines);
 }
 
@@ -721,7 +742,7 @@ function ExerciseFields({
   onChange: (patch: Partial<Block>) => void;
 }) {
   const [v, setV] = useState<ExerciseFieldsValue>(
-    () => parseExercise(block.description) || { name: "", sets: "", reps: "", rest: "", pct: "" }
+    () => parseExercise(block.description) || { name: "", sets: "", reps: "", rest: "", pct: "", video: "" }
   );
   const scores = getBlockScoresRaw(block);
 
@@ -785,6 +806,16 @@ function ExerciseFields({
           onChange={(e) => update({ pct: e.target.value.replace(/[^\d.,]/g, "") })}
         />
       </div>
+      <div className="rounded-xl bg-gray-100 px-3 py-1.5">
+        <label className="block text-[11px] text-gray-500">Video (link, facoltativo)</label>
+        <input
+          inputMode="url"
+          placeholder="incolla il link YouTube…"
+          className="w-full bg-transparent outline-none text-base placeholder:text-gray-300"
+          value={v.video}
+          onChange={(e) => update({ video: e.target.value.trim() })}
+        />
+      </div>
       {v.pct.trim() && (
         <p className="text-xs text-gray-400 -mt-1">
           Il cliente vedrà i kg calcolati dal suo massimale di &quot;{v.name.trim() || "questo esercizio"}&quot;.
@@ -808,7 +839,7 @@ function LinesField({
   block: Block;
   onChange: (patch: Partial<Block>) => void;
 }) {
-  const [text, setText] = useState(() => htmlToLines(block.description).join("\n"));
+  const [text, setText] = useState(() => linesFromHtml(block.description).join("\n"));
   return (
     <div>
       <textarea
@@ -824,7 +855,9 @@ function LinesField({
           });
         }}
       />
-      <p className="text-xs text-gray-400 mt-1">Una riga per ogni cosa da fare.</p>
+      <p className="text-xs text-gray-400 mt-1">
+        Una riga per ogni cosa da fare. Per un video, incolla il link nella riga dell&apos;esercizio.
+      </p>
       {/\d\s*%/.test(text) && (
         <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mt-2">
           Hai scritto una percentuale. Il cliente vedrà i kg solo se ha salvato in Massimali il massimale con lo
