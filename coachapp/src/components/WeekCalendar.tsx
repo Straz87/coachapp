@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, getWeekDays, startOfWeek, toISODate } from "@/lib/dates";
 import WorkoutEditorPanel, { WorkoutDraft } from "@/components/WorkoutEditorPanel";
-import { Block, ClientScores, getBlockScores, readClientScoreEntry, displayScoreValue, htmlToLines, readBlockNote } from "@/lib/workoutTypes";
+import { Block, ClientScores, getBlockScores, readClientScoreEntry, displayScoreValue, htmlToLines } from "@/lib/workoutTypes";
 import {
   IconLibrary,
   IconEdit,
@@ -26,8 +26,7 @@ type Assignment = {
   completed: boolean;
   activity_type: string | null;
   client_scores: ClientScores;
-  // Risposte del trainer alle note del cliente (chiave = indice blocco).
-  trainer_replies?: Record<string, string> | null;
+  fatigue?: number | null;
 };
 
 type DayInfo = { date: Date; iso: string; label: string; dayNumber: number; month: number };
@@ -94,12 +93,16 @@ export default function WeekCalendar({
   clientName = "Cliente",
   trainerName = "Coach",
   initialDate,
+  openEditor = false,
 }: {
   clientId: string;
   trainerId: string;
   clientName?: string;
   trainerName?: string;
   initialDate?: string | null;
+  // Se true, con initialDate l'editor si apre subito su quel giorno. Altrimenti
+  // initialDate sceglie solo la settimana da mostrare.
+  openEditor?: boolean;
 }) {
   const supabase = createClient();
   const [weekStart, setWeekStart] = useState(() =>
@@ -107,7 +110,7 @@ export default function WeekCalendar({
   );
   const [assignments, setAssignments] = useState<Record<string, Assignment>>({});
   const [loading, setLoading] = useState(true);
-  const [editingDate, setEditingDate] = useState<string | null>(initialDate || null);
+  const [editingDate, setEditingDate] = useState<string | null>(openEditor && initialDate ? initialDate : null);
   const [saving, setSaving] = useState(false);
   const [templates, setTemplates] = useState<WeekTemplate[]>([]);
   const [openMenu, setOpenMenu] = useState<"template" | "copy" | null>(null);
@@ -122,31 +125,6 @@ export default function WeekCalendar({
   const [showTemplatePrompt, setShowTemplatePrompt] = useState(false);
   const [templateNameDraft, setTemplateNameDraft] = useState("");
   const [andamento, setAndamento] = useState<Andamento | null>(null);
-  // Risposta del trainer a una nota del cliente: quale nota è in modifica
-  // (chiave "idAssegnazione:indiceBlocco") e il testo in bozza.
-  const [replyOpen, setReplyOpen] = useState<string | null>(null);
-  const [replyDraft, setReplyDraft] = useState("");
-  const [savingReply, setSavingReply] = useState(false);
-
-  async function saveReply(a: Assignment, blockIndex: number) {
-    const text = replyDraft.trim();
-    setSavingReply(true);
-    const next: Record<string, string> = { ...(a.trainer_replies || {}) };
-    if (text) next[String(blockIndex)] = text;
-    else delete next[String(blockIndex)];
-    const { error } = await supabase
-      .from("workout_assignments")
-      .update({ trainer_replies: next })
-      .eq("id", a.id);
-    setSavingReply(false);
-    if (error) {
-      setBanner("Errore nel salvataggio della risposta, riprova.");
-      return;
-    }
-    setAssignments((prev) => ({ ...prev, [a.date]: { ...a, trainer_replies: next } }));
-    setReplyOpen(null);
-    setReplyDraft("");
-  }
 
   const days = getWeekDays(weekStart);
   const todayIso = toISODate(new Date());
@@ -557,8 +535,8 @@ export default function WeekCalendar({
             })()}
 
           <div className="flex items-center justify-between mt-auto">
-            <Link href="/trainer/calendario" className="text-xs text-[#1D2A0F]/60 hover:text-[#1D2A0F] underline">
-              ← Torna ai clienti
+            <Link href={`/trainer/clienti/${clientId}`} className="text-xs text-[#1D2A0F]/60 hover:text-[#1D2A0F] underline">
+              ← Torna al cliente
             </Link>
             <div className="flex items-center gap-2">
               <button className="w-8 h-8 rounded-full bg-[#1D2A0F]/10 flex items-center justify-center text-[#1D2A0F] hover:bg-[#1D2A0F]/20">
@@ -735,69 +713,15 @@ export default function WeekCalendar({
                                   </div>
                                 );
                               })}
-                              {readBlockNote(a.client_scores, bi) && (
-                                <div className="mt-1 space-y-1">
-                                  <p className="text-xs text-blue-700 bg-blue-50 rounded px-2 py-1 whitespace-pre-wrap">
-                                    💬 {readBlockNote(a.client_scores, bi)}
-                                  </p>
-                                  {replyOpen === `${a.id}:${bi}` ? (
-                                    <div className="space-y-1">
-                                      <textarea
-                                        autoFocus
-                                        rows={2}
-                                        className="input w-full text-xs"
-                                        placeholder="Scrivi la tua risposta…"
-                                        value={replyDraft}
-                                        onChange={(e) => setReplyDraft(e.target.value)}
-                                      />
-                                      <div className="flex gap-2">
-                                        <button
-                                          onClick={() => saveReply(a, bi)}
-                                          disabled={savingReply}
-                                          className="btn-primary text-xs px-3 py-1"
-                                        >
-                                          {savingReply ? "…" : "Invia"}
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            setReplyOpen(null);
-                                            setReplyDraft("");
-                                          }}
-                                          className="btn-secondary text-xs px-3 py-1"
-                                        >
-                                          Annulla
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : a.trainer_replies?.[String(bi)] ? (
-                                    <button
-                                      onClick={() => {
-                                        setReplyOpen(`${a.id}:${bi}`);
-                                        setReplyDraft(a.trainer_replies?.[String(bi)] || "");
-                                      }}
-                                      className="block w-full text-left text-xs text-green-800 bg-green-50 rounded px-2 py-1 whitespace-pre-wrap"
-                                    >
-                                      ↩️ Tu: {a.trainer_replies?.[String(bi)]}
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => {
-                                        setReplyOpen(`${a.id}:${bi}`);
-                                        setReplyDraft("");
-                                      }}
-                                      className="text-[11px] text-gray-500 underline"
-                                    >
-                                      Rispondi
-                                    </button>
-                                  )}
-                                </div>
-                              )}
                             </div>
                           );
                         })}
                       </div>
                       {a.completed && (
-                        <span className="text-green-600 text-xs mt-2 block">✓ Completato dal cliente</span>
+                        <span className="text-green-600 text-xs mt-2 block">
+                          ✓ Completato dal cliente
+                          {a.fatigue ? ` · fatica ${a.fatigue}/10` : ""}
+                        </span>
                       )}
                       <div className="relative mt-2">
                         <button
