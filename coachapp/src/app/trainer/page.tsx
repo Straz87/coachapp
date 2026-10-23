@@ -114,7 +114,11 @@ export default async function TrainerHome() {
         </Link>
       </div>
 
-      <PublicLinkManager trainerId={profile.id} groups={groupsData || []} />
+      <TeamWeek
+        clients={rows
+          .filter((c) => c.status === "attivo" || c.status === "in_scadenza")
+          .map((c) => ({ id: c.id, name: c.profiles?.full_name || "Cliente" }))}
+      />
 
       {/* Telefono: due numeri essenziali. */}
       <div className="sm:hidden grid grid-cols-2 gap-3 mb-5">
@@ -157,13 +161,14 @@ export default async function TrainerHome() {
         </div>
       </div>
 
-      <TeamWeek
-        clients={rows
-          .filter((c) => c.status === "attivo" || c.status === "in_scadenza")
-          .map((c) => ({ id: c.id, name: c.profiles?.full_name || "Cliente" }))}
-      />
-
       <ClientList clients={rows} />
+
+      <details className="mt-8">
+        <summary className="cursor-pointer text-sm text-gray-500">Link di iscrizione pubblico</summary>
+        <div className="mt-3">
+          <PublicLinkManager trainerId={profile.id} groups={groupsData || []} />
+        </div>
+      </details>
     </div>
   );
 }
