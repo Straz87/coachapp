@@ -7,7 +7,7 @@ import { addDays, getWeekDays, startOfWeek, toISODate } from "@/lib/dates";
 
 type Row = { client_id: string; date: string; completed: boolean | null; fatigue: number | null };
 
-// Vista "Squadra": una riga per ogni ragazzo, sette pallini per la settimana.
+// Vista clienti della settimana: una riga per ogni ragazzo, sette pallini per la settimana.
 // Verde (col voto di fatica) = fatto, bordo grigio = previsto, rosso = saltato.
 export default function TeamWeek({ clients }: { clients: { id: string; name: string }[] }) {
   const supabase = createClient();
@@ -65,7 +65,7 @@ export default function TeamWeek({ clients }: { clients: { id: string; name: str
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Squadra</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Clienti · settimana</p>
         <div className="flex items-center gap-1 text-sm">
           <button type="button" className="px-2 text-gray-400" onClick={() => setWeekStart(addDays(weekStart, -7))}>
             ‹
