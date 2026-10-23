@@ -7,7 +7,7 @@ import GroupWeekCalendar from "@/components/GroupWeekCalendar";
 export default async function CalendarioPage({
   searchParams,
 }: {
-  searchParams: { cliente?: string; gruppo?: string; data?: string };
+  searchParams: { cliente?: string; gruppo?: string; data?: string; modifica?: string };
 }) {
   const { supabase, profile } = await requireTrainer();
 
@@ -40,6 +40,9 @@ export default async function CalendarioPage({
   const selectedClientId = searchParams.cliente || null;
   const selectedGroupId = searchParams.gruppo || null;
   const initialDate = searchParams.data || null;
+  // L'editor si apre da solo solo se lo chiedi esplicitamente (?modifica=1);
+  // con la sola data si vede la settimana di quel giorno.
+  const openEditor = searchParams.modifica === "1";
 
   const selectedClientName = clientOptions.find((c) => c.id === selectedClientId)?.name;
   const selectedGroupName = groupOptions.find((g) => g.id === selectedGroupId)?.name;
@@ -74,6 +77,7 @@ export default async function CalendarioPage({
           clientName={selectedClientName}
           trainerName={trainerName}
           initialDate={initialDate}
+          openEditor={openEditor}
         />
       ) : (
         <p className="text-gray-400">
