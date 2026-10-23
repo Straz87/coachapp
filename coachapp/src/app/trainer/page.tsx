@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireTrainer } from "@/lib/auth";
 import ClientList, { ClientRow } from "@/components/ClientList";
 import PublicLinkManager from "@/components/PublicLinkManager";
+import TeamWeek from "@/components/TeamWeek";
 
 // Stesse soglie usate dal job dei promemoria automatici (/api/cron/reminders),
 // così l'indicatore "da contattare" qui coincide con quando parte l'avviso.
@@ -155,6 +156,12 @@ export default async function TrainerHome() {
           <p className="text-2xl font-bold text-orange-600">{counts.da_contattare}</p>
         </div>
       </div>
+
+      <TeamWeek
+        clients={rows
+          .filter((c) => c.status === "attivo" || c.status === "in_scadenza")
+          .map((c) => ({ id: c.id, name: c.profiles?.full_name || "Cliente" }))}
+      />
 
       <ClientList clients={rows} />
     </div>
