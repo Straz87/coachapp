@@ -840,6 +840,30 @@ function LinesField({
   onChange: (patch: Partial<Block>) => void;
 }) {
   const [text, setText] = useState(() => linesFromHtml(block.description).join("\n"));
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoLine, setVideoLine] = useState(0);
+  const textLines = text.split("\n").filter((l) => l.trim() !== "");
+
+  function applyText(next: string) {
+    setText(next);
+    onChange({
+      description: linesToHtml(next.split("\n").filter((l) => l.trim() !== "")),
+    });
+  }
+
+  function addVideo() {
+    const url = videoUrl.trim();
+    if (!/^https?:\/\/\S+$/i.test(url)) return;
+    const lines = text.split("\n").filter((l) => l.trim() !== "");
+    const i = Math.min(videoLine, Math.max(0, lines.length - 1));
+    if (lines.length === 0) lines.push(url);
+    else lines[i] = `${lines[i].trim()} ${url}`;
+    applyText(lines.join("\n"));
+    setVideoUrl("");
+    setVideoOpen(false);
+  }
+
   return (
     <div>
       <textarea
@@ -858,6 +882,46 @@ function LinesField({
       <p className="text-xs text-gray-400 mt-1">
         Una riga per ogni cosa da fare. Per un video, incolla il link nella riga dell&apos;esercizio.
       </p>
+      <button
+        type="button"
+        onClick={() => setVideoOpen((o) => !o)}
+        className="mt-2 rounded-full bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700"
+      >
+        🎥 Aggiungi video a un esercizio
+      </button>
+      {videoOpen && (
+        <div className="mt-2 rounded-2xl border border-gray-200 p-3 space-y-2">
+          <label className="block text-[11px] text-gray-500">Per quale riga?</label>
+          <select
+            className="input"
+            value={videoLine}
+            onChange={(e) => setVideoLine(Number(e.target.value))}
+          >
+            {textLines.length === 0 && <option value={0}>(scrivi prima una riga)</option>}
+            {textLines.map((l, i) => (
+              <option key={i} value={i}>
+                {l.length > 40 ? l.slice(0, 40) + "…" : l}
+              </option>
+            ))}
+          </select>
+          <label className="block text-[11px] text-gray-500">Link del video (YouTube…)</label>
+          <input
+            inputMode="url"
+            className="input"
+            placeholder="incolla qui il link"
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={addVideo}
+            disabled={!/^https?:\/\/\S+$/i.test(videoUrl.trim())}
+            className="w-full rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-gray-900 disabled:opacity-40"
+          >
+            Aggiungi video
+          </button>
+        </div>
+      )}
       {/\d\s*%/.test(text) && (
         <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mt-2">
           Hai scritto una percentuale. Il cliente vedrà i kg solo se ha salvato in Massimali il massimale con lo
