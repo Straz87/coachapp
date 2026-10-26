@@ -889,7 +889,7 @@ function LinesField({
   const [videos, setVideos] = useState<Record<string, string>>(init.urls);
   const [videoOpen, setVideoOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState("");
-  const [videoLine, setVideoLine] = useState(0);
+  const [videoLine, setVideoLine] = useState(-1);
   const textLines = text.split("\n").filter((l) => l.trim() !== "");
 
   function toHtml(value: string, urls: Record<string, string>) {
@@ -920,7 +920,7 @@ function LinesField({
     const url = videoUrl.trim();
     if (!/^https?:\/\/\S+$/i.test(url)) return;
     const lines = text.split("\n").filter((l) => l.trim() !== "");
-    const i = Math.min(videoLine, Math.max(0, lines.length - 1));
+    const i = Math.min(Math.max(videoLine, 0), Math.max(0, lines.length - 1));
     const id = String(Math.max(0, ...Object.keys(videos).map(Number)) + 1);
     const urls = { ...videos, [id]: url };
     setVideos(urls);
@@ -928,6 +928,23 @@ function LinesField({
     else lines[i] = `${lines[i].trim()} 🎥${id}`;
     applyText(lines.join("\n"), urls);
     setVideoUrl("");
+  }
+
+  const tokenRe = (id: string) => new RegExp(`\\s*🎥${id}(?!\\d)`, "g");
+
+  function lineOfVideo(id: string) {
+    const re = new RegExp(`🎥${id}(?!\\d)`);
+    return textLines.findIndex((l) => re.test(l));
+  }
+
+  // Sposta il simbolo del video su un'altra riga (vicino all'esercizio giusto).
+  function moveVideo(id: string, toLine: number) {
+    const cleaned = text.replace(tokenRe(id), "");
+    const lines = cleaned.split("\n").filter((l) => l.trim() !== "");
+    if (lines.length === 0) return;
+    const i = Math.min(Math.max(toLine, 0), lines.length - 1);
+    lines[i] = `${lines[i].trim()} 🎥${id}`;
+    applyText(lines.join("\n"));
   }
 
   function removeVideo(id: string) {
@@ -959,13 +976,13 @@ function LinesField({
       </button>
       {videoOpen && (
         <div className="mt-2 rounded-2xl border border-gray-200 p-3 space-y-2">
-          <label className="block text-[11px] text-gray-500">Per quale riga?</label>
+          <label className="block text-[11px] text-gray-500">Accanto a quale esercizio?</label>
           <select
             className="input"
             value={videoLine}
             onChange={(e) => setVideoLine(Number(e.target.value))}
           >
-            {textLines.length === 0 && <option value={0}>(scrivi prima una riga)</option>}
+            <option value={-1}>Scegli la riga…</option>
             {textLines.map((l, i) => (
               <option key={i} value={i}>
                 {l.length > 40 ? l.slice(0, 40) + "…" : l}
@@ -983,7 +1000,7 @@ function LinesField({
           <button
             type="button"
             onClick={addVideo}
-            disabled={!/^https?:\/\/\S+$/i.test(videoUrl.trim())}
+            disabled={videoLine < 0 || !/^https?:\/\/\S+$/i.test(videoUrl.trim())}
             className="w-full rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-gray-900 disabled:opacity-40"
           >
             Aggiungi video
@@ -991,12 +1008,26 @@ function LinesField({
           {Object.keys(videos).length > 0 && (
             <div className="pt-1">
               {Object.entries(videos).map(([id, u]) => (
-                <div key={id} className="flex items-center gap-2 py-1 text-sm">
-                  <span>🎥{id}</span>
-                  <span className="flex-1 truncate text-gray-500">{u}</span>
-                  <button type="button" className="px-2 text-gray-400" onClick={() => removeVideo(id)}>
-                    ✕
-                  </button>
+                <div key={id} className="py-1.5 text-sm border-t border-gray-100 first:border-t-0">
+                  <div className="flex items-center gap-2">
+                    <span>🎥{id}</span>
+                    <span className="flex-1 truncate text-gray-500">{u}</span>
+                    <button type="button" className="px-2 text-gray-400" onClick={() => removeVideo(id)}>
+                      ✕
+                    </button>
+                  </div>
+                  <select
+                    className="input mt-1 text-xs"
+                    value={lineOfVideo(id)}
+                    onChange={(e) => moveVideo(id, Number(e.target.value))}
+                  >
+                    {lineOfVideo(id) < 0 && <option value={-1}>Non collegato a una riga</option>}
+                    {textLines.map((l, li) => (
+                      <option key={li} value={li}>
+                        Sposta qui: {l.replace(/\s*🎥\d+/g, "").slice(0, 34)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               ))}
             </div>
