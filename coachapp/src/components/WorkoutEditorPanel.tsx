@@ -839,17 +839,50 @@ function LinesField({
   block: Block;
   onChange: (patch: Partial<Block>) => void;
 }) {
-  const [text, setText] = useState(() => linesFromHtml(block.description).join("\n"));
+  // I link dei video non sono scritti nel testo: nella casella compare solo
+  // "[video1]" e l'indirizzo vive a parte, cosi' il testo resta pulito.
+  const [init] = useState(() => {
+    const urls: Record<string, string> = {};
+    let n = 0;
+    const withTokens = (block.description || "").replace(
+      /<a\s[^>]*href="([^"]+)"[^>]*>.*?<\/a>/gi,
+      (_m, url: string) => {
+        n += 1;
+        urls[String(n)] = url.replace(/&amp;/g, "&");
+        return `[video${n}]`;
+      }
+    );
+    return { text: htmlToLines(withTokens).join("\n"), urls };
+  });
+  const [text, setText] = useState(init.text);
+  const [videos, setVideos] = useState<Record<string, string>>(init.urls);
   const [videoOpen, setVideoOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState("");
   const [videoLine, setVideoLine] = useState(0);
   const textLines = text.split("\n").filter((l) => l.trim() !== "");
 
-  function applyText(next: string) {
+  function toHtml(value: string, urls: Record<string, string>) {
+    const lines = value.split("\n").filter((l) => l.trim() !== "");
+    return lines
+      .map((l) => {
+        const parts = l.split(/(\[video\d+\])/g);
+        const html = parts
+          .map((p) => {
+            const m = p.match(/^\[video(\d+)\]$/);
+            if (m && urls[m[1]]) {
+              return `<a href="${escHtml(urls[m[1]])}" target="_blank" rel="noopener noreferrer">▶ Guarda il video</a>`;
+            }
+            return linkify(escHtml(p));
+          })
+          .join("");
+        return `<p>${html}</p>`;
+      })
+      .join("");
+  }
+
+  function applyText(next: string, urls: Record<string, string> = videos) {
     setText(next);
-    onChange({
-      description: linesToHtml(next.split("\n").filter((l) => l.trim() !== "")),
-    });
+    onChange({ description: toHtml(next, urls) });
   }
 
   function addVideo() {
@@ -857,9 +890,12 @@ function LinesField({
     if (!/^https?:\/\/\S+$/i.test(url)) return;
     const lines = text.split("\n").filter((l) => l.trim() !== "");
     const i = Math.min(videoLine, Math.max(0, lines.length - 1));
-    if (lines.length === 0) lines.push(url);
-    else lines[i] = `${lines[i].trim()} ${url}`;
-    applyText(lines.join("\n"));
+    const id = String(Math.max(0, ...Object.keys(videos).map(Number)) + 1);
+    const urls = { ...videos, [id]: url };
+    setVideos(urls);
+    if (lines.length === 0) lines.push(`[video${id}]`);
+    else lines[i] = `${lines[i].trim()} [video${id}]`;
+    applyText(lines.join("\n"), urls);
     setVideoUrl("");
     setVideoOpen(false);
   }
@@ -872,15 +908,10 @@ function LinesField({
         className="w-full rounded-2xl border border-gray-200 p-3 text-base"
         placeholder="Scrivi una riga per ogni cosa da fare"
         value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          onChange({
-            description: linesToHtml(e.target.value.split("\n").filter((l) => l.trim() !== "")),
-          });
-        }}
+        onChange={(e) => applyText(e.target.value)}
       />
       <p className="text-xs text-gray-400 mt-1">
-        Una riga per ogni cosa da fare. Per un video, incolla il link nella riga dell&apos;esercizio.
+        Una riga per ogni cosa da fare. I video compaiono come [video1]: il cliente tocca e si apre il link.
       </p>
       <button
         type="button"
