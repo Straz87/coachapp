@@ -57,7 +57,7 @@ function splitExerciseLine(line: string): string[] | null {
 function linkify(escaped: string) {
   return escaped.replace(
     /(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer">▶ Guarda il video</a>'
+    '<a href="$1" target="_blank" rel="noopener noreferrer">🎥 video</a>'
   );
 }
 
@@ -277,15 +277,15 @@ const REST_RE = /^(\d+(?:\s*[-–]\s*\d+)?)\s*(?:sec|s|secondi)\s*(?:di\s*)?(?:r
 function parseExercise(html: string): ExerciseFieldsValue | null {
   const lines = linesFromHtml(html);
   if (lines.length === 0) return { name: "", sets: "", reps: "", rest: "", pct: "", video: "" };
-  if (lines.length > 5) return null;
+  if (lines.length > 9) return null;
   const out: ExerciseFieldsValue = { name: lines[0], sets: "", reps: "", rest: "", pct: "", video: "" };
   if (SETS_RE.test(lines[0])) return null;
   for (const line of lines.slice(1)) {
     const s = line.match(SETS_RE);
     const r = line.match(REST_RE);
     const p = line.match(PCT_RE);
-    if (/^https?:\/\/\S+$/i.test(line) && !out.video) {
-      out.video = line;
+    if (/^https?:\/\/\S+$/i.test(line)) {
+      out.video = out.video ? `${out.video}\n${line}` : line;
     } else if (p && !out.pct) {
       out.pct = p[1];
     } else if (s && !out.sets) {
@@ -306,7 +306,7 @@ function buildExerciseHtml(v: ExerciseFieldsValue): string {
   if (v.sets.trim() && v.reps.trim()) lines.push(`${v.sets.trim()}x${v.reps.trim()} rep`);
   if (v.pct.trim()) lines.push(`${v.pct.trim()}% del massimale di ${v.name.trim()}`);
   if (v.rest.trim()) lines.push(`${v.rest.trim()} sec recupero`);
-  if (v.video.trim()) lines.push(v.video.trim());
+  v.video.split("\n").filter((u) => u.trim() !== "").forEach((u) => lines.push(u.trim()));
   return linesToHtml(lines);
 }
 
@@ -745,6 +745,14 @@ function ExerciseFields({
     () => parseExercise(block.description) || { name: "", sets: "", reps: "", rest: "", pct: "", video: "" }
   );
   const scores = getBlockScoresRaw(block);
+  const [newVideo, setNewVideo] = useState("");
+
+  function addExerciseVideo() {
+    const url = newVideo.trim();
+    if (!/^https?:\/\/\S+$/i.test(url)) return;
+    setNewVideo("");
+    update({ video: v.video ? `${v.video}\n${url}` : url });
+  }
 
   function update(patch: Partial<ExerciseFieldsValue>) {
     const next = { ...v, ...patch };
@@ -807,13 +815,36 @@ function ExerciseFields({
         />
       </div>
       <div className="rounded-xl bg-gray-100 px-3 py-1.5">
-        <label className="block text-[11px] text-gray-500">Video (link, facoltativo)</label>
+        <label className="block text-[11px] text-gray-500">Video (link, facoltativo, anche piu&apos; di uno)</label>
+        {v.video
+          .split("\n")
+          .filter((u) => u.trim() !== "")
+          .map((u, i, arr) => (
+            <div key={i} className="flex items-center gap-2 py-1 text-sm">
+              <span>🎥</span>
+              <span className="flex-1 truncate text-gray-600">{u}</span>
+              <button
+                type="button"
+                className="px-2 text-gray-400"
+                onClick={() => update({ video: arr.filter((_, j) => j !== i).join("\n") })}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
         <input
           inputMode="url"
-          placeholder="incolla il link YouTube…"
+          placeholder="incolla un link e premi invio"
           className="w-full bg-transparent outline-none text-base placeholder:text-gray-300"
-          value={v.video}
-          onChange={(e) => update({ video: e.target.value.trim() })}
+          value={newVideo}
+          onChange={(e) => setNewVideo(e.target.value)}
+          onBlur={addExerciseVideo}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addExerciseVideo();
+            }
+          }}
         />
       </div>
       {v.pct.trim() && (
@@ -849,7 +880,7 @@ function LinesField({
       (_m, url: string) => {
         n += 1;
         urls[String(n)] = url.replace(/&amp;/g, "&");
-        return `[video${n}]`;
+        return `🎥${n}`;
       }
     );
     return { text: htmlToLines(withTokens).join("\n"), urls };
@@ -865,12 +896,12 @@ function LinesField({
     const lines = value.split("\n").filter((l) => l.trim() !== "");
     return lines
       .map((l) => {
-        const parts = l.split(/(\[video\d+\])/g);
+        const parts = l.split(/(🎥\d+)/g);
         const html = parts
           .map((p) => {
-            const m = p.match(/^\[video(\d+)\]$/);
+            const m = p.match(/^🎥(\d+)$/);
             if (m && urls[m[1]]) {
-              return `<a href="${escHtml(urls[m[1]])}" target="_blank" rel="noopener noreferrer">▶ Guarda il video</a>`;
+              return `<a href="${escHtml(urls[m[1]])}" target="_blank" rel="noopener noreferrer">🎥 video</a>`;
             }
             return linkify(escHtml(p));
           })
@@ -893,11 +924,17 @@ function LinesField({
     const id = String(Math.max(0, ...Object.keys(videos).map(Number)) + 1);
     const urls = { ...videos, [id]: url };
     setVideos(urls);
-    if (lines.length === 0) lines.push(`[video${id}]`);
-    else lines[i] = `${lines[i].trim()} [video${id}]`;
+    if (lines.length === 0) lines.push(`🎥${id}`);
+    else lines[i] = `${lines[i].trim()} 🎥${id}`;
     applyText(lines.join("\n"), urls);
     setVideoUrl("");
-    setVideoOpen(false);
+  }
+
+  function removeVideo(id: string) {
+    const urls = { ...videos };
+    delete urls[id];
+    setVideos(urls);
+    applyText(text.replace(new RegExp(`\\s*🎥${id}(?!\\d)`, "g"), ""), urls);
   }
 
   return (
@@ -911,7 +948,7 @@ function LinesField({
         onChange={(e) => applyText(e.target.value)}
       />
       <p className="text-xs text-gray-400 mt-1">
-        Una riga per ogni cosa da fare. I video compaiono come [video1]: il cliente tocca e si apre il link.
+        Una riga per ogni cosa da fare. Il simbolo 🎥1 è un video: il cliente lo tocca e si apre il link.
       </p>
       <button
         type="button"
@@ -951,6 +988,19 @@ function LinesField({
           >
             Aggiungi video
           </button>
+          {Object.keys(videos).length > 0 && (
+            <div className="pt-1">
+              {Object.entries(videos).map(([id, u]) => (
+                <div key={id} className="flex items-center gap-2 py-1 text-sm">
+                  <span>🎥{id}</span>
+                  <span className="flex-1 truncate text-gray-500">{u}</span>
+                  <button type="button" className="px-2 text-gray-400" onClick={() => removeVideo(id)}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {/\d\s*%/.test(text) && (
