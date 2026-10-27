@@ -1236,7 +1236,7 @@ export default function AllenamentoGiorno({
       )}
 
       {vm && vm.completed && (
-        <div className="bg-white rounded-2xl p-4 mt-4 mb-24 shadow-sm">
+        <div className="bg-white rounded-2xl p-4 mt-6 shadow-sm">
           <p className="font-semibold mb-1">Quanto è stato faticoso?</p>
           <p className="text-xs text-gray-500 mb-3">Da 1 (leggero) a 10 (massimo sforzo)</p>
           <div className="grid grid-cols-5 gap-2">
@@ -1256,7 +1256,7 @@ export default function AllenamentoGiorno({
       )}
 
       {vm && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent">
+        <div className="mt-6 mb-28 md:mb-8">
           <button
             onClick={toggleCompleted}
             className="max-w-xl mx-auto w-full flex items-center justify-center gap-2 font-semibold rounded-full px-5 py-3.5"
