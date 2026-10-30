@@ -115,6 +115,8 @@ export default function WeekCalendar({
   const [templates, setTemplates] = useState<WeekTemplate[]>([]);
   const [openMenu, setOpenMenu] = useState<"template" | "copy" | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  const [copyOffset, setCopyOffset] = useState(1);
+  const [copyTargetDates, setCopyTargetDates] = useState<string[]>([]);
   const [libraryTab, setLibraryTab] = useState<"programmi" | "templates">("programmi");
   const [dayMenuOpen, setDayMenuOpen] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<{
@@ -339,6 +341,27 @@ export default function WeekCalendar({
     loadWeek();
   }
 
+  // Giorni già pieni nella settimana di destinazione scelta nel menu "Copia settimana":
+  // servono all'anteprima (giorni che verrebbero sostituiti).
+  useEffect(() => {
+    if (openMenu !== "copy") return;
+    const t = getWeekDays(addDays(weekStart, 7 * copyOffset));
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("workout_assignments")
+        .select("date")
+        .eq("client_id", clientId)
+        .gte("date", t[0].iso)
+        .lte("date", t[6].iso);
+      if (!cancelled) setCopyTargetDates(((data as { date: string }[]) || []).map((r) => r.date));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openMenu, copyOffset, weekStart, clientId]);
+
   // Copia la settimana visualizzata su un'altra settimana (precedente o successiva).
   // offsetWeeks: -1 = settimana precedente, +1 = successiva, ecc. Stesso giorno della
   // settimana; i giorni già pieni nella settimana di arrivo vengono sovrascritti, dopo conferma.
@@ -364,15 +387,6 @@ export default function WeekCalendar({
     });
 
     const label = `${targetDays[0].dayNumber}/${targetDays[0].month} – ${targetDays[6].dayNumber}/${targetDays[6].month}`;
-    const overwrite = filled.filter((d) => {
-      const i = days.indexOf(d);
-      return !!targetByDate[targetDays[i].iso];
-    }).length;
-    const ok = window.confirm(
-      `Copiare ${filled.length} giorni sulla settimana ${label}?` +
-        (overwrite > 0 ? ` ${overwrite} giorni già pieni in quella settimana verranno sovrascritti.` : "")
-    );
-    if (!ok) return;
 
     for (const d of filled) {
       const i = days.indexOf(d);
@@ -669,38 +683,118 @@ export default function WeekCalendar({
               >
                 Copia settimana ▾
               </button>
-              {openMenu === "copy" && (
-                <div className="absolute z-10 mt-1 w-60 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden text-left">
-                  <p className="px-4 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                    Copia questa settimana su
-                  </p>
-                  {[
-                    { n: -1, label: "Settimana precedente" },
-                    { n: 1, label: "Settimana successiva" },
-                    { n: 2, label: "Fra 2 settimane" },
-                  ].map((o) => (
+              {openMenu === "copy" && (() => {
+                const tDays = getWeekDays(addDays(weekStart, 7 * copyOffset));
+                const filledCount = days.filter((d) => !!assignments[d.iso]).length;
+                const overCount = days.filter(
+                  (d, i) => !!assignments[d.iso] && copyTargetDates.includes(tDays[i].iso)
+                ).length;
+                const subLabel =
+                  copyOffset === -1
+                    ? "Settimana precedente"
+                    : copyOffset === 1
+                    ? "Settimana successiva"
+                    : copyOffset > 0
+                    ? `Fra ${copyOffset} settimane`
+                    : `${-copyOffset} settimane fa`;
+                return (
+                  <div className="absolute right-0 z-10 mt-1 w-72 bg-white rounded-2xl shadow-lg border border-gray-100 p-4 text-left">
+                    <p className="text-sm font-semibold">Copia settimana</p>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Da {days[0].dayNumber}/{days[0].month} – {days[6].dayNumber}/{days[6].month} · {filledCount}{" "}
+                      {filledCount === 1 ? "giorno" : "giorni"}
+                    </p>
+
+                    <p className="text-[11px] text-gray-400 mb-1">Copia su</p>
+                    <div className="flex items-center justify-between border border-gray-200 rounded-xl px-2 py-1.5">
+                      <button
+                        type="button"
+                        aria-label="Settimana precedente"
+                        className="px-2 py-1 text-gray-500"
+                        onClick={() => setCopyOffset((o) => (o - 1 === 0 ? o - 2 : o - 1))}
+                      >
+                        ‹
+                      </button>
+                      <div className="text-center">
+                        <div className="text-sm font-medium">
+                          {tDays[0].dayNumber}/{tDays[0].month} – {tDays[6].dayNumber}/{tDays[6].month}
+                        </div>
+                        <div className="text-[11px] text-gray-500">{subLabel}</div>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Settimana successiva"
+                        className="px-2 py-1 text-gray-500"
+                        onClick={() => setCopyOffset((o) => (o + 1 === 0 ? o + 2 : o + 1))}
+                      >
+                        ›
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-1.5 mt-3 text-center">
+                      {days.map((d) => (
+                        <span key={d.iso} className="text-[10px] text-gray-400">
+                          {d.label.slice(0, 1).toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1.5 mt-1">
+                      {days.map((d, i) => {
+                        const src = !!assignments[d.iso];
+                        const over = copyTargetDates.includes(tDays[i].iso);
+                        let cls = "bg-gray-50 text-transparent";
+                        let txt = "";
+                        if (src && over) {
+                          cls = "bg-amber-100 text-amber-800";
+                          txt = "!";
+                        } else if (src) {
+                          cls = "bg-green-100 text-green-800";
+                          txt = "✓";
+                        } else if (over) {
+                          cls = "border border-gray-300 bg-white text-gray-400";
+                          txt = "•";
+                        }
+                        return (
+                          <span key={d.iso} className={`h-7 rounded-full flex items-center justify-center text-[11px] ${cls}`}>
+                            {txt}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-2 mb-3">
+                      {filledCount === 0
+                        ? "Questa settimana non ha allenamenti da copiare."
+                        : overCount > 0
+                        ? `${overCount} ${overCount === 1 ? "giorno già pieno verrà sostituito" : "giorni già pieni verranno sostituiti"}.`
+                        : "Giorni vuoti: nessun problema."}
+                    </p>
+
                     <button
-                      key={o.n}
-                      onClick={() => copyThisWeekTo(o.n)}
-                      className="w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100"
+                      type="button"
+                      onClick={() => copyThisWeekTo(copyOffset)}
+                      className="w-full rounded-full bg-gray-900 text-white text-sm py-2"
                     >
-                      {o.label}
+                      Copia {filledCount} {filledCount === 1 ? "giorno" : "giorni"}
                     </button>
-                  ))}
-                  <p className="px-4 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                    Porta qui una settimana passata
-                  </p>
-                  {[1, 2, 3, 4].map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => copyWeekFrom(n)}
-                      className="w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                    >
-                      {n === 1 ? "Settimana precedente" : `${n} settimane fa`}
-                    </button>
-                  ))}
-                </div>
-              )}
+
+                    <div className="mt-3 pt-3 border-t border-gray-100 text-center">
+                      <p className="text-[11px] text-gray-400 mb-1">Oppure porta qui una settimana passata</p>
+                      <div className="flex justify-center gap-2 text-xs">
+                        {[1, 2, 3, 4].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => copyWeekFrom(n)}
+                            className="underline text-gray-600"
+                          >
+                            {n === 1 ? "1 sett. fa" : `${n} sett. fa`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
