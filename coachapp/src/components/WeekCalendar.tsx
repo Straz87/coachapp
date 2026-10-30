@@ -339,6 +339,62 @@ export default function WeekCalendar({
     loadWeek();
   }
 
+  // Copia la settimana visualizzata su un'altra settimana (precedente o successiva).
+  // offsetWeeks: -1 = settimana precedente, +1 = successiva, ecc. Stesso giorno della
+  // settimana; i giorni già pieni nella settimana di arrivo vengono sovrascritti, dopo conferma.
+  async function copyThisWeekTo(offsetWeeks: number) {
+    setOpenMenu(null);
+    const filled = days.filter((d) => !!assignments[d.iso]);
+    if (filled.length === 0) {
+      alert("Questa settimana non ha allenamenti da copiare.");
+      return;
+    }
+    const targetStart = addDays(weekStart, 7 * offsetWeeks);
+    const targetDays = getWeekDays(targetStart);
+
+    const { data: targetRows } = await supabase
+      .from("workout_assignments")
+      .select("id, date")
+      .eq("client_id", clientId)
+      .gte("date", targetDays[0].iso)
+      .lte("date", targetDays[6].iso);
+    const targetByDate: Record<string, { id: string; date: string }> = {};
+    (targetRows || []).forEach((r: { id: string; date: string }) => {
+      targetByDate[r.date] = r;
+    });
+
+    const label = `${targetDays[0].dayNumber}/${targetDays[0].month} – ${targetDays[6].dayNumber}/${targetDays[6].month}`;
+    const overwrite = filled.filter((d) => {
+      const i = days.indexOf(d);
+      return !!targetByDate[targetDays[i].iso];
+    }).length;
+    const ok = window.confirm(
+      `Copiare ${filled.length} giorni sulla settimana ${label}?` +
+        (overwrite > 0 ? ` ${overwrite} giorni già pieni in quella settimana verranno sovrascritti.` : "")
+    );
+    if (!ok) return;
+
+    for (const d of filled) {
+      const i = days.indexOf(d);
+      const src = assignments[d.iso];
+      const targetIso = targetDays[i].iso;
+      const existing = targetByDate[targetIso];
+      const payload = { title: src.title, blocks: src.blocks, activity_type: src.activity_type };
+      if (existing) {
+        await supabase
+          .from("workout_assignments")
+          .update({ ...payload, completed: false, completed_at: null })
+          .eq("id", existing.id);
+      } else {
+        await supabase
+          .from("workout_assignments")
+          .insert({ client_id: clientId, trainer_id: trainerId, date: targetIso, ...payload });
+      }
+    }
+    flashBanner(`Copiati ${filled.length} giorni sulla settimana ${label}.`);
+    loadWeek();
+  }
+
   // Salva la settimana visualizzata come modello riutilizzabile.
   // Apre il modale per il nome del modello, dopo aver controllato che ci
   // sia almeno un giorno compilato da salvare.
@@ -611,10 +667,29 @@ export default function WeekCalendar({
                 onClick={() => setOpenMenu(openMenu === "copy" ? null : "copy")}
                 className="w-full bg-white rounded-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
               >
-                Settimana della copia ▾
+                Copia settimana ▾
               </button>
               {openMenu === "copy" && (
-                <div className="absolute z-10 mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden text-left">
+                <div className="absolute z-10 mt-1 w-60 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden text-left">
+                  <p className="px-4 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                    Copia questa settimana su
+                  </p>
+                  {[
+                    { n: -1, label: "Settimana precedente" },
+                    { n: 1, label: "Settimana successiva" },
+                    { n: 2, label: "Fra 2 settimane" },
+                  ].map((o) => (
+                    <button
+                      key={o.n}
+                      onClick={() => copyThisWeekTo(o.n)}
+                      className="w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 border-b border-gray-100"
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                  <p className="px-4 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                    Porta qui una settimana passata
+                  </p>
                   {[1, 2, 3, 4].map((n) => (
                     <button
                       key={n}
