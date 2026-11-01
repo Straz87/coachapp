@@ -118,8 +118,11 @@ export default function WeekCalendar({
   const [templates, setTemplates] = useState<WeekTemplate[]>([]);
   const [openMenu, setOpenMenu] = useState<"template" | "copy" | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
-  const [copyOffset, setCopyOffset] = useState(1);
-  const [copyTargetDates, setCopyTargetDates] = useState<string[]>([]);
+  const [weekClipboard, setWeekClipboard] = useState<{
+    label: string;
+    sourceStart: string;
+    items: ({ title: string; blocks: Block[]; activity_type: string | null } | null)[];
+  } | null>(null);
   const [libraryTab, setLibraryTab] = useState<"programmi" | "templates">("programmi");
   const [dayMenuOpen, setDayMenuOpen] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<{
@@ -344,71 +347,53 @@ export default function WeekCalendar({
     loadWeek();
   }
 
-  // Giorni già pieni nella settimana di destinazione scelta nel menu "Copia settimana":
-  // servono all'anteprima (giorni che verrebbero sostituiti).
-  useEffect(() => {
-    if (openMenu !== "copy") return;
-    const t = getWeekDays(addDays(weekStart, 7 * copyOffset));
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("workout_assignments")
-        .select("date")
-        .eq("client_id", clientId)
-        .gte("date", t[0].iso)
-        .lte("date", t[6].iso);
-      if (!cancelled) setCopyTargetDates(((data as { date: string }[]) || []).map((r) => r.date));
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openMenu, copyOffset, weekStart, clientId]);
-
-  // Copia la settimana visualizzata su un'altra settimana (precedente o successiva).
-  // offsetWeeks: -1 = settimana precedente, +1 = successiva, ecc. Stesso giorno della
-  // settimana; i giorni già pieni nella settimana di arrivo vengono sovrascritti, dopo conferma.
-  async function copyThisWeekTo(offsetWeeks: number) {
-    setOpenMenu(null);
-    const filled = days.filter((d) => !!assignments[d.iso]);
-    if (filled.length === 0) {
+  // Copia la settimana visualizzata in memoria (non incolla niente): poi puoi
+  // spostarti su qualsiasi altra settimana e incollarla con "Incolla qui", anche
+  // più volte di fila (utile per ripetere la stessa settimana su più settimane).
+  function copyWeekToClipboard() {
+    const items = days.map((d) => {
+      const a = assignments[d.iso];
+      return a ? { title: a.title, blocks: a.blocks, activity_type: a.activity_type } : null;
+    });
+    const count = items.filter(Boolean).length;
+    if (count === 0) {
       alert("Questa settimana non ha allenamenti da copiare.");
       return;
     }
-    const targetStart = addDays(weekStart, 7 * offsetWeeks);
-    const targetDays = getWeekDays(targetStart);
-
-    const { data: targetRows } = await supabase
-      .from("workout_assignments")
-      .select("id, date")
-      .eq("client_id", clientId)
-      .gte("date", targetDays[0].iso)
-      .lte("date", targetDays[6].iso);
-    const targetByDate: Record<string, { id: string; date: string }> = {};
-    (targetRows || []).forEach((r: { id: string; date: string }) => {
-      targetByDate[r.date] = r;
+    setWeekClipboard({
+      label: `${days[0].dayNumber}/${days[0].month} – ${days[6].dayNumber}/${days[6].month}`,
+      sourceStart: days[0].iso,
+      items,
     });
+    setOpenMenu(null);
+    flashBanner(`Settimana copiata (${count} giorni). Spostati dove vuoi e premi "Incolla qui".`);
+  }
 
-    const label = `${targetDays[0].dayNumber}/${targetDays[0].month} – ${targetDays[6].dayNumber}/${targetDays[6].month}`;
-
-    for (const d of filled) {
-      const i = days.indexOf(d);
-      const src = assignments[d.iso];
-      const targetIso = targetDays[i].iso;
-      const existing = targetByDate[targetIso];
-      const payload = { title: src.title, blocks: src.blocks, activity_type: src.activity_type };
+  // Incolla la settimana copiata su quella visualizzata (stesso giorno della
+  // settimana). I giorni già pieni vengono sostituiti: l'anteprima nel menu
+  // li segna prima con un "!". Le sessioni incollate partono come non completate.
+  async function pasteWeekFromClipboard() {
+    if (!weekClipboard) return;
+    setOpenMenu(null);
+    let n = 0;
+    for (let i = 0; i < 7; i++) {
+      const src = weekClipboard.items[i];
+      if (!src) continue;
+      const targetIso = days[i].iso;
+      const existing = assignments[targetIso];
       if (existing) {
         await supabase
           .from("workout_assignments")
-          .update({ ...payload, completed: false, completed_at: null })
+          .update({ ...src, completed: false, completed_at: null })
           .eq("id", existing.id);
       } else {
         await supabase
           .from("workout_assignments")
-          .insert({ client_id: clientId, trainer_id: trainerId, date: targetIso, ...payload });
+          .insert({ client_id: clientId, trainer_id: trainerId, date: targetIso, ...src });
       }
+      n++;
     }
-    flashBanner(`Copiati ${filled.length} giorni sulla settimana ${label}.`);
+    flashBanner(`Incollati ${n} giorni sulla settimana ${days[0].dayNumber}/${days[0].month} – ${days[6].dayNumber}/${days[6].month}.`);
     loadWeek();
   }
 
@@ -695,103 +680,97 @@ export default function WeekCalendar({
                 onClick={() => setOpenMenu(openMenu === "copy" ? null : "copy")}
                 className="w-full bg-white rounded-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
               >
-                Copia settimana ▾
+                {weekClipboard ? "Settimana copiata ✓ ▾" : "Copia settimana ▾"}
               </button>
               {openMenu === "copy" && (() => {
-                const tDays = getWeekDays(addDays(weekStart, 7 * copyOffset));
                 const filledCount = days.filter((d) => !!assignments[d.iso]).length;
-                const overCount = days.filter(
-                  (d, i) => !!assignments[d.iso] && copyTargetDates.includes(tDays[i].iso)
-                ).length;
-                const subLabel =
-                  copyOffset === -1
-                    ? "Settimana precedente"
-                    : copyOffset === 1
-                    ? "Settimana successiva"
-                    : copyOffset > 0
-                    ? `Fra ${copyOffset} settimane`
-                    : `${-copyOffset} settimane fa`;
+                const weekLabel = `${days[0].dayNumber}/${days[0].month} – ${days[6].dayNumber}/${days[6].month}`;
+                const clipCount = weekClipboard ? weekClipboard.items.filter(Boolean).length : 0;
+                const overCount = weekClipboard
+                  ? weekClipboard.items.filter((it, i) => !!it && !!assignments[days[i].iso]).length
+                  : 0;
+                const sameWeek = !!weekClipboard && weekClipboard.sourceStart === days[0].iso;
                 return (
                   <div className="absolute right-0 z-10 mt-1 w-72 bg-white rounded-2xl shadow-lg border border-gray-100 p-4 text-left">
-                    <p className="text-sm font-semibold">Copia settimana</p>
+                    <p className="text-sm font-semibold">Copia e incolla settimana</p>
                     <p className="text-xs text-gray-500 mb-3">
-                      Da {days[0].dayNumber}/{days[0].month} – {days[6].dayNumber}/{days[6].month} · {filledCount}{" "}
-                      {filledCount === 1 ? "giorno" : "giorni"}
-                    </p>
-
-                    <p className="text-[11px] text-gray-400 mb-1">Copia su</p>
-                    <div className="flex items-center justify-between border border-gray-200 rounded-xl px-2 py-1.5">
-                      <button
-                        type="button"
-                        aria-label="Settimana precedente"
-                        className="px-2 py-1 text-gray-500"
-                        onClick={() => setCopyOffset((o) => (o - 1 === 0 ? o - 2 : o - 1))}
-                      >
-                        ‹
-                      </button>
-                      <div className="text-center">
-                        <div className="text-sm font-medium">
-                          {tDays[0].dayNumber}/{tDays[0].month} – {tDays[6].dayNumber}/{tDays[6].month}
-                        </div>
-                        <div className="text-[11px] text-gray-500">{subLabel}</div>
-                      </div>
-                      <button
-                        type="button"
-                        aria-label="Settimana successiva"
-                        className="px-2 py-1 text-gray-500"
-                        onClick={() => setCopyOffset((o) => (o + 1 === 0 ? o + 2 : o + 1))}
-                      >
-                        ›
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-7 gap-1.5 mt-3 text-center">
-                      {days.map((d) => (
-                        <span key={d.iso} className="text-[10px] text-gray-400">
-                          {d.label.slice(0, 1).toUpperCase()}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-7 gap-1.5 mt-1">
-                      {days.map((d, i) => {
-                        const src = !!assignments[d.iso];
-                        const over = copyTargetDates.includes(tDays[i].iso);
-                        let cls = "bg-gray-50 text-transparent";
-                        let txt = "";
-                        if (src && over) {
-                          cls = "bg-amber-100 text-amber-800";
-                          txt = "!";
-                        } else if (src) {
-                          cls = "bg-green-100 text-green-800";
-                          txt = "✓";
-                        } else if (over) {
-                          cls = "border border-gray-300 bg-white text-gray-400";
-                          txt = "•";
-                        }
-                        return (
-                          <span key={d.iso} className={`h-7 rounded-full flex items-center justify-center text-[11px] ${cls}`}>
-                            {txt}
-                          </span>
-                        );
-                      })}
-                    </div>
-                    <p className="text-[11px] text-gray-500 mt-2 mb-3">
-                      {filledCount === 0
-                        ? "Questa settimana non ha allenamenti da copiare."
-                        : overCount > 0
-                        ? `${overCount} ${overCount === 1 ? "giorno già pieno verrà sostituito" : "giorni già pieni verranno sostituiti"}.`
-                        : "Giorni vuoti: nessun problema."}
+                      Copia una settimana, poi spostati dove vuoi e incollala.
                     </p>
 
                     <button
                       type="button"
-                      onClick={() => copyThisWeekTo(copyOffset)}
-                      className="w-full rounded-full bg-gray-900 text-white text-sm py-2"
+                      onClick={copyWeekToClipboard}
+                      disabled={filledCount === 0}
+                      className="w-full rounded-full bg-gray-900 text-white text-sm py-2 disabled:opacity-40"
                     >
-                      Copia {filledCount} {filledCount === 1 ? "giorno" : "giorni"}
+                      Copia questa settimana ({filledCount} {filledCount === 1 ? "giorno" : "giorni"})
                     </button>
+                    <p className="text-[11px] text-gray-400 text-center mt-1">{weekLabel}</p>
 
-                    <div className="mt-3 pt-3 border-t border-gray-100 text-center">
+                    {weekClipboard && (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Incolla qui</p>
+                          <button
+                            type="button"
+                            onClick={() => setWeekClipboard(null)}
+                            className="text-[11px] text-gray-400 underline"
+                          >
+                            Svuota
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-2">
+                          Copiata: {weekClipboard.label} · {clipCount} {clipCount === 1 ? "giorno" : "giorni"}
+                        </p>
+                        <div className="grid grid-cols-7 gap-1.5 text-center">
+                          {days.map((d) => (
+                            <span key={d.iso} className="text-[10px] text-gray-400">
+                              {d.label.slice(0, 1).toUpperCase()}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-7 gap-1.5 mt-1">
+                          {days.map((d, i) => {
+                            const src = !!weekClipboard.items[i];
+                            const over = !!assignments[d.iso];
+                            let cls = "bg-gray-50 text-transparent";
+                            let txt = "";
+                            if (src && over) {
+                              cls = "bg-amber-100 text-amber-800";
+                              txt = "!";
+                            } else if (src) {
+                              cls = "bg-green-100 text-green-800";
+                              txt = "✓";
+                            } else if (over) {
+                              cls = "border border-gray-300 bg-white text-gray-400";
+                              txt = "•";
+                            }
+                            return (
+                              <span key={d.iso} className={`h-7 rounded-full flex items-center justify-center text-[11px] ${cls}`}>
+                                {txt}
+                              </span>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-2 mb-3">
+                          {sameWeek
+                            ? "È la settimana che hai copiato: spostati su un'altra."
+                            : overCount > 0
+                            ? `${overCount} ${overCount === 1 ? "giorno già pieno verrà sostituito" : "giorni già pieni verranno sostituiti"}.`
+                            : "Giorni vuoti: nessun problema."}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={pasteWeekFromClipboard}
+                          disabled={sameWeek}
+                          className="w-full rounded-full bg-brand text-gray-900 font-medium text-sm py-2 disabled:opacity-40"
+                        >
+                          Incolla su {weekLabel}
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="mt-4 pt-3 border-t border-gray-100 text-center">
                       <p className="text-[11px] text-gray-400 mb-1">Oppure porta qui una settimana passata</p>
                       <div className="flex justify-center gap-2 text-xs">
                         {[1, 2, 3, 4].map((n) => (
