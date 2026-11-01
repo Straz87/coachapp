@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import { addDays, getWeekDays, startOfWeek, toISODate } from "@/lib/dates";
 import WorkoutEditorPanel, { WorkoutDraft } from "@/components/WorkoutEditorPanel";
 import ShareInviteButton from "@/components/ShareInviteButton";
+import ClientChatButton from "@/components/ClientChatButton";
+import ClientSettingsButton from "@/components/ClientSettingsButton";
 import { Block, ClientScores, getBlockScores, readClientScoreEntry, displayScoreValue, htmlToLines } from "@/lib/workoutTypes";
 import {
   IconLibrary,
@@ -610,9 +612,12 @@ export default function WeekCalendar({
               ← Torna al cliente
             </Link>
             <div className="flex items-center gap-2">
-              <button className="w-8 h-8 rounded-full bg-[#1D2A0F]/10 flex items-center justify-center text-[#1D2A0F] hover:bg-[#1D2A0F]/20">
+              <ClientChatButton
+                clientId={clientId}
+                className="w-8 h-8 rounded-full bg-[#1D2A0F]/10 flex items-center justify-center text-[#1D2A0F] hover:bg-[#1D2A0F]/20"
+              >
                 <IconChat className="w-4 h-4" />
-              </button>
+              </ClientChatButton>
               <ShareInviteButton
                 clientId={clientId}
                 clientName={clientName}
@@ -620,9 +625,13 @@ export default function WeekCalendar({
               >
                 <IconShare className="w-4 h-4" />
               </ShareInviteButton>
-              <button className="w-8 h-8 rounded-full bg-[#1D2A0F] flex items-center justify-center text-[#C7E86B]">
+              <ClientSettingsButton
+                clientId={clientId}
+                clientName={clientName}
+                className="w-8 h-8 rounded-full bg-[#1D2A0F] flex items-center justify-center text-[#C7E86B]"
+              >
                 <IconSettings className="w-4 h-4" />
-              </button>
+              </ClientSettingsButton>
             </div>
           </div>
         </div>
