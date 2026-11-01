@@ -7,17 +7,20 @@ export default function NuovoClientePage() {
   const router = useRouter();
   const [mode, setMode] = useState<"link" | "manuale">("link");
 
-  // --- Modalità link: il trainer imposta solo il prezzo, il cliente
-  // inserisce da sé nome/email/password aprendo il link che gli mandi ---
+  // --- Modalità link: il trainer scrive il nome, imposta il prezzo e
+  // può caricare la scheda PRIMA di mandare il link. Il cliente poi si
+  // iscrive da sé (email e password) e trova già il programma pronto ---
   const [inviteForm, setInviteForm] = useState({
+    fullName: "",
     price: "",
     trialDays: "",
     billing_note: "",
-    free: false,
   });
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [inviteClientId, setInviteClientId] = useState<string | null>(null);
+  const [inviteName, setInviteName] = useState("");
 
   // --- Modalità manuale: il trainer inserisce lui nome ed email ---
   const [form, setForm] = useState({
@@ -26,7 +29,6 @@ export default function NuovoClientePage() {
     price: "",
     billing_note: "",
     expiry_date: "",
-    free: false,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,8 +43,8 @@ export default function NuovoClientePage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        isFree: inviteForm.free,
-        price: inviteForm.free ? 0 : inviteForm.price ? Number(inviteForm.price) : null,
+        fullName: inviteForm.fullName,
+        price: inviteForm.price ? Number(inviteForm.price) : null,
         trialDays: inviteForm.trialDays ? Number(inviteForm.trialDays) : null,
         billingNote: inviteForm.billing_note || null,
       }),
@@ -56,6 +58,8 @@ export default function NuovoClientePage() {
       return;
     }
 
+    setInviteName(inviteForm.fullName.trim());
+    setInviteClientId(data.clientId || null);
     setInviteUrl(data.url);
   }
 
@@ -69,7 +73,7 @@ export default function NuovoClientePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
-        price: form.free ? null : form.price ? Number(form.price) : null,
+        price: form.price ? Number(form.price) : null,
       }),
     });
 
@@ -110,39 +114,62 @@ export default function NuovoClientePage() {
   }
 
   if (inviteUrl) {
+    const firstName = inviteName.split(" ")[0];
     const waText = encodeURIComponent(
-      `Ciao! Per iscriverti apri questo link e inserisci i tuoi dati: ${inviteUrl}`
+      `Ciao${firstName ? " " + firstName : ""}! Per iniziare apri questo link, crea il tuo accesso e trovi subito il tuo programma: ${inviteUrl}`
     );
     return (
       <div className="max-w-lg">
-        <h1 className="text-2xl font-bold mb-4">Link generato ✅</h1>
-        <div className="card space-y-3">
-          <p className="text-sm text-gray-600">
-            {inviteForm.free
-              ? "Manda questo link al cliente: aprirà una pagina dove inserisce nome, email e password e l'account viene creato subito, gratis, senza alcun pagamento."
-              : "Manda questo link al cliente: aprirà una pagina dove inserisce nome, email e password e procede al pagamento. L'account viene creato in automatico al termine, senza che tu debba fare nient'altro."}
-          </p>
-          <p className="font-mono text-sm break-all bg-gray-50 p-3 rounded">{inviteUrl}</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => navigator.clipboard.writeText(inviteUrl)}
-            >
-              Copia link
-            </button>
-            <a
-              className="btn-primary bg-green-600 hover:bg-green-700"
-              href={`https://wa.me/?text=${waText}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Invia su WhatsApp
-            </a>
+        <h1 className="text-2xl font-bold mb-4">
+          {inviteClientId ? `${inviteName || "Cliente"} è pronto ✅` : "Link generato ✅"}
+        </h1>
+        <div className="card space-y-4">
+          {inviteClientId && (
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
+              <p className="text-sm font-medium">1. Prepara il programma</p>
+              <p className="text-xs text-gray-500">
+                Carica ora la scheda nel calendario del cliente: quando si iscrive la trova già lì.
+              </p>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => router.push(`/trainer/calendario?cliente=${inviteClientId}`)}
+              >
+                Apri il calendario di {firstName || "cliente"}
+              </button>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">{inviteClientId ? "2. Manda il link" : "Manda il link"}</p>
+            <p className="text-xs text-gray-500">
+              {inviteClientId
+                ? "Il cliente lo apre, sceglie email e password, paga con la carta ed entra: vede subito il programma e poi compila i suoi dati."
+                : "Il cliente apre il link, inserisce nome, email e password e procede al pagamento."}
+            </p>
+            <p className="font-mono text-sm break-all bg-gray-50 p-3 rounded">{inviteUrl}</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => navigator.clipboard.writeText(inviteUrl)}
+              >
+                Copia link
+              </button>
+              <a
+                className="btn-primary bg-green-600 hover:bg-green-700"
+                href={`https://wa.me/?text=${waText}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Invia su WhatsApp
+              </a>
+            </div>
           </div>
+
           <button
             type="button"
-            className="text-sm text-gray-500 underline mt-2"
+            className="text-sm text-gray-500 underline"
             onClick={() => router.push("/trainer")}
           >
             Torna alla lista clienti
@@ -179,38 +206,35 @@ export default function NuovoClientePage() {
       {mode === "link" ? (
         <form onSubmit={handleInviteSubmit} className="card space-y-4">
           <p className="text-sm text-gray-500">
-            Imposti solo il prezzo, il cliente inserisce lui nome, email e password aprendo il
-            link che gli mandi. Niente email da digitare per te.
+            Scrivi il nome e imposta il prezzo: ti creo subito il cliente così puoi caricargli la
+            scheda prima di mandare il link. Email e password le sceglie lui quando si iscrive.
           </p>
-          <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div>
+            <label className="text-sm font-medium">Nome e cognome del cliente</label>
             <input
-              type="checkbox"
-              checked={inviteForm.free}
-              onChange={(e) => setInviteForm({ ...inviteForm, free: e.target.checked })}
+              required
+              className="input mt-1"
+              placeholder="es. Marco Rossi"
+              value={inviteForm.fullName}
+              onChange={(e) => setInviteForm({ ...inviteForm, fullName: e.target.value })}
             />
-            <span className="text-sm font-medium">Gratis</span>
-          </label>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium">Prezzo (€/mese)</label>
-              {inviteForm.free ? (
-                <div className="input mt-1 bg-green-50 text-green-700 font-medium">Free</div>
-              ) : (
-                <input
-                  type="number"
-                  required
-                  className="input mt-1"
-                  value={inviteForm.price}
-                  onChange={(e) => setInviteForm({ ...inviteForm, price: e.target.value })}
-                />
-              )}
+              <input
+                type="number"
+                required
+                className="input mt-1"
+                value={inviteForm.price}
+                onChange={(e) => setInviteForm({ ...inviteForm, price: e.target.value })}
+              />
             </div>
             <div>
               <label className="text-sm font-medium">Giorni di prova (facoltativo)</label>
               <input
                 type="number"
-                disabled={inviteForm.free}
-                className="input mt-1 disabled:opacity-50"
+                className="input mt-1"
                 value={inviteForm.trialDays}
                 onChange={(e) => setInviteForm({ ...inviteForm, trialDays: e.target.value })}
               />
@@ -229,7 +253,7 @@ export default function NuovoClientePage() {
           {inviteError && <p className="text-red-600 text-sm">{inviteError}</p>}
 
           <button type="submit" disabled={inviteLoading} className="btn-primary w-full">
-            {inviteLoading ? "Creazione…" : "Genera link"}
+            {inviteLoading ? "Creazione…" : "Crea cliente e genera link"}
           </button>
         </form>
       ) : (
@@ -253,27 +277,15 @@ export default function NuovoClientePage() {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           </div>
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={form.free}
-              onChange={(e) => setForm({ ...form, free: e.target.checked })}
-            />
-            <span className="text-sm font-medium">Gratis</span>
-          </label>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium">Prezzo (€/mese)</label>
-              {form.free ? (
-                <div className="input mt-1 bg-green-50 text-green-700 font-medium">Free</div>
-              ) : (
-                <input
-                  type="number"
-                  className="input mt-1"
-                  value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
-                />
-              )}
+              <input
+                type="number"
+                className="input mt-1"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+              />
             </div>
             <div>
               <label className="text-sm font-medium">Scadenza abbonamento</label>
