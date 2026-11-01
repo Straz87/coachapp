@@ -21,10 +21,10 @@ const SEXES = [
 ];
 
 // Popup facoltativo che compare una sola volta sulla home del cliente per
-// chiedere obiettivo, livello, disponibilita e limitazioni fisiche, cosi
-// il trainer sa subito cosa vuole il cliente dal programma. Si puo
-// saltare con "Piu tardi" e non ricompare piu (stesso pattern del popup
-// massimali). Usa il flag induction_onboarded sulla tabella clients.
+// raccogliere i suoi dati: contatti, salute, obiettivo, livello,
+// disponibilita e misure, cosi il trainer sa subito chi ha davanti. Si puo
+// saltare con "Piu tardi" e il banner permette di riaprirlo. Usa il flag
+// induction_onboarded sulla tabella clients.
 export default function InductionPopup({ clientId, onDone, forceOpen }: { clientId: string; onDone: () => void; forceOpen?: boolean }) {
   const supabase = createClient();
   const [visible, setVisible] = useState(false);
@@ -39,6 +39,10 @@ export default function InductionPopup({ clientId, onDone, forceOpen }: { client
   const [heightCm, setHeightCm] = useState("");
   const [weightKg, setWeightKg] = useState("");
   const [sportsBackground, setSportsBackground] = useState("");
+  const [phone, setPhone] = useState("");
+  const [city, setCity] = useState("");
+  const [taxCode, setTaxCode] = useState("");
+  const [health, setHealth] = useState("");
 
   useEffect(() => {
     if (forceOpen) {
@@ -87,7 +91,22 @@ export default function InductionPopup({ clientId, onDone, forceOpen }: { client
       await fetch("/api/cliente/induction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal, experience, daysPerWeek, limitations, sex, birthDate, heightCm, weightKg, sportsBackground, notes }),
+        body: JSON.stringify({
+          goal,
+          experience,
+          daysPerWeek,
+          limitations,
+          sex,
+          birthDate,
+          heightCm,
+          weightKg,
+          sportsBackground,
+          notes,
+          phone,
+          city,
+          taxCode,
+          health,
+        }),
       });
     } catch (e) {}
     setSaving(false);
@@ -101,37 +120,26 @@ export default function InductionPopup({ clientId, onDone, forceOpen }: { client
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-sm bg-white rounded-2xl flex flex-col max-h-[85vh]">
         <div className="p-5 pb-3 border-b border-gray-100 shrink-0">
-          <h2 className="font-semibold">Benvenuto! Facciamo due chiacchiere</h2>
-          <p className="text-xs text-gray-400 mt-1">Facoltativo: rispondi cosi il tuo trainer puo costruire il programma giusto per te.</p>
+          <h2 className="font-semibold">Benvenuto! Due minuti per conoscerci</h2>
+          <p className="text-xs text-gray-400 mt-1">
+            Facoltativo: rispondi cosi il tuo trainer puo seguirti al meglio. Puoi anche completarlo dopo.
+          </p>
         </div>
         <div className="p-5 py-3 overflow-y-auto space-y-4">
-          <div>
-            <label className="text-sm text-gray-600 block mb-1">Qual e il tuo obiettivo principale?</label>
-            <select className="input w-full" value={goal} onChange={(e) => setGoal(e.target.value)}>
-              <option value="">Seleziona...</option>
-              {GOALS.map((g) => <option key={g} value={g}>{g}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm text-gray-600 block mb-1">Livello di esperienza</label>
-            <div className="flex gap-2">
-              {LEVELS.map((lvl) => <button key={lvl} type="button" onClick={() => setExperience(lvl)} className={"flex-1 text-xs py-2 rounded-lg border " + (experience === lvl ? "border-black bg-black text-white" : "border-gray-200 text-gray-600")}>{lvl}</button>)}
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">I tuoi dati</p>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-sm text-gray-600 block mb-1">Telefono</label>
+              <input type="tel" className="input w-full" placeholder="Es. 333 1234567" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+            <div className="flex-1">
+              <label className="text-sm text-gray-600 block mb-1">Citta</label>
+              <input type="text" className="input w-full" placeholder="Es. Milano" value={city} onChange={(e) => setCity(e.target.value)} />
             </div>
           </div>
           <div>
-            <label className="text-sm text-gray-600 block mb-1">Quanti giorni a settimana puoi allenarti?</label>
-            <select className="input w-full" value={daysPerWeek} onChange={(e) => setDaysPerWeek(e.target.value)}>
-              <option value="">Seleziona...</option>
-              {DAYS_OPTIONS.map((d) => <option key={d} value={d}>{d} giorni</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm text-gray-600 block mb-1">Infortuni o limitazioni fisiche</label>
-            <textarea className="input w-full" rows={2} placeholder="Es. dolore alla spalla destra, nessuno..." value={limitations} onChange={(e) => setLimitations(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-sm text-gray-600 block mb-1">Altro che vorresti farci sapere</label>
-            <textarea className="input w-full" rows={2} placeholder="Preferenze, orari, sport praticati..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <label className="text-sm text-gray-600 block mb-1">Codice fiscale (per la fatturazione)</label>
+            <input type="text" className="input w-full uppercase" maxLength={16} value={taxCode} onChange={(e) => setTaxCode(e.target.value.toUpperCase())} />
           </div>
           <div>
             <label className="text-sm text-gray-600 block mb-1">Sesso</label>
@@ -153,9 +161,45 @@ export default function InductionPopup({ clientId, onDone, forceOpen }: { client
               <input type="number" className="input w-full" placeholder="Es. 72" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
             </div>
           </div>
+
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 pt-2">Salute</p>
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">Infortuni o limitazioni fisiche</label>
+            <textarea className="input w-full" rows={2} placeholder="Es. dolore alla spalla destra, nessuno..." value={limitations} onChange={(e) => setLimitations(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">Patologie, farmaci o allergie</label>
+            <textarea className="input w-full" rows={2} placeholder="Es. ipertensione, nessuna..." value={health} onChange={(e) => setHealth(e.target.value)} />
+          </div>
+
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 pt-2">Obiettivi ed esperienza</p>
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">Qual e il tuo obiettivo principale?</label>
+            <select className="input w-full" value={goal} onChange={(e) => setGoal(e.target.value)}>
+              <option value="">Seleziona...</option>
+              {GOALS.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">Livello di esperienza</label>
+            <div className="flex gap-2">
+              {LEVELS.map((lvl) => <button key={lvl} type="button" onClick={() => setExperience(lvl)} className={"flex-1 text-xs py-2 rounded-lg border " + (experience === lvl ? "border-black bg-black text-white" : "border-gray-200 text-gray-600")}>{lvl}</button>)}
+            </div>
+          </div>
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">Quanti giorni a settimana puoi allenarti?</label>
+            <select className="input w-full" value={daysPerWeek} onChange={(e) => setDaysPerWeek(e.target.value)}>
+              <option value="">Seleziona...</option>
+              {DAYS_OPTIONS.map((d) => <option key={d} value={d}>{d} giorni</option>)}
+            </select>
+          </div>
           <div>
             <label className="text-sm text-gray-600 block mb-1">Sport praticati in passato</label>
             <input type="text" className="input w-full" placeholder="Es. calcio, nuoto, palestra..." value={sportsBackground} onChange={(e) => setSportsBackground(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">Altro che vorresti farci sapere</label>
+            <textarea className="input w-full" rows={2} placeholder="Preferenze, orari, attrezzatura a disposizione..." value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
         </div>
         <div className="p-5 pt-3 border-t border-gray-100 flex gap-2 shrink-0">
