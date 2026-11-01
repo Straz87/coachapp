@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, getWeekDays, startOfWeek, toISODate } from "@/lib/dates";
 import WorkoutEditorPanel, { WorkoutDraft } from "@/components/WorkoutEditorPanel";
+import ShareInviteButton from "@/components/ShareInviteButton";
 import { Block, ClientScores, getBlockScores, readClientScoreEntry, displayScoreValue, htmlToLines } from "@/lib/workoutTypes";
 import {
   IconLibrary,
@@ -612,9 +613,13 @@ export default function WeekCalendar({
               <button className="w-8 h-8 rounded-full bg-[#1D2A0F]/10 flex items-center justify-center text-[#1D2A0F] hover:bg-[#1D2A0F]/20">
                 <IconChat className="w-4 h-4" />
               </button>
-              <button className="w-8 h-8 rounded-full bg-[#1D2A0F]/10 flex items-center justify-center text-[#1D2A0F] hover:bg-[#1D2A0F]/20">
+              <ShareInviteButton
+                clientId={clientId}
+                clientName={clientName}
+                className="w-8 h-8 rounded-full bg-[#1D2A0F]/10 flex items-center justify-center text-[#1D2A0F] hover:bg-[#1D2A0F]/20"
+              >
                 <IconShare className="w-4 h-4" />
-              </button>
+              </ShareInviteButton>
               <button className="w-8 h-8 rounded-full bg-[#1D2A0F] flex items-center justify-center text-[#C7E86B]">
                 <IconSettings className="w-4 h-4" />
               </button>
