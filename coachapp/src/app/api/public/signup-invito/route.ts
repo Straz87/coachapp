@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
-import { sendPushToProfile } from "@/lib/push";
 
 // POST /api/public/signup-invito
 // Endpoint pubblico (nessuna sessione utente): completa l'iscrizione a
 // partire da un link di invito personale generato dal trainer dalla
-// schermata "Nuovo cliente" (client_invites). A differenza del link
-// fisso /api/public/signup, qui prezzo e prova gratuita sono già decisi
-// dal trainer per QUESTO cliente specifico; il cliente inserisce solo
+// schermata "Nuovo cliente" (client_invites). Prezzo e prova gratuita sono
+// già decisi dal trainer per QUESTO cliente; il cliente inserisce solo
 // nome, email e password.
-// Se il trainer ha impostato l'invito come gratuito (price a 0) si
-// salta del tutto Stripe: l'account è già attivo, si va dritti al login.
+//
+// Se l'invito ha già un client_id (cliente "segnaposto" creato dal trainer
+// prima di mandare il link, con la scheda già caricata) l'account esistente
+// viene completato con email e password scelte dal cliente: la scheda resta
+// al suo posto. Altrimenti si crea tutto da zero come prima.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const token = body?.token;
@@ -41,80 +42,91 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Questo link è già stato usato" }, { status: 400 });
   }
 
-  const { data: created, error: createError } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
+  let client: { id: string } | null = null;
 
-  if (createError || !created.user) {
-    const msg = createError?.message?.toLowerCase().includes("already")
-      ? "Esiste già un account con questa email. Prova ad accedere invece di registrarti."
-      : createError?.message || "Impossibile creare l'account.";
-    return NextResponse.json({ error: msg }, { status: 400 });
-  }
+  if (invite.client_id) {
+    // --- Cliente già preparato dal trainer: completiamo l'account ---
+    const { data: existing } = await admin
+      .from("clients")
+      .select("id, profile_id")
+      .eq("id", invite.client_id)
+      .maybeSingle();
 
-  const newUserId = created.user.id;
+    if (!existing) {
+      return NextResponse.json({ error: "Link non valido" }, { status: 404 });
+    }
 
-  const { error: profileError } = await admin.from("profiles").insert({
-    id: newUserId,
-    role: "client",
-    full_name: fullName,
-    email,
-  });
-
-  if (profileError) {
-    await admin.auth.admin.deleteUser(newUserId);
-    return NextResponse.json({ error: profileError.message }, { status: 400 });
-  }
-
-  // Se l'invito è a pagamento lo status parte da "in_attesa_pagamento":
-  // prima d'ora il cliente risultava già "attivo" anche se il checkout
-  // Stripe falliva o veniva abbandonato. Sarà il webhook Stripe
-  // (checkout.session.completed) a portarlo ad "attivo" solo quando il
-  // pagamento (o l'avvio di un trial con carta) è confermato. Gli inviti
-  // gratuiti restano "attivo" subito, dato che per loro Stripe non viene
-  // nemmeno interpellato (vedi il ramo "invito gratuito" più sotto).
-  const isPaidInvite = !!invite.price && Number(invite.price) > 0;
-
-  const { data: client, error: clientError } = await admin
-    .from("clients")
-    .insert({
-      profile_id: newUserId,
-      trainer_id: invite.trainer_id,
-      price: invite.price,
-      billing_note: invite.billing_note,
-      status: isPaidInvite ? "in_attesa_pagamento" : "attivo",
-    })
-    .select()
-    .single();
-
-  if (clientError || !client) {
-    await admin.auth.admin.deleteUser(newUserId);
-    return NextResponse.json(
-      { error: clientError?.message || "Errore nella creazione del cliente" },
-      { status: 400 }
-    );
-  }
-
-  // Avvisa il trainer che il cliente invitato ha completato l'iscrizione,
-  // cosi non se ne accorge solo controllando a mano la lista clienti. Non
-  // blocchiamo l'iscrizione se questo fallisce.
-  try {
-    await admin.from("notifications").insert({
-      trainer_id: invite.trainer_id,
-      client_id: client.id,
-      client_name: fullName,
-      workout_title: "Nuovo cliente iscritto",
-      kind: "nuovo_iscritto",
+    const { error: updateAuthError } = await admin.auth.admin.updateUserById(existing.profile_id, {
+      email,
+      password,
+      email_confirm: true,
     });
-    await sendPushToProfile(invite.trainer_id, {
-      title: "Nuovo cliente",
-      body: `${fullName} si è appena iscritto`,
-      url: `/trainer/clienti/${client.id}`,
+    if (updateAuthError) {
+      const msg = updateAuthError.message?.toLowerCase().includes("already")
+        ? "Esiste già un account con questa email. Prova ad accedere invece di registrarti."
+        : updateAuthError.message || "Impossibile creare l'account.";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+
+    const { error: profileUpdateError } = await admin
+      .from("profiles")
+      .update({ full_name: fullName, email })
+      .eq("id", existing.profile_id);
+    if (profileUpdateError) {
+      return NextResponse.json({ error: profileUpdateError.message }, { status: 400 });
+    }
+
+    await admin.from("clients").update({ status: "attivo" }).eq("id", existing.id);
+    client = { id: existing.id };
+  } else {
+    // --- Comportamento originale: creiamo account, profilo e cliente ---
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
     });
-  } catch (err) {
-    console.error("Errore notifica nuovo iscritto:", err);
+
+    if (createError || !created.user) {
+      const msg = createError?.message?.toLowerCase().includes("already")
+        ? "Esiste già un account con questa email. Prova ad accedere invece di registrarti."
+        : createError?.message || "Impossibile creare l'account.";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+
+    const newUserId = created.user.id;
+
+    const { error: profileError } = await admin.from("profiles").insert({
+      id: newUserId,
+      role: "client",
+      full_name: fullName,
+      email,
+    });
+
+    if (profileError) {
+      await admin.auth.admin.deleteUser(newUserId);
+      return NextResponse.json({ error: profileError.message }, { status: 400 });
+    }
+
+    const { data: createdClient, error: clientError } = await admin
+      .from("clients")
+      .insert({
+        profile_id: newUserId,
+        trainer_id: invite.trainer_id,
+        price: invite.price,
+        billing_note: invite.billing_note,
+        status: "attivo",
+      })
+      .select()
+      .single();
+
+    if (clientError || !createdClient) {
+      await admin.auth.admin.deleteUser(newUserId);
+      return NextResponse.json(
+        { error: clientError?.message || "Errore nella creazione del cliente" },
+        { status: 400 }
+      );
+    }
+    client = { id: createdClient.id };
   }
 
   await admin
@@ -122,15 +134,9 @@ export async function POST(request: Request) {
     .update({ used_at: new Date().toISOString(), client_id: client.id })
     .eq("token", token);
 
-  const origin = new URL(request.url).origin;
-
-  // Invito gratuito: l'account è già attivo, niente Stripe.
-  if (!isPaidInvite) {
-    return NextResponse.json({ url: `${origin}/login?iscrizione=ok` });
-  }
-
   try {
     const stripe = getStripe();
+    const origin = new URL(request.url).origin;
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
