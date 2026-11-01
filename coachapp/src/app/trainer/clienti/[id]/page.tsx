@@ -7,6 +7,7 @@ import ClientMaxes from "@/components/ClientMaxes";
 import CategoryMaxes from "@/components/CategoryMaxes";
 import ProgressTracking from "@/components/ProgressTracking";
 import ClientMonth from "@/components/ClientMonth";
+import ClientDati from "@/components/ClientDati";
 
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const { supabase, profile } = await requireTrainer();
@@ -57,6 +58,8 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
         <h2 className="font-semibold mb-3">Andamento allenamenti</h2>
         <ProgressTracking clientId={client.id} coach />
       </section>
+
+      <ClientDati clientId={client.id} email={client.profiles?.email} />
 
       <ClientEditForm
         clientId={client.id}
