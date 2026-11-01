@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import ShareInviteButton from "@/components/ShareInviteButton";
 
 export default function NuovoClientePage() {
   const router = useRouter();
@@ -149,21 +150,20 @@ export default function NuovoClientePage() {
             </p>
             <p className="font-mono text-sm break-all bg-gray-50 p-3 rounded">{inviteUrl}</p>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => navigator.clipboard.writeText(inviteUrl)}
-              >
-                Copia link
-              </button>
-              <a
-                className="btn-primary bg-green-600 hover:bg-green-700"
-                href={`https://wa.me/?text=${waText}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Invia su WhatsApp
-              </a>
+              {inviteClientId ? (
+                <ShareInviteButton clientId={inviteClientId} clientName={inviteName} className="btn-primary">
+                  Manda il link
+                </ShareInviteButton>
+              ) : (
+                <a
+                  className="btn-primary bg-green-600 hover:bg-green-700"
+                  href={`https://api.whatsapp.com/send?text=${waText}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Invia su WhatsApp
+                </a>
+              )}
             </div>
           </div>
 
