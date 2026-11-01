@@ -3,58 +3,68 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // POST /api/cliente/induction
-// Body: { skip: true } oppure { goal, experience, daysPerWeek, limitations, notes }
+// Body: { skip: true } oppure { goal, experience, daysPerWeek, limitations, notes,
+// sex, birthDate, heightCm, weightKg, sportsBackground, phone, city, taxCode, health }
 //
 // Salva le risposte al popup di benvenuto del cliente, o segna solo che
-// e' stato visto se il cliente sceglie "Piu tardi". Stesso pattern della
-// route massimali/onboarded: identifica il cliente dall'utente
-// autenticato e usa il client admin per scrivere sulla tabella clients.
+// e' stato visto se il cliente sceglie "Piu tardi". Identifica il cliente
+// dall'utente autenticato e usa il client admin per scrivere sulla tabella
+// clients. Il telefono viene salvato anche sul profilo (profiles.phone) così
+// il trainer lo vede dove già lo cerca.
 export async function POST(request: Request) {
-    const supabase = createClient();
-    const {
-          data: { user },
-    } = await supabase.auth.getUser();
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
-        return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
+    return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
   }
 
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (!profile || profile.role !== "client") {
-          return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
-    }
+  if (!profile || profile.role !== "client") {
+    return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
+  }
 
   const { data: client } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("profile_id", user.id)
-      .maybeSingle();
+    .from("clients")
+    .select("id")
+    .eq("profile_id", user.id)
+    .maybeSingle();
 
   if (!client) {
-        return NextResponse.json({ error: "Cliente non trovato" }, { status: 404 });
+    return NextResponse.json({ error: "Cliente non trovato" }, { status: 404 });
   }
 
   const body = await request.json().catch(() => null);
-    const admin = createAdminClient();
+  const admin = createAdminClient();
 
   if (body?.skip) {
-        await admin.from("clients").update({ induction_onboarded: true }).eq("id", client.id);
-        return NextResponse.json({ ok: true });
+    await admin.from("clients").update({ induction_onboarded: true }).eq("id", client.id);
+    return NextResponse.json({ ok: true });
   }
 
   const update: Record<string, any> = { induction_onboarded: true };
-    if (typeof body?.goal === "string" && body.goal) update.induction_goal = body.goal;
-    if (typeof body?.experience === "string" && body.experience) update.induction_experience = body.experience;
-    if (body?.daysPerWeek) update.induction_days_per_week = Number(body.daysPerWeek);
-    if (typeof body?.limitations === "string") update.induction_limitations = body.limitations;
-    if (typeof body?.notes === "string") update.induction_notes = body.notes;
+  if (typeof body?.goal === "string" && body.goal) update.induction_goal = body.goal;
+  if (typeof body?.experience === "string" && body.experience) update.induction_experience = body.experience;
+  if (body?.daysPerWeek) update.induction_days_per_week = Number(body.daysPerWeek);
+  if (typeof body?.limitations === "string") update.induction_limitations = body.limitations;
+  if (typeof body?.notes === "string") update.induction_notes = body.notes;
   if (typeof body?.sex === "string" && body.sex) update.induction_sex = body.sex;
   if (typeof body?.birthDate === "string" && body.birthDate) update.induction_birth_date = body.birthDate;
   if (body?.heightCm) update.induction_height_cm = Number(body.heightCm);
   if (body?.weightKg) update.induction_weight_kg = Number(body.weightKg);
   if (typeof body?.sportsBackground === "string") update.induction_sports_background = body.sportsBackground;
+  if (typeof body?.phone === "string" && body.phone.trim()) update.induction_phone = body.phone.trim();
+  if (typeof body?.city === "string" && body.city.trim()) update.induction_city = body.city.trim();
+  if (typeof body?.taxCode === "string" && body.taxCode.trim()) update.induction_tax_code = body.taxCode.trim().toUpperCase();
+  if (typeof body?.health === "string") update.induction_health = body.health;
 
   await admin.from("clients").update(update).eq("id", client.id);
+
+  if (update.induction_phone) {
+    await admin.from("profiles").update({ phone: update.induction_phone }).eq("id", user.id);
+  }
 
   return NextResponse.json({ ok: true });
 }
