@@ -11,6 +11,7 @@ type Initial = {
   billing_note: string | null;
   internal_note: string | null;
   payment_managed_by_stripe?: boolean;
+  stripe_subscription_id?: string | null;
   last_payment_at?: string | null;
 };
 
@@ -39,7 +40,7 @@ export default function ClientSettingsButton({
     setInitial(null);
     const { data, error: err } = await supabase
       .from("clients")
-      .select("status, price, expiry_date, billing_note, internal_note, payment_managed_by_stripe, last_payment_at")
+      .select("status, price, expiry_date, billing_note, internal_note, payment_managed_by_stripe, last_payment_at, stripe_subscription_id")
       .eq("id", clientId)
       .maybeSingle();
     if (err || !data) {
@@ -48,6 +49,23 @@ export default function ClientSettingsButton({
     }
     setInitial(data as Initial);
   }
+
+  const [approving, setApproving] = useState(false);
+  async function approve() {
+    if (!confirm("Confermi di aver ricevuto il pagamento? Il cliente vedra' subito il programma.")) return;
+    setApproving(true);
+    const { error: err } = await supabase
+      .from("clients")
+      .update({ status: "attivo", last_payment_at: new Date().toISOString() })
+      .eq("id", clientId);
+    setApproving(false);
+    if (err) {
+      setError("Non riesco a sbloccare: " + err.message);
+      return;
+    }
+    openPanel();
+  }
+  const waiting = !!initial && initial.status === "sospeso" && !initial.stripe_subscription_id;
 
   return (
     <>
@@ -73,6 +91,15 @@ export default function ClientSettingsButton({
             <div className="p-4">
               {error && <p className="text-sm text-red-600">{error}</p>}
               {!initial && !error && <p className="text-sm text-gray-400">Caricamento…</p>}
+              {waiting && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-semibold text-amber-900">🔒 Accesso bloccato</p>
+                  <p className="text-xs text-amber-800 mt-1">Il cliente non vede il programma finche' non confermi il pagamento.</p>
+                  <button type="button" onClick={approve} disabled={approving} className="btn-primary w-full mt-3">
+                    {approving ? "Attendere…" : "✅ Ho ricevuto il pagamento: sblocca"}
+                  </button>
+                </div>
+              )}
               {initial && <ClientEditForm clientId={clientId} initial={initial} />}
             </div>
           </div>
