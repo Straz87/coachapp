@@ -76,7 +76,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: profileUpdateError.message }, { status: 400 });
     }
 
-    await admin.from("clients").update({ status: "attivo" }).eq("id", existing.id);
+    // L'accesso resta BLOCCATO (sospeso) finché non arriva il pagamento
+    // (webhook Stripe) o il trainer non da' l'OK per il pagamento a mano.
+    await admin.from("clients").update({ status: "sospeso" }).eq("id", existing.id);
     client = { id: existing.id };
   } else {
     // --- Comportamento originale: creiamo account, profilo e cliente ---
@@ -114,7 +116,7 @@ export async function POST(request: Request) {
         trainer_id: invite.trainer_id,
         price: invite.price,
         billing_note: invite.billing_note,
-        status: "attivo",
+        status: "sospeso",
       })
       .select()
       .single();
@@ -133,6 +135,11 @@ export async function POST(request: Request) {
     .from("client_invites")
     .update({ used_at: new Date().toISOString(), client_id: client.id })
     .eq("token", token);
+
+  // Pagamento a mano: niente Stripe, il cliente resta in attesa dell'OK del trainer.
+  if (String(invite.billing_note || "").startsWith("Pagamento a mano")) {
+    return NextResponse.json({ url: "/login?iscrizione=attesa" });
+  }
 
   try {
     const stripe = getStripe();
