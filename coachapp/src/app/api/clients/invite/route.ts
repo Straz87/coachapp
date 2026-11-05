@@ -21,10 +21,15 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const price = body?.price ? Number(body.price) : null;
   const trialDays = body?.trialDays ? Number(body.trialDays) : 0;
-  const billingNote = body?.billingNote || null;
+  const manual = !!body?.manualPayment;
+  const MANUAL_TAG = "Pagamento a mano";
+  let billingNote: string | null = body?.billingNote || null;
+  if (manual && !(billingNote || "").startsWith(MANUAL_TAG)) {
+    billingNote = billingNote ? `${MANUAL_TAG} - ${billingNote}` : MANUAL_TAG;
+  }
   const fullName = (body?.fullName || "").trim();
 
-  if (!price || price <= 0) {
+  if (!manual && (!price || price <= 0)) {
     return NextResponse.json(
       { error: "Imposta un prezzo mensile per generare il link." },
       { status: 400 }
@@ -67,7 +72,7 @@ export async function POST(request: Request) {
       .insert({
         profile_id: newUserId,
         trainer_id: trainerProfile.id,
-        price,
+        price: price || null,
         billing_note: billingNote,
         status: "sospeso",
       })
@@ -85,7 +90,7 @@ export async function POST(request: Request) {
 
   const { error } = await admin.from("client_invites").insert({
     trainer_id: trainerProfile.id,
-    price,
+    price: price || 0,
     trial_days: trialDays,
     billing_note: billingNote,
     token,
