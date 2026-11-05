@@ -18,6 +18,8 @@ export default function NuovoClientePage() {
     billing_note: "",
   });
   const [manualPay, setManualPay] = useState(false);
+  const [oneShot, setOneShot] = useState(false);
+  const [months, setMonths] = useState("3");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
@@ -50,6 +52,8 @@ export default function NuovoClientePage() {
         trialDays: inviteForm.trialDays ? Number(inviteForm.trialDays) : null,
         billingNote: inviteForm.billing_note || null,
         manualPayment: manualPay,
+        oneShot,
+        months: oneShot ? Number(months) : null,
       }),
     });
 
@@ -223,7 +227,7 @@ export default function NuovoClientePage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium">Prezzo (€/mese)</label>
+              <label className="text-sm font-medium">{oneShot ? "Totale (€)" : "Prezzo (€/mese)"}</label>
               <input
                 type="number"
                 required={!manualPay}
@@ -251,6 +255,23 @@ export default function NuovoClientePage() {
               onChange={(e) => setInviteForm({ ...inviteForm, billing_note: e.target.value })}
             />
           </div>
+
+          <label className="flex items-start gap-2 text-sm bg-gray-50 rounded-lg p-3">
+            <input type="checkbox" className="mt-1" checked={oneShot} onChange={(e) => setOneShot(e.target.checked)} />
+            <span>
+              <b>Pagamento unico</b> (un'unica soluzione)
+              {oneShot && (
+                <span className="flex items-center gap-2 mt-2">
+                  <span className="text-gray-600">per</span>
+                  <input type="number" min={1} className="input w-20" value={months} onChange={(e) => setMonths(e.target.value)} />
+                  <span className="text-gray-600">mesi</span>
+                  {Number(months) > 0 && Number(inviteForm.price) > 0 && (
+                    <span className="text-gray-500 text-xs">= {(Number(inviteForm.price) / Number(months)).toFixed(2)} €/mese</span>
+                  )}
+                </span>
+              )}
+            </span>
+          </label>
 
           <label className="flex items-start gap-2 text-sm bg-gray-50 rounded-lg p-3">
             <input type="checkbox" className="mt-1" checked={manualPay} onChange={(e) => setManualPay(e.target.checked)} />
