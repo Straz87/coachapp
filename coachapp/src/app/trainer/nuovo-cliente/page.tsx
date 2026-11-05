@@ -17,6 +17,7 @@ export default function NuovoClientePage() {
     trialDays: "",
     billing_note: "",
   });
+  const [manualPay, setManualPay] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
@@ -48,6 +49,7 @@ export default function NuovoClientePage() {
         price: inviteForm.price ? Number(inviteForm.price) : null,
         trialDays: inviteForm.trialDays ? Number(inviteForm.trialDays) : null,
         billingNote: inviteForm.billing_note || null,
+        manualPayment: manualPay,
       }),
     });
 
@@ -224,7 +226,7 @@ export default function NuovoClientePage() {
               <label className="text-sm font-medium">Prezzo (€/mese)</label>
               <input
                 type="number"
-                required
+                required={!manualPay}
                 className="input mt-1"
                 value={inviteForm.price}
                 onChange={(e) => setInviteForm({ ...inviteForm, price: e.target.value })}
@@ -249,6 +251,16 @@ export default function NuovoClientePage() {
               onChange={(e) => setInviteForm({ ...inviteForm, billing_note: e.target.value })}
             />
           </div>
+
+          <label className="flex items-start gap-2 text-sm bg-gray-50 rounded-lg p-3">
+            <input type="checkbox" className="mt-1" checked={manualPay} onChange={(e) => setManualPay(e.target.checked)} />
+            <span>
+              <b>Pagamento a mano</b> (contanti / di persona)
+              <span className="block text-gray-500 text-xs">
+                Il cliente si iscrive senza pagare con carta e resta bloccato finché non lo sblocchi tu dalle sue impostazioni.
+              </span>
+            </span>
+          </label>
 
           {inviteError && <p className="text-red-600 text-sm">{inviteError}</p>}
 
