@@ -70,9 +70,7 @@ async function notifyTrainer(
 }
 
 // Avvisa il CLIENTE stesso (push sul telefono, se ha attivato le notifiche)
-// quando il suo abbonamento viene bloccato: prima d'ora solo il trainer
-// veniva avvisato, il cliente se ne accorgeva solo aprendo l'app e trovando
-// la schermata di blocco.
+// quando il suo abbonamento viene bloccato.
 async function notifyClient(
   admin: ReturnType<typeof createAdminClient>,
   subscriptionId: string,
@@ -121,6 +119,35 @@ export async function POST(request: Request) {
           if (clientId) {
             await admin.from("clients").update({ last_payment_at: new Date().toISOString() }).eq("id", clientId);
           }
+        } else if (
+          session.mode === "payment" &&
+          session.payment_status === "paid" &&
+          session.metadata?.kind === "unico" &&
+          session.metadata?.client_id
+        ) {
+          // Pagamento unico: attiva il cliente per N mesi (rinnovo: parte dalla
+          // scadenza se ancora nel futuro, altrimenti da oggi).
+          const months = Math.max(1, Number(session.metadata.months) || 1);
+          const { data: cur } = await admin
+            .from("clients")
+            .select("expiry_date")
+            .eq("id", session.metadata.client_id)
+            .maybeSingle();
+          const start =
+            cur?.expiry_date && new Date(`${cur.expiry_date}T00:00:00`).getTime() > Date.now()
+              ? new Date(`${cur.expiry_date}T00:00:00`)
+              : new Date();
+          start.setMonth(start.getMonth() + months);
+          await admin
+            .from("clients")
+            .update({
+              status: "attivo",
+              expiry_date: start.toISOString().slice(0, 10),
+              last_payment_at: new Date().toISOString(),
+              payment_managed_by_stripe: false,
+              ...(session.customer ? { stripe_customer_id: session.customer as string } : {}),
+            })
+            .eq("id", session.metadata.client_id);
         }
         break;
       }
