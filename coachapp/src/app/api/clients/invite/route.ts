@@ -22,8 +22,19 @@ export async function POST(request: Request) {
   const price = body?.price ? Number(body.price) : null;
   const trialDays = body?.trialDays ? Number(body.trialDays) : 0;
   const manual = !!body?.manualPayment;
+  // Pagamento unico: "price" e' il TOTALE da pagare in un'unica soluzione per
+  // "months" mesi di coaching (es. 150 € per 3 mesi). Il prezzo mensile del
+  // cliente diventa totale/mesi.
+  const oneShot = !!body?.oneShot;
+  const months = oneShot ? Math.max(1, Math.round(Number(body?.months) || 0)) : 0;
+  if (oneShot && (!months || !price || price <= 0)) {
+    return NextResponse.json({ error: "Imposta totale e numero di mesi." }, { status: 400 });
+  }
   const MANUAL_TAG = "Pagamento a mano";
   let billingNote: string | null = body?.billingNote || null;
+  if (oneShot) {
+    billingNote = `Pagamento unico ${months} mesi${billingNote ? " - " + billingNote : ""}`;
+  }
   if (manual && !(billingNote || "").startsWith(MANUAL_TAG)) {
     billingNote = billingNote ? `${MANUAL_TAG} - ${billingNote}` : MANUAL_TAG;
   }
@@ -72,7 +83,7 @@ export async function POST(request: Request) {
       .insert({
         profile_id: newUserId,
         trainer_id: trainerProfile.id,
-        price: price || null,
+        price: oneShot && price ? Math.round((price / months) * 100) / 100 : price || null,
         billing_note: billingNote,
         status: "sospeso",
       })
