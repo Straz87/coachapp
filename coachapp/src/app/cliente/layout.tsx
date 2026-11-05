@@ -20,23 +20,39 @@ export default async function ClienteLayout({ children }: { children: React.Reac
 
   const { data: client } = await supabase
     .from("clients")
-    .select("status, billing_note, stripe_subscription_id, last_payment_at")
+    .select("status, billing_note, stripe_subscription_id, last_payment_at, expiry_date")
     .eq("profile_id", profile.id)
     .maybeSingle();
 
-  const blocked = client?.status && BLOCKED_STATUSES.includes(client.status);
+  // Pagamento unico: alla scadenza i mesi pagati sono finiti, l'accesso si chiude.
+  const oneShotExpired =
+    !!client &&
+    client.status === "attivo" &&
+    /Pagamento unico \d+ mesi/.test(String(client.billing_note || "")) &&
+    !!client.expiry_date &&
+    new Date(`${client.expiry_date}T23:59:59`).getTime() < Date.now();
+
+  const blocked = oneShotExpired || (client?.status && BLOCKED_STATUSES.includes(client.status));
 
   if (blocked) {
     const neverPaid = client!.status === "sospeso" && !client!.stripe_subscription_id && !client!.last_payment_at;
     const manual = String(client!.billing_note || "").startsWith("Pagamento a mano");
 
+    const isOneShot = /Pagamento unico \d+ mesi/.test(String(client!.billing_note || ""));
     let message: string;
     let text: string;
     let showPay = true;
-    if (neverPaid && manual) {
+    if (oneShotExpired) {
+      message = "Il tuo periodo è terminato.";
+      text = "I mesi che hai pagato sono finiti. Contatta il tuo trainer per rinnovare.";
+      showPay = false;
+    } else if (neverPaid && manual) {
       message = "Account in attesa di attivazione.";
       text = "Il tuo trainer attivera' l'accesso appena ricevuto il pagamento. Appena fatto vedrai subito i tuoi allenamenti.";
       showPay = false;
+    } else if (neverPaid && isOneShot) {
+      message = "Completa il pagamento per accedere.";
+      text = "Appena il pagamento sara' confermato vedrai i tuoi allenamenti, i progressi e la chat.";
     } else if (neverPaid) {
       message = "Completa il pagamento per accedere.";
       text = "Appena il pagamento sara' confermato vedrai i tuoi allenamenti, i progressi e la chat.";
