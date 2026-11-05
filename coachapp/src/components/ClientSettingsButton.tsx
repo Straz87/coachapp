@@ -54,9 +54,16 @@ export default function ClientSettingsButton({
   async function approve() {
     if (!confirm("Confermi di aver ricevuto il pagamento? Il cliente vedra' subito il programma.")) return;
     setApproving(true);
+    const m = String(initial?.billing_note || "").match(/Pagamento unico (\d+) mesi/);
+    const upd: Record<string, any> = { status: "attivo", last_payment_at: new Date().toISOString() };
+    if (m) {
+      const d = new Date();
+      d.setMonth(d.getMonth() + Number(m[1]));
+      upd.expiry_date = d.toISOString().slice(0, 10);
+    }
     const { error: err } = await supabase
       .from("clients")
-      .update({ status: "attivo", last_payment_at: new Date().toISOString() })
+      .update(upd)
       .eq("id", clientId);
     setApproving(false);
     if (err) {
