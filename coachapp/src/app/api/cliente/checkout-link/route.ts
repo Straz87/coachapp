@@ -3,13 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
 
 // POST /api/cliente/checkout-link
-// Nessun body: il cliente autenticato genera un link di pagamento per SE
-// STESSO (non per un cliente a scelta, a differenza della route equivalente
-// del trainer). Serve per il pulsante "Paga ora e riattiva" che compare
-// nella schermata di blocco quando l'abbonamento è scaduto, sospeso o mai
-// stato completato (in_attesa_pagamento), così il cliente può pagare
-// direttamente dal telefono senza dover aspettare che il trainer gli
-// generi e gli mandi un link a mano.
+// Il cliente autenticato genera un link di pagamento per SE STESSO.
+// Se il suo piano e' "Pagamento unico N mesi" il link e' un pagamento singolo
+// del totale (prezzo mensile x N); altrimenti e' l'abbonamento mensile.
 export async function POST(request: Request) {
   const supabase = createClient();
   const {
@@ -27,7 +23,7 @@ export async function POST(request: Request) {
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id, trainer_id, price, stripe_customer_id, profiles:profile_id(full_name, email)")
+    .select("id, trainer_id, price, billing_note, stripe_customer_id, profiles:profile_id(full_name, email)")
     .eq("profile_id", profile.id)
     .maybeSingle();
 
@@ -35,12 +31,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Cliente non trovato" }, { status: 404 });
   }
 
-  // Un prezzo di 0€ è un piano gratuito valido (es. un programma pubblico
-  // impostato come gratis dal trainer): va comunque fatto passare da
-  // Stripe Checkout, non bloccato. Blocchiamo solo il caso in cui il
-  // prezzo non è stato affatto configurato (null/undefined).
   const price = client.price;
-  if (price === null || price === undefined || Number(price) < 0) {
+  if (!price || Number(price) <= 0) {
     return NextResponse.json(
       { error: "Il tuo trainer non ha ancora impostato un prezzo. Contattalo per riattivare l'abbonamento." },
       { status: 400 }
@@ -51,8 +43,33 @@ export async function POST(request: Request) {
   const origin = new URL(request.url).origin;
   const clientName = (client as any).profiles?.full_name || "Cliente";
   const clientEmail = (client as any).profiles?.email;
+  const oneShot = String(client.billing_note || "").match(/Pagamento unico (\d+) mesi/);
 
   try {
+    if (oneShot) {
+      const months = Number(oneShot[1]);
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        customer: client.stripe_customer_id || undefined,
+        customer_email: client.stripe_customer_id ? undefined : clientEmail || undefined,
+        ...(client.stripe_customer_id ? {} : { customer_creation: "always" as const }),
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: "eur",
+              unit_amount: Math.round(Number(price) * months * 100),
+              product_data: { name: `Coaching ${months} mesi - ${clientName}` },
+            },
+          },
+        ],
+        metadata: { client_id: client.id, trainer_id: client.trainer_id, months: String(months), kind: "unico" },
+        success_url: `${origin}/cliente?pagamento=ok`,
+        cancel_url: `${origin}/cliente?pagamento=annullato`,
+      });
+      return NextResponse.json({ url: session.url });
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: client.stripe_customer_id || undefined,
@@ -64,9 +81,7 @@ export async function POST(request: Request) {
             currency: "eur",
             unit_amount: Math.round(Number(price) * 100),
             recurring: { interval: "month" },
-            product_data: {
-              name: `Coaching mensile - ${clientName}`,
-            },
+            product_data: { name: `Coaching mensile - ${clientName}` },
           },
         },
       ],
@@ -74,11 +89,6 @@ export async function POST(request: Request) {
       subscription_data: {
         metadata: { client_id: client.id, trainer_id: client.trainer_id },
       },
-      allow_promotion_codes: true,
-      // Chiediamo sempre la carta anche qui: se un codice sconto azzera il
-      // totale di oggi ma poi scade, o il trainer sposta il cliente su un
-      // piano a pagamento, deve poter addebitare senza dover richiedere di
-      // nuovo i dati della carta. Vedi la stessa nota in api/public/signup.
       success_url: `${origin}/cliente?pagamento=ok`,
       cancel_url: `${origin}/cliente?pagamento=annullato`,
     });
