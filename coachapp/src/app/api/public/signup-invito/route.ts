@@ -141,6 +141,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: "/login?iscrizione=attesa" });
   }
 
+  const oneShotMatch = String(invite.billing_note || "").match(/Pagamento unico (\d+) mesi/);
+
+  if (oneShotMatch) {
+    const months = Number(oneShotMatch[1]);
+    try {
+      const stripe = getStripe();
+      const origin = new URL(request.url).origin;
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        customer_email: email,
+        customer_creation: "always",
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: "eur",
+              unit_amount: Math.round(Number(invite.price) * 100),
+              product_data: { name: `Coaching ${months} mesi - ${fullName}` },
+            },
+          },
+        ],
+        metadata: { client_id: client.id, trainer_id: invite.trainer_id, months: String(months), kind: "unico" },
+        success_url: `${origin}/login?iscrizione=ok`,
+        cancel_url: `${origin}/iscriviti/invito/${token}?annullato=1`,
+      });
+      return NextResponse.json({ url: session.url });
+    } catch (err: any) {
+      console.error("Errore checkout unico:", err);
+      return NextResponse.json(
+        { error: "Errore nel collegamento al pagamento: " + (err?.message || "sconosciuto") },
+        { status: 500 }
+      );
+    }
+  }
+
   try {
     const stripe = getStripe();
     const origin = new URL(request.url).origin;
