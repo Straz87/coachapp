@@ -126,6 +126,7 @@ export default function WeekCalendar({
   } | null>(null);
   const [libraryTab, setLibraryTab] = useState<"programmi" | "templates">("programmi");
   const [dayMenuOpen, setDayMenuOpen] = useState<string | null>(null);
+  const [resultsDate, setResultsDate] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<{
     title: string;
     blocks: Block[];
@@ -855,47 +856,22 @@ export default function WeekCalendar({
                                   {line}
                                 </p>
                               ))}
-                              {scores.map((score, si) => {
-                                const entry = readClientScoreEntry(a.client_scores, bi, si);
-                                if (!entry) return null;
-                                const setValues = entry.values.filter((v) => v.trim() !== "");
-                                const unit = score.type === "peso" ? " kg" : "";
-                                const summary = displayScoreValue(entry, score.aggregation, score.type);
-                                const perSet =
-                                  setValues.length > 1
-                                    ? setValues.map((v) => `${v}${unit}`).join(" · ")
-                                    : null;
-                                return (
-                                  <div key={si} className="mt-1">
-                                    <p className="text-xs font-semibold text-brand-dark">
-                                      🏋️ {summary} {entry.rx ? "RX" : "SC"}
-                                    </p>
-                                    {perSet && (
-                                      <p className="text-[11px] text-gray-500">{perSet}</p>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                              {(() => {
-                                const note = readBlockNote(a.client_scores, bi);
-                                return note ? (
-                                  <p className="mt-1 text-[11px] text-gray-700 bg-gray-100 rounded px-2 py-1">
-                                    💬 {note}
-                                  </p>
-                                ) : null;
-                              })()}
                             </div>
                           );
                         })}
                       </div>
-                      {a.completed && (
-                        <span className="text-green-600 text-xs mt-2 block">
-                          ✓ Completato dal cliente
-                          {a.completed_at
-                            ? ` il ${new Date(a.completed_at).toLocaleDateString("it-IT", { day: "numeric", month: "short" })} alle ${new Date(a.completed_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
-                            : ""}
-                          {a.fatigue ? ` · fatica ${a.fatigue}/10` : ""}
-                        </span>
+                      {(a.completed || Object.keys(a.client_scores || {}).length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => setResultsDate(day.iso)}
+                          className="mt-2 w-full text-left rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 px-2 py-1.5"
+                        >
+                          <span className="text-green-700 text-xs font-semibold block">
+                            {a.completed ? "✓ Completato" : "Risultati inseriti"}
+                            {a.fatigue ? ` · fatica ${a.fatigue}/10` : ""}
+                          </span>
+                          <span className="text-green-600 text-[11px] block">Vedi risultati →</span>
+                        </button>
                       )}
                       <div className="relative mt-2">
                         <button
@@ -1016,6 +992,66 @@ export default function WeekCalendar({
           </div>
         </div>
       )}
+      {resultsDate && assignments[resultsDate] && (() => {
+        const a = assignments[resultsDate];
+        const d = new Date(`${resultsDate}T00:00:00`);
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4" onClick={() => setResultsDate(null)}>
+            <div className="w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky top-0 bg-white flex items-start justify-between px-5 py-3 border-b border-gray-100">
+                <div>
+                  <p className="font-semibold">{a.title}</p>
+                  <p className="text-xs text-gray-500">
+                    {d.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+                    {a.completed && a.completed_at
+                      ? ` · completato alle ${new Date(a.completed_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
+                      : ""}
+                  </p>
+                </div>
+                <button type="button" className="text-gray-400 text-xl leading-none" onClick={() => setResultsDate(null)} aria-label="Chiudi">×</button>
+              </div>
+              <div className="p-5 space-y-4">
+                {a.fatigue ? (
+                  <p className="text-sm bg-gray-50 rounded-lg px-3 py-2">Fatica percepita: <b>{a.fatigue}/10</b></p>
+                ) : null}
+                {a.blocks.map((b, bi) => {
+                  if (b.type === "Nota per l'atleta") return null;
+                  const scores = getBlockScores(b);
+                  const note = readBlockNote(a.client_scores, bi);
+                  const entries = scores
+                    .map((score, si) => ({ score, entry: readClientScoreEntry(a.client_scores, bi, si) }))
+                    .filter((x) => x.entry);
+                  if (entries.length === 0 && !note) return null;
+                  return (
+                    <div key={bi} className="border border-gray-100 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-gray-700">{b.type}</p>
+                      {htmlToLines(b.description).slice(0, 2).map((line, li) => (
+                        <p key={li} className="text-xs text-gray-400">{line}</p>
+                      ))}
+                      {entries.map(({ score, entry }, ei) => {
+                        const e = entry!;
+                        const vals = e.values.filter((v) => v.trim() !== "");
+                        const unit = score.type === "peso" ? " kg" : "";
+                        return (
+                          <div key={ei} className="mt-2">
+                            <p className="text-sm font-semibold text-brand-dark">
+                              🏋️ {displayScoreValue(e, score.aggregation, score.type)} {e.rx ? "RX" : "SC"}
+                            </p>
+                            {vals.length > 1 && (
+                              <p className="text-xs text-gray-500">{vals.map((v) => `${v}${unit}`).join(" · ")}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {note && <p className="mt-2 text-xs text-gray-700 bg-gray-100 rounded px-2 py-1">💬 {note}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
