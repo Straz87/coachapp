@@ -23,22 +23,27 @@ async function updateFromSubscription(
     ? new Date(subscription.current_period_end * 1000).toISOString().slice(0, 10)
     : null;
 
-  let status: "attivo" | "scaduto" | "sospeso" = "attivo";
+  // Pagamento non riuscito (past_due): NON blocchiamo subito. Stripe riprova
+  // da solo; il blocco scatta al 3° tentativo fallito (vedi invoice.payment_failed).
+  let status: "attivo" | "scaduto" | "sospeso" | null = "attivo";
   if (subscription.status === "canceled" || subscription.status === "unpaid") status = "sospeso";
-  else if (subscription.status === "past_due" || subscription.status === "incomplete_expired") status = "scaduto";
+  else if (subscription.status === "incomplete_expired") status = "scaduto";
+  else if (subscription.status === "past_due") status = null;
+
+  const statusPart = status ? { status } : {};
 
   const query = clientId
     ? admin.from("clients").update({
         stripe_customer_id: subscription.customer as string,
         stripe_subscription_id: subscription.id,
         payment_managed_by_stripe: true,
-        status,
-        expiry_date: periodEnd,
+        ...statusPart,
+        ...(status ? { expiry_date: periodEnd } : {}),
       }).eq("id", clientId)
     : admin.from("clients").update({
         payment_managed_by_stripe: true,
-        status,
-        expiry_date: periodEnd,
+        ...statusPart,
+        ...(status ? { expiry_date: periodEnd } : {}),
       }).eq("stripe_subscription_id", subscription.id);
 
   await query;
@@ -168,21 +173,37 @@ export async function POST(request: Request) {
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         if (invoice.subscription) {
-          await admin
-            .from("clients")
-            .update({ status: "scaduto" })
-            .eq("stripe_subscription_id", invoice.subscription as string);
-          await notifyTrainer(
-            admin,
-            invoice.subscription as string,
-            "Pagamento abbonamento non riuscito"
-          );
-          await notifyClient(
-            admin,
-            invoice.subscription as string,
-            "Abbonamento scaduto",
-            "Il pagamento non è andato a buon fine. Apri l'app per regolarizzare e riattivare l'accesso."
-          );
+          const attempt = invoice.attempt_count || 1;
+          const MAX_ATTEMPTS = 3;
+          if (attempt >= MAX_ATTEMPTS) {
+            await admin
+              .from("clients")
+              .update({ status: "scaduto" })
+              .eq("stripe_subscription_id", invoice.subscription as string);
+            await notifyTrainer(
+              admin,
+              invoice.subscription as string,
+              `Pagamento non riuscito (tentativo ${attempt}): accesso bloccato`
+            );
+            await notifyClient(
+              admin,
+              invoice.subscription as string,
+              "Accesso sospeso",
+              "Il pagamento non è andato a buon fine dopo più tentativi. Apri l'app per regolarizzare e riattivare l'accesso."
+            );
+          } else {
+            await notifyTrainer(
+              admin,
+              invoice.subscription as string,
+              `Pagamento non riuscito (tentativo ${attempt} di ${MAX_ATTEMPTS})`
+            );
+            await notifyClient(
+              admin,
+              invoice.subscription as string,
+              "Pagamento non riuscito",
+              "Non siamo riusciti ad addebitare il rinnovo. Controlla la carta: riproveremo a breve."
+            );
+          }
         }
         break;
       }
