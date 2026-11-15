@@ -20,7 +20,7 @@ export default async function ClienteLayout({ children }: { children: React.Reac
 
   const { data: client } = await supabase
     .from("clients")
-    .select("status, billing_note, stripe_subscription_id, last_payment_at, expiry_date")
+    .select("status, billing_note, stripe_subscription_id, last_payment_at, expiry_date, payment_managed_by_stripe")
     .eq("profile_id", profile.id)
     .maybeSingle();
 
@@ -32,7 +32,19 @@ export default async function ClienteLayout({ children }: { children: React.Reac
     !!client.expiry_date &&
     new Date(`${client.expiry_date}T23:59:59`).getTime() < Date.now();
 
-  const blocked = oneShotExpired || (client?.status && BLOCKED_STATUSES.includes(client.status));
+  // Abbonamento con carta: la scadenza e' il giorno del rinnovo. Se il rinnovo
+  // non va a buon fine, dopo GRACE_DAYS giorni l'accesso si chiude (senza
+  // aspettare i tentativi di Stripe). Appena il pagamento riesce, il webhook
+  // sposta la scadenza al mese dopo e l'accesso torna da solo.
+  const GRACE_DAYS = 3;
+  const stripeOverdue =
+    !!client &&
+    client.status === "attivo" &&
+    !!client.payment_managed_by_stripe &&
+    !!client.expiry_date &&
+    new Date(`${client.expiry_date}T00:00:00`).getTime() + (GRACE_DAYS + 1) * 86400000 < Date.now();
+
+  const blocked = oneShotExpired || stripeOverdue || (client?.status && BLOCKED_STATUSES.includes(client.status));
 
   if (blocked) {
     const neverPaid = client!.status === "sospeso" && !client!.stripe_subscription_id && !client!.last_payment_at;
