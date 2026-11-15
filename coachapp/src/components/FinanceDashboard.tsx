@@ -31,6 +31,8 @@ type Payment = {
   refunded: boolean;
   amountRefunded: number;
   description: string | null;
+  manual?: boolean;
+  manualId?: string;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -57,6 +59,7 @@ function shortDate(ms: number) {
 
 function describe(desc: string | null) {
   if (!desc) return "Abbonamento";
+  if (desc.startsWith("A mano")) return `💶 ${desc}`;
   if (/creation/i.test(desc)) return "Nuovo abbonamento";
   if (/update/i.test(desc)) return "Rinnovo";
   return desc;
@@ -82,6 +85,47 @@ export default function FinanceDashboard() {
   const [priceMsg, setPriceMsg] = useState<Record<string, string>>({});
 
   const [refundingId, setRefundingId] = useState<string | null>(null);
+
+  // Pagamento ricevuto di persona
+  const [manualFor, setManualFor] = useState<string | null>(null);
+  const [manualForm, setManualForm] = useState({ amount: "", date: new Date().toISOString().slice(0, 10), months: "", note: "" });
+  const [manualSaving, setManualSaving] = useState(false);
+
+  async function saveManual(clientId: string) {
+    setManualSaving(true);
+    try {
+      const res = await fetch("/api/trainer/manual-payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          amount: Number(manualForm.amount),
+          paidAt: manualForm.date,
+          months: manualForm.months ? Number(manualForm.months) : 0,
+          note: manualForm.note,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || "Errore nel salvataggio");
+      } else {
+        setManualFor(null);
+        setManualForm({ amount: "", date: new Date().toISOString().slice(0, 10), months: "", note: "" });
+        await load();
+      }
+    } catch {
+      alert("Errore di rete, riprova");
+    } finally {
+      setManualSaving(false);
+    }
+  }
+
+  async function deleteManual(p: Payment) {
+    if (!p.manualId || !confirm(`Eliminare il pagamento a mano di ${p.amount.toFixed(2)} €?`)) return;
+    const res = await fetch(`/api/trainer/manual-payments?id=${p.manualId}`, { method: "DELETE" });
+    if (res.ok) await load();
+    else alert("Errore nell'eliminazione");
+  }
 
   async function load() {
     setLoading(true);
@@ -385,7 +429,12 @@ export default function FinanceDashboard() {
                                 </span>
                                 <span className="font-medium">{p.amount.toFixed(2)} €</span>
                                 <PaymentPill p={p} />
-                                {!p.refunded && p.paid && (
+                                {p.manual && (
+                                  <button onClick={() => deleteManual(p)} className="text-xs text-gray-400 hover:text-red-600 shrink-0">
+                                    Elimina
+                                  </button>
+                                )}
+                                {!p.manual && !p.refunded && p.paid && (
                                   <button
                                     onClick={() => handleRefund(p)}
                                     disabled={refundingId === p.id}
@@ -398,7 +447,29 @@ export default function FinanceDashboard() {
                             ))}
                           </div>
                         )}
-                        <p className="text-xs text-gray-500 pt-2 border-t border-gray-200 mt-1">
+                        {manualFor === c.id ? (
+                          <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Pagamento a mano</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <input type="number" className="input text-sm" placeholder="Importo €" value={manualForm.amount} onChange={(e) => setManualForm({ ...manualForm, amount: e.target.value })} />
+                              <input type="date" className="input text-sm" value={manualForm.date} onChange={(e) => setManualForm({ ...manualForm, date: e.target.value })} />
+                              <input type="number" className="input text-sm" placeholder="Mesi pagati (facoltativo)" value={manualForm.months} onChange={(e) => setManualForm({ ...manualForm, months: e.target.value })} />
+                              <input className="input text-sm" placeholder="Nota (es. contanti)" value={manualForm.note} onChange={(e) => setManualForm({ ...manualForm, note: e.target.value })} />
+                            </div>
+                            <p className="text-[11px] text-gray-400">Se indichi i mesi, l'accesso del cliente viene sbloccato e prolungato.</p>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => saveManual(c.id)} disabled={manualSaving || !manualForm.amount} className="btn-primary text-sm">
+                                {manualSaving ? "Salvataggio…" : "Registra"}
+                              </button>
+                              <button type="button" onClick={() => setManualFor(null)} className="btn-secondary text-sm">Annulla</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => setManualFor(c.id)} className="text-xs text-gray-600 underline mt-2">
+                            + Registra pagamento a mano
+                          </button>
+                        )}
+                        <p className="text-xs text-gray-500 pt-2 border-t border-gray-200 mt-2">
                           Totale pagato: <strong className="font-medium text-gray-700">{eur(c.totalPaid)}</strong>
                         </p>
                       </div>
@@ -468,7 +539,12 @@ export default function FinanceDashboard() {
                           </div>
                           <span className="text-sm font-semibold shrink-0">{l.payment.amount.toFixed(2)} €</span>
                           <PaymentPill p={l.payment} />
-                          {!l.payment.refunded && l.payment.paid && (
+                          {l.payment.manual && (
+                            <button onClick={() => deleteManual(l.payment)} className="text-xs text-gray-400 hover:text-red-600 shrink-0">
+                              Elimina
+                            </button>
+                          )}
+                          {!l.payment.manual && !l.payment.refunded && l.payment.paid && (
                             <button
                               onClick={() => handleRefund(l.payment)}
                               disabled={refundingId === l.payment.id}
