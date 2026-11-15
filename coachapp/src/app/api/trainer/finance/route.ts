@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 async function requireTrainerContext() {
   const supabase = createClient();
@@ -89,6 +90,36 @@ export async function GET() {
       stripeError = true;
       console.error("Errore lista pagamenti Stripe (finanza):", err);
     }
+  }
+
+  // Pagamenti ricevuti di persona (tabella manual_payments): entrano nello
+  // storico e nei totali come pagamenti riusciti.
+  try {
+    const admin = createAdminClient();
+    const { data: manual } = await admin
+      .from("manual_payments")
+      .select("id, client_id, amount, paid_at, note")
+      .eq("trainer_id", profile.id);
+    const nameById = new Map(rows.map((c) => [c.id, c.profiles?.full_name || "Cliente"]));
+    for (const m of manual || []) {
+      if (!nameById.has(m.client_id)) continue;
+      payments.push({
+        id: `manual_${m.id}`,
+        manualId: m.id,
+        manual: true,
+        clientId: m.client_id,
+        clientName: nameById.get(m.client_id),
+        amount: Number(m.amount),
+        currency: "eur",
+        created: new Date(`${m.paid_at}T12:00:00`).getTime(),
+        paid: true,
+        refunded: false,
+        amountRefunded: 0,
+        description: m.note ? `A mano - ${m.note}` : "A mano",
+      });
+    }
+  } catch (err) {
+    console.error("Errore lettura pagamenti a mano:", err);
   }
 
   // Totali per cliente: incassato netto (pagato meno rimborsi), numero di
