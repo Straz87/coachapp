@@ -8,7 +8,7 @@ import WorkoutEditorPanel, { WorkoutDraft } from "@/components/WorkoutEditorPane
 import ShareInviteButton from "@/components/ShareInviteButton";
 import ClientChatButton from "@/components/ClientChatButton";
 import ClientSettingsButton from "@/components/ClientSettingsButton";
-import { Block, ClientScores, getBlockScores, readClientScoreEntry, displayScoreValue, htmlToLines } from "@/lib/workoutTypes";
+import { Block, ClientScores, getBlockScores, readBlockNote, readClientScoreEntry, displayScoreValue, htmlToLines } from "@/lib/workoutTypes";
 import {
   IconLibrary,
   IconEdit,
@@ -30,6 +30,7 @@ type Assignment = {
   activity_type: string | null;
   client_scores: ClientScores;
   fatigue?: number | null;
+  completed_at?: string | null;
 };
 
 type DayInfo = { date: Date; iso: string; label: string; dayNumber: number; month: number };
@@ -875,6 +876,14 @@ export default function WeekCalendar({
                                   </div>
                                 );
                               })}
+                              {(() => {
+                                const note = readBlockNote(a.client_scores, bi);
+                                return note ? (
+                                  <p className="mt-1 text-[11px] text-gray-700 bg-gray-100 rounded px-2 py-1">
+                                    💬 {note}
+                                  </p>
+                                ) : null;
+                              })()}
                             </div>
                           );
                         })}
@@ -882,6 +891,9 @@ export default function WeekCalendar({
                       {a.completed && (
                         <span className="text-green-600 text-xs mt-2 block">
                           ✓ Completato dal cliente
+                          {a.completed_at
+                            ? ` il ${new Date(a.completed_at).toLocaleDateString("it-IT", { day: "numeric", month: "short" })} alle ${new Date(a.completed_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
+                            : ""}
                           {a.fatigue ? ` · fatica ${a.fatigue}/10` : ""}
                         </span>
                       )}
