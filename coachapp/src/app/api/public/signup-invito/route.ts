@@ -19,6 +19,7 @@ export async function POST(request: Request) {
   const fullName = (body?.fullName || "").trim();
   const email = (body?.email || "").trim().toLowerCase();
   const password = body?.password || "";
+  const plan = body?.plan === "unico" ? "unico" : "mensile";
 
   if (!token || !fullName || !email || !password) {
     return NextResponse.json({ error: "Compila tutti i campi" }, { status: 400 });
@@ -131,6 +132,21 @@ export async function POST(request: Request) {
     client = { id: createdClient.id };
   }
 
+  // Scelta del cliente: pagamento unico offerto dal trainer
+  const offerTotal = Number(invite.one_shot_total) || 0;
+  const offerMonths = Number(invite.one_shot_months) || 0;
+  const chosenOneShot = plan === "unico" && offerTotal > 0 && offerMonths > 0;
+  const isManual = String(invite.billing_note || "").startsWith("Pagamento a mano");
+  if (chosenOneShot) {
+    await admin
+      .from("clients")
+      .update({
+        price: Math.round((offerTotal / offerMonths) * 100) / 100,
+        billing_note: `${isManual ? "Pagamento a mano - " : ""}Pagamento unico ${offerMonths} mesi`,
+      })
+      .eq("id", client.id);
+  }
+
   await admin
     .from("client_invites")
     .update({ used_at: new Date().toISOString(), client_id: client.id })
@@ -143,8 +159,9 @@ export async function POST(request: Request) {
 
   const oneShotMatch = String(invite.billing_note || "").match(/Pagamento unico (\d+) mesi/);
 
-  if (oneShotMatch) {
-    const months = Number(oneShotMatch[1]);
+  if (oneShotMatch || chosenOneShot) {
+    const months = chosenOneShot ? offerMonths : Number(oneShotMatch![1]);
+    const totalAmount = chosenOneShot ? offerTotal : Number(invite.price);
     try {
       const stripe = getStripe();
       const origin = new URL(request.url).origin;
@@ -157,7 +174,7 @@ export async function POST(request: Request) {
             quantity: 1,
             price_data: {
               currency: "eur",
-              unit_amount: Math.round(Number(invite.price) * 100),
+              unit_amount: Math.round(totalAmount * 100),
               product_data: { name: `Coaching ${months} mesi - ${fullName}` },
             },
           },
