@@ -13,6 +13,9 @@ import { sendPushToProfile } from "@/lib/push";
 // iscrive parte sempre dal giorno 1, al proprio ritmo). In tutti i casi
 // prezzo e prova gratuita arrivano dalla sorgente giusta e il follower
 // entra subito, senza che il trainer debba fare nulla.
+//
+// Gruppi e programmi possono offrire anche il "pagamento unico" (totale per
+// N mesi): il follower sceglie con "plan" ("mensile" | "unico").
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const trainerId = body?.trainerId;
@@ -21,6 +24,7 @@ export async function POST(request: Request) {
   const fullName = (body?.fullName || "").trim();
   const email = (body?.email || "").trim().toLowerCase();
   const password = body?.password || "";
+  const plan = body?.plan === "unico" ? "unico" : "mensile";
 
   if (!trainerId || !fullName || !email || !password) {
     return NextResponse.json({ error: "Compila tutti i campi" }, { status: 400 });
@@ -38,6 +42,8 @@ export async function POST(request: Request) {
   let groupName: string | null = null;
   let joinProgramId: string | null = null;
   let programName: string | null = null;
+  let offerTotal = 0;
+  let offerMonths = 0;
 
   if (programId) {
     const { data: program } = await admin
@@ -56,6 +62,8 @@ export async function POST(request: Request) {
     couponId = program.coupon_id || null;
     joinProgramId = program.id;
     programName = program.name;
+    offerTotal = Number(program.one_shot_total) || 0;
+    offerMonths = Number(program.one_shot_months) || 0;
   } else if (groupId) {
     const { data: group } = await admin
       .from("workout_groups")
@@ -73,6 +81,8 @@ export async function POST(request: Request) {
     couponId = group.coupon_id || null;
     joinGroupId = group.id;
     groupName = group.name;
+    offerTotal = Number(group.one_shot_total) || 0;
+    offerMonths = Number(group.one_shot_months) || 0;
   } else {
     const { data: link } = await admin
       .from("public_signup_links")
@@ -89,6 +99,8 @@ export async function POST(request: Request) {
     couponId = link.coupon_id || null;
     joinGroupId = link.group_id || null;
   }
+
+  const chosenOneShot = plan === "unico" && offerTotal > 0 && offerMonths > 0;
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email,
@@ -117,18 +129,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: profileError.message }, { status: 400 });
   }
 
-  // Lo status parte da "in_attesa_pagamento" e non da "attivo": prima
-  // d'ora il cliente risultava già attivo nella lista del trainer anche
-  // se il checkout Stripe falliva o veniva abbandonato, creando account
-  // fantasma senza alcun pagamento reale. Sarà il webhook Stripe
-  // (checkout.session.completed) a portarlo ad "attivo" solo quando il
-  // pagamento (o l'avvio di un trial con carta) è confermato.
+  // Lo status parte da "in_attesa_pagamento" e non da "attivo": il cliente
+  // resta bloccato (vedi app/cliente/layout.tsx) finché il webhook Stripe
+  // (checkout.session.completed) non conferma il pagamento.
   const { data: client, error: clientError } = await admin
     .from("clients")
     .insert({
       profile_id: newUserId,
       trainer_id: trainerId,
-      price,
+      price: chosenOneShot ? Math.round((offerTotal / offerMonths) * 100) / 100 : price,
+      ...(chosenOneShot ? { billing_note: `Pagamento unico ${offerMonths} mesi` } : {}),
       status: "in_attesa_pagamento",
     })
     .select()
@@ -142,9 +152,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // Avvisa il trainer che un follower si è appena iscritto da solo, cosi
-  // non se ne accorge solo controllando a mano la lista clienti. Non
-  // blocchiamo l'iscrizione se questo fallisce.
+  // Avvisa il trainer che un follower si è appena iscritto da solo.
   try {
     await admin.from("notifications").insert({
       trainer_id: trainerId,
@@ -162,10 +170,6 @@ export async function POST(request: Request) {
     console.error("Errore notifica nuovo iscritto:", err);
   }
 
-  // Se il link è collegato a un gruppo (es. "CF Training"), il follower ci
-  // entra subito e vede il programma senza che il trainer debba fare nulla.
-  // Non blocchiamo l'iscrizione se questo fallisce: il trainer può sempre
-  // aggiungerlo a mano dalla pagina Gruppi.
   if (joinGroupId) {
     await admin.from("group_members").insert({
       group_id: joinGroupId,
@@ -173,8 +177,6 @@ export async function POST(request: Request) {
     });
   }
 
-  // Se il link è collegato a un programma a durata fissa, il follower parte
-  // subito dal giorno 1 del suo percorso personale.
   if (joinProgramId) {
     await admin.from("program_members").insert({
       program_id: joinProgramId,
@@ -198,6 +200,36 @@ export async function POST(request: Request) {
       ? `${groupName} - ${fullName}`
       : `Coaching mensile - ${fullName}`;
 
+    const metadata = {
+      client_id: client.id,
+      trainer_id: trainerId,
+      group_id: joinGroupId || "",
+      program_id: joinProgramId || "",
+    };
+
+    if (chosenOneShot) {
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        customer_email: email,
+        customer_creation: "always",
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: "eur",
+              unit_amount: Math.round(offerTotal * 100),
+              product_data: { name: `${productName} (${offerMonths} mesi)` },
+            },
+          },
+        ],
+        metadata: { ...metadata, months: String(offerMonths), kind: "unico" },
+        allow_promotion_codes: true,
+        success_url: `${origin}${basePath}?ok=1`,
+        cancel_url: `${origin}${basePath}?annullato=1`,
+      });
+      return NextResponse.json({ url: session.url });
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer_email: email,
@@ -214,37 +246,17 @@ export async function POST(request: Request) {
           },
         },
       ],
-      metadata: {
-        client_id: client.id,
-        trainer_id: trainerId,
-        group_id: joinGroupId || "",
-        program_id: joinProgramId || "",
-      },
+      metadata,
       subscription_data: {
-        metadata: {
-          client_id: client.id,
-          trainer_id: trainerId,
-          group_id: joinGroupId || "",
-          program_id: joinProgramId || "",
-        },
+        metadata,
         ...(trialDays && trialDays > 0 ? { trial_period_days: trialDays } : {}),
       },
-      // Se il trainer ha già scelto lui uno sconto specifico per questo
-      // link (coupon_id salvato su link/gruppo/programma), lo applichiamo
-      // in automatico e non mostriamo il campo codice (Stripe non
-      // permette di combinare le due cose sulla stessa sessione).
-      // Altrimenti lasciamo che sia chi si iscrive a inserire da solo un
-      // eventuale codice tra quelli creati in "Sconti e coupon".
+      // Se il trainer ha scelto uno sconto per questo link lo applichiamo in
+      // automatico; altrimenti chi si iscrive può inserire un codice.
       ...(couponId
         ? { discounts: [{ coupon: couponId }] }
         : { allow_promotion_codes: true }),
-      // Qui chiediamo SEMPRE la carta, anche se un coupon azzera il
-      // totale dovuto oggi: se in futuro lo sconto scade o il trainer
-      // sposta il cliente su un piano a pagamento, deve poter addebitare
-      // subito senza dover rincorrere il cliente per i dati della carta.
-      // Il salto della richiesta carta resta riservato solo ai link
-      // one-to-one generati a mano dal trainer per i clienti che decide
-      // lui di comprare di persona (vedi trainer/stripe/checkout-link).
+      // Chiediamo SEMPRE la carta, anche se un coupon azzera il totale.
       success_url: `${origin}${basePath}?ok=1`,
       cancel_url: `${origin}${basePath}?annullato=1`,
     });
@@ -252,9 +264,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
     console.error("Errore checkout pubblico Stripe:", err);
-    // Il cliente resta comunque creato (in attesa di pagamento): il
-    // trainer lo ritrova nella lista clienti e può generare un link di
-    // pagamento a mano dalla sua scheda.
     return NextResponse.json(
       { error: "Errore nel collegamento al pagamento: " + (err?.message || "sconosciuto") },
       { status: 500 }
