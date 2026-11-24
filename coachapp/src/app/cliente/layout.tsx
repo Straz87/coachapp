@@ -36,13 +36,13 @@ export default async function ClienteLayout({ children }: { children: React.Reac
   // non va a buon fine, dopo GRACE_DAYS giorni l'accesso si chiude (senza
   // aspettare i tentativi di Stripe). Appena il pagamento riesce, il webhook
   // sposta la scadenza al mese dopo e l'accesso torna da solo.
-  const GRACE_DAYS = 3;
+  const GRACE_DAYS = 1;
   const stripeOverdue =
     !!client &&
     client.status === "attivo" &&
     !!client.payment_managed_by_stripe &&
     !!client.expiry_date &&
-    new Date(`${client.expiry_date}T00:00:00`).getTime() + (GRACE_DAYS + 1) * 86400000 < Date.now();
+    new Date(`${client.expiry_date}T00:00:00`).getTime() + GRACE_DAYS * 86400000 < Date.now();
 
   const blocked = oneShotExpired || stripeOverdue || (client?.status && BLOCKED_STATUSES.includes(client.status));
 
