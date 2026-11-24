@@ -5,8 +5,9 @@ import Link from "next/link";
 // Pagina pubblica del link di un singolo gruppo (es. "CF Training"):
 // chi si iscrive da qui entra subito in quel gruppo, con il prezzo e la
 // prova gratuita impostati per quel gruppo specifico (indipendenti dal
-// link generico del trainer). Letta con il client admin perché va vista
-// da chiunque, anche senza sessione Supabase.
+// link generico del trainer). Se il trainer ha attivato anche il pagamento
+// unico, chi si iscrive sceglie tra mensile e un'unica soluzione. Letta con
+// il client admin perché va vista da chiunque, anche senza sessione Supabase.
 export default async function IscrivitiGruppoPage({
   params,
   searchParams,
@@ -14,11 +15,6 @@ export default async function IscrivitiGruppoPage({
   params: { trainerId: string; groupId: string };
   searchParams: { ok?: string; annullato?: string };
 }) {
-  // Dopo il pagamento Stripe torna qui con ?ok=1: prima mostravamo di nuovo
-  // il form di iscrizione, il che confondeva chi si era appena iscritto e
-  // lo portava a compilarlo una seconda volta, ottenendo un errore
-  // "account già esistente". Ora mostriamo una conferma chiara con un
-  // link diretto al login.
   if (searchParams.ok) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
@@ -48,7 +44,7 @@ export default async function IscrivitiGruppoPage({
 
   const { data: group } = await admin
     .from("workout_groups")
-    .select("id, name, public, price, trial_days")
+    .select("*")
     .eq("id", params.groupId)
     .eq("trainer_id", params.trainerId)
     .eq("public", true)
@@ -65,21 +61,24 @@ export default async function IscrivitiGruppoPage({
   }
 
   const isFree = Number(group.price) <= 0;
+  type Plan =
+    | { id: "mensile"; price: number; trialDays: number }
+    | { id: "unico"; total: number; months: number };
+  const plans: Plan[] = [];
+  if (!isFree) plans.push({ id: "mensile", price: Number(group.price), trialDays: Number(group.trial_days) || 0 });
+  if (Number(group.one_shot_total) > 0 && Number(group.one_shot_months) > 0) {
+    plans.push({ id: "unico", total: Number(group.one_shot_total), months: Number(group.one_shot_months) });
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-6">
-          <p className="text-3xl mb-1">💪</p>
-          <h1 className="text-xl font-bold">{group.name}</h1>
+        <div className="mb-5">
+          <p className="text-xs tracking-widest text-gray-400 mb-1">HYBRIDMETHOD</p>
+          <h1 className="text-2xl font-bold leading-tight">{group.name}</h1>
           <p className="text-gray-500 text-sm mt-1">con {trainer.full_name}</p>
-          <p className="text-gray-500 text-sm mt-1">
-            {isFree
-              ? "Gratuito"
-              : `${group.trial_days > 0 ? `${group.trial_days} giorni di prova gratuita, poi ` : ""}${
-                  group.price
-                }€/mese`}
-          </p>
+          {group.description && <p className="text-gray-600 text-sm mt-3">{group.description}</p>}
+          {plans.length === 0 && <p className="text-gray-500 text-sm mt-2">Gratuito</p>}
         </div>
         {searchParams.annullato && (
           <p className="text-sm text-amber-600 text-center mb-4">
@@ -87,7 +86,7 @@ export default async function IscrivitiGruppoPage({
             riprova qui sotto.
           </p>
         )}
-        <PublicSignupForm trainerId={params.trainerId} groupId={group.id} />
+        <PublicSignupForm trainerId={params.trainerId} groupId={group.id} plans={plans} />
       </div>
     </div>
   );
