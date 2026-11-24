@@ -25,6 +25,11 @@ export async function POST(request: Request) {
   // Pagamento unico: "price" e' il TOTALE da pagare in un'unica soluzione per
   // "months" mesi di coaching (es. 150 € per 3 mesi). Il prezzo mensile del
   // cliente diventa totale/mesi.
+  // Offerta "pagamento unico" (facoltativa): il cliente sceglie lui tra
+  // abbonamento mensile e pagamento unico dalla pagina di iscrizione.
+  const offerTotal = body?.oneShotTotal ? Number(body.oneShotTotal) : 0;
+  const offerMonths = body?.oneShotMonths ? Math.round(Number(body.oneShotMonths)) : 0;
+  const hasOffer = offerTotal > 0 && offerMonths > 0;
   const oneShot = !!body?.oneShot;
   const months = oneShot ? Math.max(1, Math.round(Number(body?.months) || 0)) : 0;
   if (oneShot && (!months || !price || price <= 0)) {
@@ -40,7 +45,7 @@ export async function POST(request: Request) {
   }
   const fullName = (body?.fullName || "").trim();
 
-  if (!manual && (!price || price <= 0)) {
+  if (!manual && !hasOffer && (!price || price <= 0)) {
     return NextResponse.json(
       { error: "Imposta un prezzo mensile per generare il link." },
       { status: 400 }
@@ -83,7 +88,7 @@ export async function POST(request: Request) {
       .insert({
         profile_id: newUserId,
         trainer_id: trainerProfile.id,
-        price: oneShot && price ? Math.round((price / months) * 100) / 100 : price || null,
+        price: oneShot && price ? Math.round((price / months) * 100) / 100 : price || 0,
         billing_note: billingNote,
         status: "sospeso",
       })
@@ -106,6 +111,7 @@ export async function POST(request: Request) {
     billing_note: billingNote,
     token,
     ...(clientId ? { client_id: clientId } : {}),
+    ...(hasOffer ? { one_shot_total: offerTotal, one_shot_months: offerMonths } : {}),
   });
 
   if (error) {
