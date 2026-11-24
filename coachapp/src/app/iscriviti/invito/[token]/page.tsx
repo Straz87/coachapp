@@ -1,11 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import InviteSignupForm from "@/components/InviteSignupForm";
 
-// Pagina pubblica (nessun login richiesto): il link personale che il
-// trainer genera dalla schermata "Nuovo cliente" per UN cliente
-// specifico, con il prezzo già impostato da lui. Il cliente apre il
-// link e inserisce solo nome, email e password: il trainer non deve
-// più digitare l'email altrui per creare l'account.
+// Pagina pubblica (nessun login richiesto): il link personale che il trainer
+// genera da "Nuovo cliente" per UN cliente. Il cliente sceglie il piano
+// offerto (mensile e/o pagamento unico) e crea il suo account.
 export default async function InvitoPage({
   params,
   searchParams,
@@ -45,27 +43,62 @@ export default async function InvitoPage({
     );
   }
 
-  const trainerName = (invite as any).profiles?.full_name || "il tuo trainer";
-  const isFree = !invite.price || Number(invite.price) <= 0;
+  const trainerName = (invite as any).profiles?.full_name || "il tuo coach";
+
+  // Nome del cliente (il trainer lo ha inserito creando il link)
+  let clientName = "";
+  if (invite.client_id) {
+    const { data: c } = await admin
+      .from("clients")
+      .select("profiles:profile_id(full_name)")
+      .eq("id", invite.client_id)
+      .maybeSingle();
+    clientName = (c as any)?.profiles?.full_name || "";
+  }
+  const firstName = clientName.split(" ")[0];
+
+  const note = String(invite.billing_note || "");
+  const manual = note.startsWith("Pagamento a mano");
+  const legacy = note.match(/Pagamento unico (\d+) mesi/);
+
+  type Plan =
+    | { id: "mensile"; price: number; trialDays: number }
+    | { id: "unico"; total: number; months: number };
+  const plans: Plan[] = [];
+  if (legacy) {
+    plans.push({ id: "unico", total: Number(invite.price), months: Number(legacy[1]) });
+  } else {
+    if (Number(invite.price) > 0) {
+      plans.push({ id: "mensile", price: Number(invite.price), trialDays: Number(invite.trial_days) || 0 });
+    }
+    if (Number(invite.one_shot_total) > 0 && Number(invite.one_shot_months) > 0) {
+      plans.push({ id: "unico", total: Number(invite.one_shot_total), months: Number(invite.one_shot_months) });
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-6">
-          <p className="text-3xl mb-1">💪</p>
-          <h1 className="text-xl font-bold">{trainerName}</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            {isFree
-              ? "Gratis"
-              : `${invite.trial_days > 0 ? `${invite.trial_days} giorni di prova gratuita, poi ` : ""}${invite.price}€/mese`}
+        <div className="mb-5">
+          <p className="text-xs tracking-widest text-gray-400 mb-1">HYBRIDMETHOD</p>
+          <h1 className="text-2xl font-bold leading-tight">
+            {firstName ? `Ciao ${firstName}, il tuo percorso è pronto` : "Il tuo percorso è pronto"}
+          </h1>
+          <p className="text-gray-500 text-sm mt-2">
+            {trainerName} ha preparato per te un programma personalizzato. Crea l&apos;account per iniziare.
           </p>
+          <ul className="mt-4 space-y-1.5 text-sm text-gray-700">
+            <li>🏋️ Programma di allenamento personalizzato</li>
+            <li>💬 Chat diretta con il tuo coach</li>
+            <li>📈 Pesi, feedback e progressi sempre tracciati</li>
+          </ul>
         </div>
         {searchParams.annullato && (
           <p className="text-sm text-amber-600 text-center mb-4">
             Pagamento annullato. Puoi riprovare quando vuoi.
           </p>
         )}
-        <InviteSignupForm token={params.token} isFree={isFree} />
+        <InviteSignupForm token={params.token} plans={plans} manual={manual} defaultName={clientName} />
       </div>
     </div>
   );
