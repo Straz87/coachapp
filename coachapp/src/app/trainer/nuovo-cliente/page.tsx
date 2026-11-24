@@ -20,6 +20,7 @@ export default function NuovoClientePage() {
   const [manualPay, setManualPay] = useState(false);
   const [oneShot, setOneShot] = useState(false);
   const [months, setMonths] = useState("3");
+  const [oneShotTotal, setOneShotTotal] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
@@ -52,8 +53,8 @@ export default function NuovoClientePage() {
         trialDays: inviteForm.trialDays ? Number(inviteForm.trialDays) : null,
         billingNote: inviteForm.billing_note || null,
         manualPayment: manualPay,
-        oneShot,
-        months: oneShot ? Number(months) : null,
+        oneShotTotal: oneShot ? Number(oneShotTotal) : null,
+        oneShotMonths: oneShot ? Number(months) : null,
       }),
     });
 
@@ -227,10 +228,10 @@ export default function NuovoClientePage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium">{oneShot ? "Totale (€)" : "Prezzo (€/mese)"}</label>
+              <label className="text-sm font-medium">Prezzo (€/mese)</label>
               <input
                 type="number"
-                required={!manualPay}
+                required={!manualPay && !oneShot}
                 className="input mt-1"
                 value={inviteForm.price}
                 onChange={(e) => setInviteForm({ ...inviteForm, price: e.target.value })}
@@ -258,15 +259,19 @@ export default function NuovoClientePage() {
 
           <label className="flex items-start gap-2 text-sm bg-gray-50 rounded-lg p-3">
             <input type="checkbox" className="mt-1" checked={oneShot} onChange={(e) => setOneShot(e.target.checked)} />
-            <span>
-              <b>Pagamento unico</b> (un'unica soluzione)
+            <span className="flex-1">
+              <b>Offri anche il pagamento unico</b>
+              <span className="block text-gray-500 text-xs">
+                Il cliente sceglie lui: abbonamento mensile oppure un'unica soluzione.
+              </span>
               {oneShot && (
-                <span className="flex items-center gap-2 mt-2">
+                <span className="flex items-center gap-2 mt-2 flex-wrap">
+                  <input type="number" min={1} className="input w-24" placeholder="Totale €" value={oneShotTotal} onChange={(e) => setOneShotTotal(e.target.value)} />
                   <span className="text-gray-600">per</span>
                   <input type="number" min={1} className="input w-20" value={months} onChange={(e) => setMonths(e.target.value)} />
                   <span className="text-gray-600">mesi</span>
-                  {Number(months) > 0 && Number(inviteForm.price) > 0 && (
-                    <span className="text-gray-500 text-xs">= {(Number(inviteForm.price) / Number(months)).toFixed(2)} €/mese</span>
+                  {Number(months) > 0 && Number(oneShotTotal) > 0 && (
+                    <span className="text-gray-500 text-xs">= {(Number(oneShotTotal) / Number(months)).toFixed(2)} €/mese</span>
                   )}
                 </span>
               )}
