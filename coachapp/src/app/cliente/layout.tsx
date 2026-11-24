@@ -20,7 +20,7 @@ export default async function ClienteLayout({ children }: { children: React.Reac
 
   const { data: client } = await supabase
     .from("clients")
-    .select("status, billing_note, stripe_subscription_id, last_payment_at, expiry_date, payment_managed_by_stripe")
+    .select("status, billing_note, stripe_subscription_id, last_payment_at, expiry_date, payment_managed_by_stripe, price")
     .eq("profile_id", profile.id)
     .maybeSingle();
 
@@ -41,6 +41,7 @@ export default async function ClienteLayout({ children }: { children: React.Reac
     !!client &&
     client.status === "attivo" &&
     !!client.payment_managed_by_stripe &&
+    Number(client.price) > 0 &&
     !!client.expiry_date &&
     new Date(`${client.expiry_date}T00:00:00`).getTime() + GRACE_DAYS * 86400000 < Date.now();
 
